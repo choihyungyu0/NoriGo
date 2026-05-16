@@ -1,17 +1,31 @@
-# norigo
+# NoriGo
 
-A new Flutter project.
+NoriGo is a crowd-aware and culture-aware AI travel assistant for foreign tourists visiting Korea.
 
-## Getting Started
+This prototype includes:
 
-This project is a starting point for a Flutter application.
+- English-first onboarding for trip basics, interests, alerts, queue help, and food needs.
+- Bottom-tab travel experience: Home, Itinerary, Scan, Discover, and My.
+- Crowd alert flow that explains hidden app-based queue risk.
+- Camera-style culture scan mock with Korean context and etiquette guidance.
+- Hidden spot discovery with low-crowd, local-ratio, and diversity-score signals.
+- Public organization dashboard placeholder using aggregate-only metrics.
+- Mock-first repository boundaries for future Supabase tables and public data APIs.
+- AI prompt, context, client, validation, and fallback harness structure.
 
-A few resources to get you started if this is your first Flutter project:
+No Supabase, OAuth, public data, camera, map, or AI credentials are hardcoded. The app uses deterministic mock repositories until real configuration exists.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run
+```
+
+## Verify
+
+```bash
+dart format .
+flutter analyze
+flutter test
+```

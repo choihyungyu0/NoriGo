@@ -1,30 +1,42 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:norigo/main.dart';
+import 'package:norigo/app/app.dart';
+import 'package:norigo/app/theme.dart';
+import 'package:norigo/features/home/home_shell.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('splash routes to login screen', (tester) async {
+    await tester.pumpWidget(const NoriGoApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('NoriGo'), findsOneWidget);
+    expect(find.text('Travel smart, feel local.'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 950));
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(
+      find.text('Avoid crowds + understand culture in one app.'),
+      findsOneWidget,
+    );
+    expect(find.text('Log in or sign up'), findsOneWidget);
+  });
+
+  testWidgets('home shell shows consistent bottom tabs', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: NoriGoTheme.light(), home: const HomeShell()),
+    );
+
+    expect(find.text('Hi, Emma!'), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Itinerary'), findsOneWidget);
+    expect(find.text('Scan'), findsOneWidget);
+    expect(find.text('Discover'), findsOneWidget);
+    expect(find.text('My'), findsOneWidget);
+
+    await tester.tap(find.text('Scan'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Culture scan'), findsOneWidget);
+    expect(find.text('Bulguksa'), findsOneWidget);
   });
 }
