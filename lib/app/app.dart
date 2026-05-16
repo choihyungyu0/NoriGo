@@ -11,7 +11,7 @@ class NoriGoApp extends StatelessWidget {
       title: 'NoriGo',
       debugShowCheckedModeBanner: false,
       theme: NoriGoTheme.light(),
-      initialRoute: AppRoutes.splash,
+      initialRoute: AppRoutes.cultureScan,
       routes: AppRouter.routes,
     );
   }

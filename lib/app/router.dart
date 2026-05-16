@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:norigo/features/auth/login_screen.dart';
 import 'package:norigo/features/crowd_alert/crowd_alert_screen.dart';
+import 'package:norigo/features/culture_scan/presentation/culture_scan_screen.dart';
 import 'package:norigo/features/dashboard/public_dashboard_screen.dart';
 import 'package:norigo/features/home/home_shell.dart';
 import 'package:norigo/features/onboarding/interests_alerts_screen.dart';
@@ -15,6 +16,7 @@ class AppRoutes {
   static const tripBasics = '/onboarding/trip-basics';
   static const interestsAlerts = '/onboarding/interests-alerts';
   static const home = '/home';
+  static const cultureScan = '/culture-scan';
   static const crowdAlert = '/crowd-alert';
   static const dashboard = '/dashboard';
 }
@@ -29,6 +31,7 @@ class AppRouter {
       AppRoutes.tripBasics: (_) => const TripBasicsScreen(),
       AppRoutes.interestsAlerts: (_) => const InterestsAlertsScreen(),
       AppRoutes.home: (_) => const HomeShell(),
+      AppRoutes.cultureScan: (_) => const CultureScanScreen(),
       AppRoutes.crowdAlert: (_) => const CrowdAlertScreen(),
       AppRoutes.dashboard: (_) => const PublicDashboardScreen(),
     };

@@ -5,6 +5,9 @@ class NoriGoColors {
 
   static const ink = Color(0xFF183044);
   static const softInk = Color(0xFF4D667A);
+  static const purple = Color(0xFF6A00FF);
+  static const lime = Color(0xFFCCFF00);
+  static const blue = Color(0xFF007BFF);
   static const sea = Color(0xFF157A86);
   static const mint = Color(0xFFDAF1EE);
   static const coral = Color(0xFFE76F51);
