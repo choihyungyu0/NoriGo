@@ -60,8 +60,11 @@ class DeviceCultureCameraService implements CultureCameraService {
   }
 
   String _friendlyCameraMessage(String code) {
-    if (code.toLowerCase().contains('access')) {
-      return 'Camera permission was not granted. You can still try the mock culture scan.';
+    final normalizedCode = code.toLowerCase();
+    if (normalizedCode.contains('access') ||
+        normalizedCode.contains('permission') ||
+        normalizedCode.contains('denied')) {
+      return 'Camera permission was not granted. Allow camera access in your browser to see the preview.';
     }
     return 'Camera preview is unavailable here. NoriGo is showing a safe preview background.';
   }

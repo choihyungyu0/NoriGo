@@ -34,6 +34,7 @@ class CultureScanController extends ChangeNotifier {
   String _selectedLanguage = 'English';
   String? _friendlyMessage;
   bool _flashEnabled = false;
+  bool _disposed = false;
 
   CultureCameraStatus get cameraStatus => _cameraStatus;
 
@@ -52,28 +53,51 @@ class CultureScanController extends ChangeNotifier {
   bool get hasCameraPreview => _cameraSession?.hasPreview ?? false;
 
   Future<void> initializeCamera() async {
+    if (_disposed) return;
+
     _cameraStatus = CultureCameraStatus.loading;
     _friendlyMessage = null;
-    notifyListeners();
+    _safeNotifyListeners();
 
-    final session = await _cameraService.initialize();
-    _cameraSession = session;
-    _cameraStatus = session.hasPreview
-        ? CultureCameraStatus.ready
-        : CultureCameraStatus.unavailable;
-    _friendlyMessage = session.unavailableMessage;
-    notifyListeners();
+    try {
+      final session = await _cameraService.initialize();
+      if (_disposed) {
+        await session.dispose();
+        return;
+      }
+
+      _cameraSession = session;
+      _cameraStatus = session.hasPreview
+          ? CultureCameraStatus.ready
+          : CultureCameraStatus.unavailable;
+      _friendlyMessage = session.unavailableMessage;
+      _safeNotifyListeners();
+    } catch (error) {
+      if (_disposed) return;
+      developer.log(
+        'Camera initialization failed.',
+        name: 'CultureScanController',
+        error: error.runtimeType,
+      );
+      _cameraStatus = CultureCameraStatus.unavailable;
+      _friendlyMessage =
+          'Camera preview is unavailable here. NoriGo is showing a safe preview background.';
+      _safeNotifyListeners();
+    }
   }
 
   void updateLanguage(String language) {
+    if (_disposed) return;
     if (language.trim().isEmpty) return;
     _selectedLanguage = language.trim();
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   Future<void> toggleFlash() async {
+    if (_disposed) return;
+
     _flashEnabled = !_flashEnabled;
-    notifyListeners();
+    _safeNotifyListeners();
 
     final controller = cameraController;
     if (controller == null || !controller.value.isInitialized) {
@@ -85,6 +109,7 @@ class CultureScanController extends ChangeNotifier {
         _flashEnabled ? FlashMode.torch : FlashMode.off,
       );
     } catch (error) {
+      if (_disposed) return;
       developer.log(
         'Flash mode unavailable.',
         name: 'CultureScanController',
@@ -92,14 +117,16 @@ class CultureScanController extends ChangeNotifier {
       );
       _flashEnabled = false;
       _friendlyMessage = 'Flash is unavailable on this device.';
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
   Future<void> scanCulture() async {
+    if (_disposed) return;
+
     _scanStatus = CultureScanStatus.scanning;
     _friendlyMessage = null;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       final context = CultureScanContext(
@@ -110,9 +137,13 @@ class CultureScanController extends ChangeNotifier {
         userIntent: _baseContext.userIntent,
         outputSections: _baseContext.outputSections,
       );
-      _guide = await _harness.generateGuide(context);
+      final guide = await _harness.generateGuide(context);
+      if (_disposed) return;
+
+      _guide = guide;
       _scanStatus = CultureScanStatus.result;
     } catch (error) {
+      if (_disposed) return;
       developer.log(
         'Culture scan failed.',
         name: 'CultureScanController',
@@ -124,12 +155,21 @@ class CultureScanController extends ChangeNotifier {
           'NoriGo could not complete the scan, so it is showing a safe guide.';
     }
 
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   @override
   void dispose() {
-    _cameraSession?.dispose();
+    _disposed = true;
+    final session = _cameraSession;
+    _cameraSession = null;
+    session?.dispose();
     super.dispose();
+  }
+
+  void _safeNotifyListeners() {
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 }

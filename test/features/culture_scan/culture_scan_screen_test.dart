@@ -25,6 +25,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('AI Culture Guide'), findsOneWidget);
+    expect(
+      find.text('Tap Scan Culture to learn the meaning behind this place.'),
+      findsOneWidget,
+    );
     expect(find.text('Scan Culture'), findsOneWidget);
 
     await tester.tap(find.byType(FilledButton).first);
@@ -42,6 +46,7 @@ void main() {
     expect(find.text('Each stone carries a wish.'), findsOneWidget);
     expect(find.text('Etiquette'), findsOneWidget);
 
+    await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
   });
 }

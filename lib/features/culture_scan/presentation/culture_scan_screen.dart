@@ -432,7 +432,7 @@ class _GuideResultCard extends StatelessWidget {
             Text(
               hasResult
                   ? guide.description
-                  : 'Point the camera at a cultural sign, object, or behavior, then tap Scan Culture.',
+                  : 'Tap Scan Culture to learn the meaning behind this place.',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
         ],

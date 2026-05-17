@@ -33,6 +33,45 @@ void main() {
       controller.dispose();
     },
   );
+
+  test(
+    'CultureScanController ignores camera completion after dispose',
+    () async {
+      final controller = CultureScanController(
+        cameraService: const _DelayedUnavailableCameraService(),
+        harness: const CultureGuideHarness(client: MockAiClient()),
+      );
+      var notifications = 0;
+      controller.addListener(() => notifications++);
+
+      final initializeFuture = controller.initializeCamera();
+      expect(controller.cameraStatus, CultureCameraStatus.loading);
+      expect(notifications, 1);
+
+      controller.dispose();
+      await initializeFuture;
+
+      expect(notifications, 1);
+    },
+  );
+
+  test('CultureScanController ignores scan completion after dispose', () async {
+    final controller = CultureScanController(
+      cameraService: const _UnavailableCameraService(),
+      harness: const CultureGuideHarness(client: MockAiClient()),
+    );
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+
+    final scanFuture = controller.scanCulture();
+    expect(controller.scanStatus, CultureScanStatus.scanning);
+    expect(notifications, 1);
+
+    controller.dispose();
+    await scanFuture;
+
+    expect(notifications, 1);
+  });
 }
 
 class _UnavailableCameraService implements CultureCameraService {
@@ -40,6 +79,18 @@ class _UnavailableCameraService implements CultureCameraService {
 
   @override
   Future<CultureCameraSession> initialize() async {
+    return const CultureCameraSession(
+      unavailableMessage: 'Camera preview is unavailable in tests.',
+    );
+  }
+}
+
+class _DelayedUnavailableCameraService implements CultureCameraService {
+  const _DelayedUnavailableCameraService();
+
+  @override
+  Future<CultureCameraSession> initialize() async {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
     return const CultureCameraSession(
       unavailableMessage: 'Camera preview is unavailable in tests.',
     );
