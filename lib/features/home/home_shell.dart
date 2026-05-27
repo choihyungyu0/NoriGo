@@ -26,7 +26,7 @@ class _HomeShellState extends State<HomeShell> {
       HomeScreen(
         onSelectTab: _selectTab,
         onOpenCrowdAlert: () =>
-            Navigator.of(context).pushNamed(AppRoutes.crowdAlert),
+            Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert),
       ),
       const ItineraryScreen(),
       const CultureScanScreen(),

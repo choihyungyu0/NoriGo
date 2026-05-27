@@ -120,6 +120,10 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     );
   }
 
+  void _openCrowdAlertDemo() {
+    Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
+  }
+
   void _handleBottomNavigation(int index) {
     if (index == 1) return;
 
@@ -227,6 +231,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                                 _ItineraryTimeline(
                                   items: plan.items,
                                   scale: scale,
+                                  onCrowdAlertDemo: _openCrowdAlertDemo,
                                 ),
                                 SizedBox(height: 12 * scale),
                                 _RouteSummaryCard(plan: plan, scale: scale),
@@ -613,22 +618,31 @@ class _TimeChipRow extends StatelessWidget {
 }
 
 class _ItineraryTimeline extends StatelessWidget {
-  const _ItineraryTimeline({required this.items, required this.scale});
+  const _ItineraryTimeline({
+    required this.items,
+    required this.scale,
+    required this.onCrowdAlertDemo,
+  });
 
   final List<ItineraryItem> items;
   final double scale;
+  final VoidCallback onCrowdAlertDemo;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: List.generate(items.length, (index) {
+        final item = items[index];
+        final opensCrowdAlert = item.id == 'dessert-cafe';
+
         return Padding(
           padding: EdgeInsets.only(bottom: index == items.length - 1 ? 0 : 10),
           child: _ItineraryCard(
-            item: items[index],
+            item: item,
             isFirst: index == 0,
             isLast: index == items.length - 1,
             scale: scale,
+            onTap: opensCrowdAlert ? onCrowdAlertDemo : null,
           ),
         );
       }),
@@ -642,18 +656,40 @@ class _ItineraryCard extends StatelessWidget {
     required this.isFirst,
     required this.isLast,
     required this.scale,
+    this.onTap,
   });
 
   final ItineraryItem item;
   final bool isFirst;
   final bool isLast;
   final double scale;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 470;
+
+        final card = Container(
+          padding: EdgeInsets.all(10 * scale),
+          decoration: _softCardDecoration(),
+          child: compact
+              ? _CompactItineraryContent(item: item, scale: scale)
+              : _WideItineraryContent(item: item, scale: scale),
+        );
+
+        final cardContent = onTap == null
+            ? card
+            : Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const ValueKey('crowd-alert-demo-dessert-cafe'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: onTap,
+                  child: card,
+                ),
+              );
 
         return Stack(
           children: [
@@ -669,13 +705,7 @@ class _ItineraryCard extends StatelessWidget {
                 ),
               ),
             ),
-            Container(
-              padding: EdgeInsets.all(10 * scale),
-              decoration: _softCardDecoration(),
-              child: compact
-                  ? _CompactItineraryContent(item: item, scale: scale)
-                  : _WideItineraryContent(item: item, scale: scale),
-            ),
+            cardContent,
           ],
         );
       },

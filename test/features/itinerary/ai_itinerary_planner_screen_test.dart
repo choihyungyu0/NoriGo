@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:norigo/app/router.dart';
 import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
 
@@ -54,6 +55,23 @@ void main() {
     expect(find.text('Itinerary saved locally for now.'), findsOneWidget);
   });
 
+  testWidgets('dessert cafe card opens crowd alert demo route', (tester) async {
+    await _pumpPlanner(
+      tester,
+      routes: {
+        AppRoutes.itineraryCrowdAlert: (_) =>
+            const Scaffold(body: Placeholder(key: ValueKey('crowdAlertRoute'))),
+      },
+    );
+
+    final trigger = find.byKey(const ValueKey('crowd-alert-demo-dessert-cafe'));
+    await tester.ensureVisible(trigger);
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('crowdAlertRoute')), findsOneWidget);
+  });
+
   testWidgets('missing header image asset falls back without crashing', (
     tester,
   ) async {
@@ -76,7 +94,11 @@ void main() {
   });
 }
 
-Future<void> _pumpPlanner(WidgetTester tester, {String? headerAsset}) async {
+Future<void> _pumpPlanner(
+  WidgetTester tester, {
+  String? headerAsset,
+  Map<String, WidgetBuilder>? routes,
+}) async {
   await tester.binding.setSurfaceSize(const Size(430, 932));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -86,6 +108,7 @@ Future<void> _pumpPlanner(WidgetTester tester, {String? headerAsset}) async {
         headerAsset:
             headerAsset ?? 'assets/images/itinerary/itinerary_header_bg.png',
       ),
+      routes: routes ?? const {},
     ),
   );
   await tester.pumpAndSettle();

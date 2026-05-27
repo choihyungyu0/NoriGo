@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:norigo/features/auth/presentation/login_screen.dart';
-import 'package:norigo/features/crowd_alert/crowd_alert_screen.dart';
 import 'package:norigo/features/culture_scan/presentation/culture_scan_screen.dart';
 import 'package:norigo/features/dashboard/public_dashboard_screen.dart';
 import 'package:norigo/features/home/home_shell.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
+import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
 import 'package:norigo/features/onboarding/presentation/interests_alerts_screen.dart';
 import 'package:norigo/features/onboarding/presentation/trip_basics_screen.dart';
 import 'package:norigo/features/splash/presentation/splash_screen.dart';
@@ -19,6 +19,7 @@ class AppRoutes {
   static const interests = '/onboarding/interests';
   static const interestsAlerts = '/onboarding/interests-alerts';
   static const itinerary = '/itinerary';
+  static const itineraryCrowdAlert = '/itinerary/crowd-alert';
   static const home = '/home';
   static const cultureScan = '/culture-scan';
   static const crowdAlert = '/crowd-alert';
@@ -37,6 +38,7 @@ class AppRouter {
       AppRoutes.interests: (_) => const InterestsAlertsScreen(),
       AppRoutes.interestsAlerts: (_) => const InterestsAlertsScreen(),
       AppRoutes.itinerary: (_) => const AiItineraryPlannerScreen(),
+      AppRoutes.itineraryCrowdAlert: (_) => const CrowdAlertScreen(),
       AppRoutes.home: (_) => const HomeShell(),
       AppRoutes.cultureScan: (_) => const CultureScanScreen(),
       AppRoutes.crowdAlert: (_) => const CrowdAlertScreen(),
