@@ -5,6 +5,7 @@ import 'package:norigo/features/dashboard/public_dashboard_screen.dart';
 import 'package:norigo/features/home/home_shell.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
 import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
+import 'package:norigo/features/itinerary/presentation/step3_mobile_mockups_screen.dart';
 import 'package:norigo/features/onboarding/presentation/interests_alerts_screen.dart';
 import 'package:norigo/features/onboarding/presentation/trip_basics_screen.dart';
 import 'package:norigo/features/splash/presentation/splash_screen.dart';
@@ -20,7 +21,9 @@ class AppRoutes {
   static const interestsAlerts = '/onboarding/interests-alerts';
   static const itinerary = '/itinerary';
   static const itineraryCrowdAlert = '/itinerary/crowd-alert';
+  static const step3MobileMockups = '/spec/step3-mobile-mockups';
   static const home = '/home';
+  static const scan = '/scan';
   static const cultureScan = '/culture-scan';
   static const crowdAlert = '/crowd-alert';
   static const dashboard = '/dashboard';
@@ -39,7 +42,9 @@ class AppRouter {
       AppRoutes.interestsAlerts: (_) => const InterestsAlertsScreen(),
       AppRoutes.itinerary: (_) => const AiItineraryPlannerScreen(),
       AppRoutes.itineraryCrowdAlert: (_) => const CrowdAlertScreen(),
+      AppRoutes.step3MobileMockups: (_) => const Step3MobileMockupsScreen(),
       AppRoutes.home: (_) => const HomeShell(),
+      AppRoutes.scan: (_) => const CultureScanScreen(),
       AppRoutes.cultureScan: (_) => const CultureScanScreen(),
       AppRoutes.crowdAlert: (_) => const CrowdAlertScreen(),
       AppRoutes.dashboard: (_) => const PublicDashboardScreen(),

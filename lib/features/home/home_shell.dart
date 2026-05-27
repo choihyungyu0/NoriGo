@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:norigo/app/router.dart';
-import 'package:norigo/features/culture_scan/culture_scan_screen.dart';
 import 'package:norigo/features/discover/discover_screen.dart';
 import 'package:norigo/features/home/home_screen.dart';
 import 'package:norigo/features/itinerary/itinerary_screen.dart';
@@ -17,6 +16,11 @@ class _HomeShellState extends State<HomeShell> {
   int _currentIndex = 0;
 
   void _selectTab(int index) {
+    if (index == 2) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.scan);
+      return;
+    }
+
     setState(() => _currentIndex = index);
   }
 
@@ -29,7 +33,7 @@ class _HomeShellState extends State<HomeShell> {
             Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert),
       ),
       const ItineraryScreen(),
-      const CultureScanScreen(),
+      const SizedBox.shrink(),
       const DiscoverScreen(),
       const ProfileScreen(),
     ];

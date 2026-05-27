@@ -129,7 +129,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
 
     final route = switch (index) {
       0 => AppRoutes.home,
-      2 => AppRoutes.cultureScan,
+      2 => AppRoutes.scan,
       _ => null,
     };
 
