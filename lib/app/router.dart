@@ -5,7 +5,7 @@ import 'package:norigo/features/culture_scan/presentation/culture_scan_screen.da
 import 'package:norigo/features/dashboard/public_dashboard_screen.dart';
 import 'package:norigo/features/home/home_shell.dart';
 import 'package:norigo/features/onboarding/interests_alerts_screen.dart';
-import 'package:norigo/features/onboarding/trip_basics_screen.dart';
+import 'package:norigo/features/onboarding/presentation/trip_basics_screen.dart';
 import 'package:norigo/features/splash/presentation/splash_screen.dart';
 
 class AppRoutes {

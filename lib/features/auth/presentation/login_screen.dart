@@ -56,12 +56,14 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (AppRouter.routes.containsKey(AppRoutes.home)) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+    if (AppRouter.routes.containsKey(AppRoutes.tripBasics)) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.tripBasics);
       return;
     }
 
-    _showSnackBar('Login flow is ready. Home route is not connected yet.');
+    _showSnackBar(
+      'Login flow is ready. Trip basics route is not connected yet.',
+    );
   }
 
   void _showSnackBar(String message) {
