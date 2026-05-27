@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:norigo/features/auth/login_screen.dart';
+import 'package:norigo/features/auth/presentation/login_screen.dart';
 import 'package:norigo/features/crowd_alert/crowd_alert_screen.dart';
 import 'package:norigo/features/culture_scan/presentation/culture_scan_screen.dart';
 import 'package:norigo/features/dashboard/public_dashboard_screen.dart';
 import 'package:norigo/features/home/home_shell.dart';
 import 'package:norigo/features/onboarding/interests_alerts_screen.dart';
 import 'package:norigo/features/onboarding/trip_basics_screen.dart';
-import 'package:norigo/features/splash/splash_screen.dart';
+import 'package:norigo/features/splash/presentation/splash_screen.dart';
 
 class AppRoutes {
   const AppRoutes._();
 
-  static const splash = '/';
+  static const root = '/';
+  static const splash = '/splash';
   static const login = '/login';
   static const tripBasics = '/onboarding/trip-basics';
   static const interestsAlerts = '/onboarding/interests-alerts';
@@ -26,6 +27,7 @@ class AppRouter {
 
   static Map<String, WidgetBuilder> get routes {
     return {
+      AppRoutes.root: (_) => const SplashScreen(),
       AppRoutes.splash: (_) => const SplashScreen(),
       AppRoutes.login: (_) => const LoginScreen(),
       AppRoutes.tripBasics: (_) => const TripBasicsScreen(),
