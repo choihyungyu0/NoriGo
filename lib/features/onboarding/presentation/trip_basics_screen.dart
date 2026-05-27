@@ -145,45 +145,41 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                 ),
                               ),
                               SizedBox(height: 12 * scale),
-                              _ResponsivePair(
-                                compact: compact,
-                                left: _SectionCard(
-                                  icon: Icons.groups_rounded,
-                                  title: '3. First visit?',
-                                  child: _ChipRow(
-                                    group: 'firstVisit',
-                                    values: const ['Yes', 'No'],
-                                    selected: _basics.isFirstVisit
-                                        ? 'Yes'
-                                        : 'No',
-                                    onSelected: (value) {
-                                      _update(
-                                        _basics.copyWith(
-                                          isFirstVisit: value == 'Yes',
-                                        ),
-                                      );
-                                    },
-                                  ),
+                              _SectionCard(
+                                icon: Icons.groups_rounded,
+                                title: '3. First visit?',
+                                child: _ChipRow(
+                                  group: 'firstVisit',
+                                  values: const ['Yes', 'No'],
+                                  selected: _basics.isFirstVisit ? 'Yes' : 'No',
+                                  onSelected: (value) {
+                                    _update(
+                                      _basics.copyWith(
+                                        isFirstVisit: value == 'Yes',
+                                      ),
+                                    );
+                                  },
                                 ),
-                                right: _SectionCard(
-                                  icon: Icons.card_travel_rounded,
-                                  title: '4. Main purpose',
-                                  child: _ChipRow(
-                                    group: 'purpose',
-                                    values: _purposes,
-                                    selected: _basics.mainPurpose,
-                                    icons: const {
-                                      'Sightseeing': Icons.camera_alt_outlined,
-                                      'Food': Icons.restaurant_rounded,
-                                      'Cafe': Icons.local_cafe_outlined,
-                                      'Culture': Icons.account_balance_outlined,
-                                    },
-                                    onSelected: (value) {
-                                      _update(
-                                        _basics.copyWith(mainPurpose: value),
-                                      );
-                                    },
-                                  ),
+                              ),
+                              SizedBox(height: 12 * scale),
+                              _SectionCard(
+                                icon: Icons.card_travel_rounded,
+                                title: '4. Main purpose',
+                                child: _ChipRow(
+                                  group: 'purpose',
+                                  values: _purposes,
+                                  selected: _basics.mainPurpose,
+                                  icons: const {
+                                    'Sightseeing': Icons.camera_alt_outlined,
+                                    'Food': Icons.restaurant_rounded,
+                                    'Cafe': Icons.local_cafe_outlined,
+                                    'Culture': Icons.account_balance_outlined,
+                                  },
+                                  onSelected: (value) {
+                                    _update(
+                                      _basics.copyWith(mainPurpose: value),
+                                    );
+                                  },
                                 ),
                               ),
                               SizedBox(height: 12 * scale),

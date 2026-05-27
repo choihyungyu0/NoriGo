@@ -807,63 +807,95 @@ class _ReadyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 84),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        gradient: LinearGradient(
-          colors: [
-            _AlertColors.lavender,
-            _AlertColors.lavender.withValues(alpha: 0.36),
-          ],
-        ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 96,
-            height: 72,
-            child: Image.asset(
-              asset,
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => const _ReadyImageFallback(),
-            ),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Your local travel recommendations are ready.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _AlertColors.deepPurple,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    height: 1.2,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'We’ll tailor routes and tips just for you.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _AlertColors.mutedText,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    height: 1.2,
-                  ),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final illustrationWidth = (constraints.maxWidth * 0.34).clamp(
+          126.0,
+          176.0,
+        );
+
+        return Container(
+          height: 96,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              colors: [
+                _AlertColors.lavender,
+                _AlertColors.lavender.withValues(alpha: 0.30),
               ],
             ),
           ),
-        ],
-      ),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: illustrationWidth,
+                child: Image.asset(
+                  asset,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.centerLeft,
+                  errorBuilder: (_, _, _) => const _ReadyImageFallback(),
+                ),
+              ),
+              Positioned(
+                left: illustrationWidth - 34,
+                top: 0,
+                bottom: 0,
+                width: 58,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        _AlertColors.lavender.withValues(alpha: 0),
+                        _AlertColors.lavender.withValues(alpha: 0.56),
+                        _AlertColors.lavender.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: illustrationWidth - 4,
+                right: 14,
+                top: 0,
+                bottom: 0,
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Your local travel recommendations are ready.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _AlertColors.deepPurple,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        height: 1.2,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'We’ll tailor routes and tips just for you.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _AlertColors.mutedText,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -873,19 +905,24 @@ class _ReadyImageFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 58,
-        height: 58,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: _AlertColors.white,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.auto_awesome_rounded,
-          color: _AlertColors.purple,
-          size: 30,
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: _AlertColors.lavender),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          width: 68,
+          height: 68,
+          margin: const EdgeInsets.only(left: 18),
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: _AlertColors.white,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.auto_awesome_rounded,
+            color: _AlertColors.purple,
+            size: 34,
+          ),
         ),
       ),
     );
