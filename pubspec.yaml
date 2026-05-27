@@ -60,6 +60,7 @@ flutter:
 
   assets:
     - assets/images/auth/
+    - assets/images/itinerary/
     - assets/images/onboarding/
     - assets/images/splash/
 

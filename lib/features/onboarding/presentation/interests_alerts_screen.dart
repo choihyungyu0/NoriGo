@@ -87,19 +87,19 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
   }
 
   void _finishSetup() {
-    if (AppRouter.routes.containsKey(AppRoutes.home)) {
+    if (AppRouter.routes.containsKey(AppRoutes.itinerary)) {
       try {
         Navigator.of(
           context,
-        ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
+        ).pushNamedAndRemoveUntil(AppRoutes.itinerary, (route) => false);
         return;
       } on FlutterError {
-        _showSnackBar('Setup complete. Home screen will be added next.');
+        _showSnackBar('Setup complete. Itinerary screen will be added next.');
         return;
       }
     }
 
-    _showSnackBar('Setup complete. Home screen will be added next.');
+    _showSnackBar('Setup complete. Itinerary screen will be added next.');
   }
 
   void _showSnackBar(String message) {
