@@ -1,7 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 const _sceneAsset = 'assets/images/itinerary/itinerary_header_bg.png';
+const _itineraryRoute = '/itinerary';
+const _step3AlternativesRoute = '/step3/alternatives';
+const _step3UpdatedItineraryRoute = '/step3/updated-itinerary';
+
+void _emptyCallback() {}
 
 class Step3MobileMockupsScreen extends StatelessWidget {
   const Step3MobileMockupsScreen({super.key});
@@ -17,7 +24,99 @@ class Step3MobileMockupsScreen extends StatelessWidget {
       ),
       child: const Scaffold(
         backgroundColor: _MockupColors.white,
-        body: SafeArea(child: _MockupGallery()),
+        body: Step3MobileMockupsView(),
+      ),
+    );
+  }
+}
+
+class Step3MobileMockupsView extends StatelessWidget {
+  const Step3MobileMockupsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SafeArea(child: _MockupGallery());
+  }
+}
+
+class Step3CrowdAlertScreen extends StatelessWidget {
+  const Step3CrowdAlertScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Step3FlowScaffold(
+      child: _CrowdAlertPhone(
+        framed: false,
+        onViewAlternatives: () =>
+            Navigator.of(context).pushNamed(_step3AlternativesRoute),
+        onKeepOriginal: () =>
+            Navigator.of(context).pushReplacementNamed(_itineraryRoute),
+      ),
+    );
+  }
+}
+
+class Step3AlternativePlacesScreen extends StatelessWidget {
+  const Step3AlternativePlacesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Step3FlowScaffold(
+      child: _AlternativePlacesPhone(
+        framed: false,
+        onAlternativeSelected: () =>
+            Navigator.of(context).pushNamed(_step3UpdatedItineraryRoute),
+      ),
+    );
+  }
+}
+
+class Step3UpdatedItineraryScreen extends StatelessWidget {
+  const Step3UpdatedItineraryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Step3FlowScaffold(
+      child: _UpdatedItineraryPhone(
+        framed: false,
+        onStartGuide: () =>
+            Navigator.of(context).pushReplacementNamed(_itineraryRoute),
+      ),
+    );
+  }
+}
+
+class _Step3FlowScaffold extends StatelessWidget {
+  const _Step3FlowScaffold({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: _MockupColors.white,
+      ),
+      child: Scaffold(
+        backgroundColor: _MockupColors.white,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final pageWidth = math.min(constraints.maxWidth, 430.0);
+
+              return Center(
+                child: SizedBox(
+                  width: pageWidth,
+                  height: constraints.maxHeight,
+                  child: child,
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -259,77 +358,91 @@ class _PhoneStatusBar extends StatelessWidget {
 }
 
 class _CrowdAlertPhone extends StatelessWidget {
-  const _CrowdAlertPhone();
+  const _CrowdAlertPhone({
+    this.framed = true,
+    this.onViewAlternatives,
+    this.onKeepOriginal,
+  });
+
+  final bool framed;
+  final VoidCallback? onViewAlternatives;
+  final VoidCallback? onKeepOriginal;
 
   @override
   Widget build(BuildContext context) {
-    return _PhoneFrame(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
-        child: Column(
-          children: [
-            const _PhoneStatusBar(),
-            const SizedBox(height: 17),
-            const Text(
-              '혼잡도 알림',
-              style: TextStyle(
-                color: _MockupColors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
+      child: Column(
+        children: [
+          const _PhoneStatusBar(),
+          const SizedBox(height: 17),
+          const Text(
+            '혼잡도 알림',
+            style: TextStyle(
+              color: _MockupColors.black,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              height: 1,
             ),
-            const SizedBox(height: 38),
-            const _WarningMark(),
-            const SizedBox(height: 26),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 18),
-              child: Column(
-                children: [
-                  Text(
-                    '북촌 한옥마을이 매우 혼잡해요!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _MockupColors.black,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      height: 1.2,
-                    ),
+          ),
+          const SizedBox(height: 38),
+          const _WarningMark(),
+          const SizedBox(height: 26),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: Column(
+              children: [
+                Text(
+                  '북촌 한옥마을이 매우 혼잡해요!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _MockupColors.black,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
                   ),
-                  SizedBox(height: 10),
-                  Text(
-                    '현재 방문객이 많아 이동이 불편할 수 있어요.\n다른 일정을 추천해 드릴까요?',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _MockupColors.bodyText,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      height: 1.45,
-                    ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  '현재 방문객이 많아 이동이 불편할 수 있어요.\n다른 일정을 추천해 드릴까요?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _MockupColors.bodyText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 18),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 18),
-              child: _BukchonImageCard(),
+          ),
+          const SizedBox(height: 18),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: _BukchonImageCard(),
+          ),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Column(
+              children: [
+                _PinkButton(
+                  label: '대안 장소 보기',
+                  onPressed: onViewAlternatives ?? _emptyCallback,
+                ),
+                const SizedBox(height: 12),
+                _OutlineButton(
+                  label: '일정 그대로 유지',
+                  onPressed: onKeepOriginal ?? _emptyCallback,
+                ),
+              ],
             ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Column(
-                children: [
-                  _PinkButton(label: '대안 장소 보기', onPressed: () {}),
-                  const SizedBox(height: 12),
-                  _OutlineButton(label: '일정 그대로 유지', onPressed: () {}),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    return framed ? _PhoneFrame(child: content) : content;
   }
 }
 
@@ -501,78 +614,87 @@ class _CrowdBadge extends StatelessWidget {
 }
 
 class _AlternativePlacesPhone extends StatelessWidget {
-  const _AlternativePlacesPhone();
+  const _AlternativePlacesPhone({
+    this.framed = true,
+    this.onAlternativeSelected,
+  });
+
+  final bool framed;
+  final VoidCallback? onAlternativeSelected;
 
   @override
   Widget build(BuildContext context) {
-    return _PhoneFrame(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
-        child: Column(
-          children: [
-            const _PhoneStatusBar(),
-            const SizedBox(height: 17),
-            const Text(
-              '대안 장소 추천',
-              style: TextStyle(
-                color: _MockupColors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
+      child: Column(
+        children: [
+          const _PhoneStatusBar(),
+          const SizedBox(height: 17),
+          const Text(
+            '대안 장소 추천',
+            style: TextStyle(
+              color: _MockupColors.black,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              height: 1,
             ),
-            const SizedBox(height: 13),
-            const Text(
-              '북촌 한옥마을 대신 추천해요',
-              style: TextStyle(
-                color: _MockupColors.bodyText,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                height: 1,
-              ),
+          ),
+          const SizedBox(height: 13),
+          const Text(
+            '북촌 한옥마을 대신 추천해요',
+            style: TextStyle(
+              color: _MockupColors.bodyText,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              height: 1,
             ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                physics: const NeverScrollableScrollPhysics(),
-                children: const [
-                  _AlternativeCard(
-                    title: '청운 한옥 카페',
-                    category: '쉼',
-                    description: '한옥에서 전통차를 즐길 수 있는 조용한 카페입니다.',
-                    walk: '도보 8분',
-                    crowd: '혼잡도 20%',
-                    icon: Icons.local_cafe_rounded,
-                    photoColors: [Color(0xFF4A3321), Color(0xFFD19C55)],
-                  ),
-                  SizedBox(height: 12),
-                  _AlternativeCard(
-                    title: '국립고궁박물관',
-                    category: '역사/문화',
-                    description: '조선 왕실의 유물을 전시한 실내 박물관입니다.',
-                    walk: '도보 12분',
-                    crowd: '혼잡도 15%',
-                    icon: Icons.account_balance_rounded,
-                    photoColors: [Color(0xFF6C5133), Color(0xFFE7D4B0)],
-                  ),
-                  SizedBox(height: 12),
-                  _AlternativeCard(
-                    title: '계동길 북카페거리',
-                    category: '카페',
-                    description: '아기자기한 북카페들이 모인 한적한 거리입니다.',
-                    walk: '도보 10분',
-                    crowd: '혼잡도 25%',
-                    icon: Icons.menu_book_rounded,
-                    photoColors: [Color(0xFF3A2415), Color(0xFFC07A24)],
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              physics: const BouncingScrollPhysics(),
+              children: [
+                _AlternativeCard(
+                  title: '청운 한옥 카페',
+                  category: '쉼',
+                  description: '한옥에서 전통차를 즐길 수 있는 조용한 카페입니다.',
+                  walk: '도보 8분',
+                  crowd: '혼잡도 20%',
+                  icon: Icons.local_cafe_rounded,
+                  photoColors: const [Color(0xFF4A3321), Color(0xFFD19C55)],
+                  onPressed: onAlternativeSelected ?? _emptyCallback,
+                ),
+                const SizedBox(height: 12),
+                _AlternativeCard(
+                  title: '국립고궁박물관',
+                  category: '역사/문화',
+                  description: '조선 왕실의 유물을 전시한 실내 박물관입니다.',
+                  walk: '도보 12분',
+                  crowd: '혼잡도 15%',
+                  icon: Icons.account_balance_rounded,
+                  photoColors: const [Color(0xFF6C5133), Color(0xFFE7D4B0)],
+                  onPressed: onAlternativeSelected ?? _emptyCallback,
+                ),
+                const SizedBox(height: 12),
+                _AlternativeCard(
+                  title: '계동길 북카페거리',
+                  category: '카페',
+                  description: '아기자기한 북카페들이 모인 한적한 거리입니다.',
+                  walk: '도보 10분',
+                  crowd: '혼잡도 25%',
+                  icon: Icons.menu_book_rounded,
+                  photoColors: const [Color(0xFF3A2415), Color(0xFFC07A24)],
+                  onPressed: onAlternativeSelected ?? _emptyCallback,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    return framed ? _PhoneFrame(child: content) : content;
   }
 }
 
@@ -585,6 +707,7 @@ class _AlternativeCard extends StatelessWidget {
     required this.crowd,
     required this.icon,
     required this.photoColors,
+    required this.onPressed,
   });
 
   final String title;
@@ -594,6 +717,7 @@ class _AlternativeCard extends StatelessWidget {
   final String crowd;
   final IconData icon;
   final List<Color> photoColors;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -689,7 +813,7 @@ class _AlternativeCard extends StatelessWidget {
                 ),
               ),
               child: TextButton(
-                onPressed: () {},
+                onPressed: onPressed,
                 style: TextButton.styleFrom(
                   foregroundColor: _MockupColors.white,
                   padding: EdgeInsets.zero,
@@ -836,43 +960,49 @@ class _MetricText extends StatelessWidget {
 }
 
 class _UpdatedItineraryPhone extends StatelessWidget {
-  const _UpdatedItineraryPhone();
+  const _UpdatedItineraryPhone({this.framed = true, this.onStartGuide});
+
+  final bool framed;
+  final VoidCallback? onStartGuide;
 
   @override
   Widget build(BuildContext context) {
-    return _PhoneFrame(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
-        child: Column(
-          children: [
-            const _PhoneStatusBar(),
-            const SizedBox(height: 17),
-            const Text(
-              '일정이 변경되었어요!',
-              style: TextStyle(
-                color: _MockupColors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
+      child: Column(
+        children: [
+          const _PhoneStatusBar(),
+          const SizedBox(height: 17),
+          const Text(
+            '일정이 변경되었어요!',
+            style: TextStyle(
+              color: _MockupColors.black,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              height: 1,
             ),
-            const SizedBox(height: 25),
-            const _CelebrationMark(),
-            const SizedBox(height: 20),
-            const Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 22),
-                child: _UpdatedTimeline(),
-              ),
+          ),
+          const SizedBox(height: 25),
+          const _CelebrationMark(),
+          const SizedBox(height: 20),
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 22),
+              child: _UpdatedTimeline(),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: _PinkButton(label: '변경된 경로로 안내 시작', onPressed: () {}),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: _PinkButton(
+              label: '변경된 경로로 안내 시작',
+              onPressed: onStartGuide ?? _emptyCallback,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    return framed ? _PhoneFrame(child: content) : content;
   }
 }
 
