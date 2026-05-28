@@ -69,6 +69,34 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
   });
+
+  testWidgets('ennoia culture button falls back when env is missing', (
+    tester,
+  ) async {
+    _setScanSurface(tester);
+    final controller = CultureScanController(
+      cameraService: const _UnavailableCameraService(),
+      harness: const CultureGuideHarness(client: MockAiClient()),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NoriGoTheme.light(),
+        home: CultureScanScreen(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('runEnnoiaCultureGuideButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mock ennoia'), findsOneWidget);
+    expect(find.text('AI Culture Guide'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
 }
 
 void _setScanSurface(WidgetTester tester) {

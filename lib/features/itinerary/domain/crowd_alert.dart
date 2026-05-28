@@ -10,6 +10,7 @@ class CrowdAlert {
     required this.alertMessage,
     required this.foreignerQueueTip,
     required this.alternatives,
+    this.sourceType = 'mock',
   });
 
   final String id;
@@ -20,4 +21,5 @@ class CrowdAlert {
   final String alertMessage;
   final String foreignerQueueTip;
   final List<AlternativePlace> alternatives;
+  final String sourceType;
 }

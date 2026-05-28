@@ -71,6 +71,26 @@ void main() {
     expect(find.byKey(const ValueKey('active-nav-Itinerary')), findsOneWidget);
   });
 
+  testWidgets('generate retrip alternatives falls back when env is missing', (
+    tester,
+  ) async {
+    await _pumpCrowdAlert(tester);
+
+    final button = find.byKey(
+      const ValueKey('generateRetripAlternativesButton'),
+    );
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mock ennoia'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('alternativeSwitchButton')),
+      findsNWidgets(3),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   test('MockCrowdAlertRepository returns three alternatives', () async {
     final alert = await const MockCrowdAlertRepository()
         .fetchCurrentCrowdAlert();

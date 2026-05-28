@@ -44,15 +44,19 @@ void main() {
     );
   });
 
-  testWidgets('save this plan button shows local save snackbar', (
-    tester,
-  ) async {
-    await _pumpPlanner(tester);
+  testWidgets('save this plan button opens crowd alert route', (tester) async {
+    await _pumpPlanner(
+      tester,
+      routes: {
+        AppRoutes.itineraryCrowdAlert: (_) =>
+            const Scaffold(body: Placeholder(key: ValueKey('crowdAlertRoute'))),
+      },
+    );
 
     await tester.tap(find.byKey(const ValueKey('savePlanButton')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text('Itinerary saved locally for now.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('crowdAlertRoute')), findsOneWidget);
   });
 
   testWidgets('dessert cafe card opens crowd alert demo route', (tester) async {
@@ -83,6 +87,19 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('AI Itinerary Planner'), findsOneWidget);
+  });
+
+  testWidgets('generate with ennoia falls back when env is missing', (
+    tester,
+  ) async {
+    await _pumpPlanner(tester);
+
+    await tester.tap(find.byKey(const ValueKey('generateWithEnnoiaButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mock ennoia'), findsOneWidget);
+    expect(find.text('Gyeongbokgung Palace'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   test('mock repository returns five itinerary items', () async {

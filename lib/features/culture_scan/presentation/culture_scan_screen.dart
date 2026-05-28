@@ -63,6 +63,10 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     await _controller.scanCulture();
   }
 
+  Future<void> _runEnnoiaCultureGuide() async {
+    await _controller.runEnnoiaCultureGuide();
+  }
+
   Future<void> _toggleFlash() async {
     await _controller.toggleFlash();
   }
@@ -159,6 +163,9 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                               child: _CultureGuideCard(
                                 guide: guide,
                                 scanStatus: _controller.scanStatus,
+                                sourceLabel: _controller.ennoiaSourceLabel,
+                                isEnnoiaLoading: _controller.isRunningEnnoia,
+                                onRunEnnoia: _runEnnoiaCultureGuide,
                                 scale: scale,
                               ),
                             ),
@@ -639,11 +646,17 @@ class _CultureGuideCard extends StatelessWidget {
   const _CultureGuideCard({
     required this.guide,
     required this.scanStatus,
+    required this.sourceLabel,
+    required this.isEnnoiaLoading,
+    required this.onRunEnnoia,
     required this.scale,
   });
 
   final CultureGuide guide;
   final CultureScanStatus scanStatus;
+  final String sourceLabel;
+  final bool isEnnoiaLoading;
+  final VoidCallback onRunEnnoia;
   final double scale;
 
   @override
@@ -679,7 +692,51 @@ class _CultureGuideCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 17 * scale),
+          SizedBox(height: 10 * scale),
+          Row(
+            children: [
+              _AgentSourceBadge(label: sourceLabel, scale: scale),
+              SizedBox(width: 8 * scale),
+              Expanded(
+                child: SizedBox(
+                  height: 34 * scale,
+                  child: OutlinedButton.icon(
+                    key: const ValueKey('runEnnoiaCultureGuideButton'),
+                    onPressed: isEnnoiaLoading ? null : onRunEnnoia,
+                    icon: isEnnoiaLoading
+                        ? SizedBox(
+                            width: 15 * scale,
+                            height: 15 * scale,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: _ScanColors.purple,
+                            ),
+                          )
+                        : Icon(Icons.travel_explore_rounded, size: 16 * scale),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Run ennoia Culture Guide',
+                        style: TextStyle(
+                          fontSize: 11.8 * scale,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _ScanColors.purple,
+                      side: const BorderSide(color: _ScanColors.purple),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14 * scale),
           Text(
             guide.question,
             style: TextStyle(
@@ -757,6 +814,44 @@ class _CultureGuideCard extends StatelessWidget {
             body: guide.story,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AgentSourceBadge extends StatelessWidget {
+  const _AgentSourceBadge({required this.label, required this.scale});
+
+  final String label;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final isReal = label == 'ennoia + KTO MCP';
+    return Container(
+      height: 26 * scale,
+      constraints: BoxConstraints(maxWidth: 116 * scale),
+      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isReal ? const Color(0xFFEAF8DE) : const Color(0xFFF0E9FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isReal ? const Color(0xFFD3E9C6) : const Color(0xFFE0D3FF),
+        ),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            color: isReal ? const Color(0xFF258616) : _ScanColors.purple,
+            fontSize: 10.8 * scale,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
       ),
     );
   }

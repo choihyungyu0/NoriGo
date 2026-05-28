@@ -3,6 +3,9 @@ import 'dart:developer' as developer;
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:norigo/ai/harness/culture_guide_harness.dart';
+import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
+import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
+import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/data/culture_guide_mock_data.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
@@ -16,15 +19,23 @@ class CultureScanController extends ChangeNotifier {
   CultureScanController({
     required CultureCameraService cameraService,
     required CultureGuideHarness harness,
+    EnnoiaAgentRepository ennoiaRepository =
+        const SupabaseEnnoiaAgentRepository(),
+    EnnoiaAgentRepository fallbackEnnoiaRepository =
+        const MockEnnoiaAgentRepository(),
     CultureScanContext initialContext = CultureGuideMockData.defaultContext,
   }) : _cameraService = cameraService,
        _harness = harness,
+       _ennoiaRepository = ennoiaRepository,
+       _fallbackEnnoiaRepository = fallbackEnnoiaRepository,
        _baseContext = initialContext {
     _selectedLanguage = initialContext.userLanguage;
   }
 
   final CultureCameraService _cameraService;
   final CultureGuideHarness _harness;
+  final EnnoiaAgentRepository _ennoiaRepository;
+  final EnnoiaAgentRepository _fallbackEnnoiaRepository;
   final CultureScanContext _baseContext;
 
   CultureCameraSession? _cameraSession;
@@ -33,7 +44,9 @@ class CultureScanController extends ChangeNotifier {
   CultureScanStatus _scanStatus = CultureScanStatus.initial;
   String _selectedLanguage = 'English';
   String? _friendlyMessage;
+  String _ennoiaSourceLabel = 'Mock ennoia';
   bool _flashEnabled = false;
+  bool _isRunningEnnoia = false;
   bool _disposed = false;
 
   CultureCameraStatus get cameraStatus => _cameraStatus;
@@ -43,6 +56,10 @@ class CultureScanController extends ChangeNotifier {
   String get selectedLanguage => _selectedLanguage;
 
   String? get friendlyMessage => _friendlyMessage;
+
+  String get ennoiaSourceLabel => _ennoiaSourceLabel;
+
+  bool get isRunningEnnoia => _isRunningEnnoia;
 
   bool get flashEnabled => _flashEnabled;
 
@@ -141,6 +158,7 @@ class CultureScanController extends ChangeNotifier {
       if (_disposed) return;
 
       _guide = guide;
+      _ennoiaSourceLabel = 'Mock ennoia';
       _scanStatus = CultureScanStatus.result;
     } catch (error) {
       if (_disposed) return;
@@ -156,6 +174,52 @@ class CultureScanController extends ChangeNotifier {
     }
 
     _safeNotifyListeners();
+  }
+
+  Future<void> runEnnoiaCultureGuide() async {
+    if (_disposed || _isRunningEnnoia) return;
+
+    _isRunningEnnoia = true;
+    _scanStatus = CultureScanStatus.scanning;
+    _friendlyMessage = null;
+    _safeNotifyListeners();
+
+    final request = CultureGuideAgentRequest(
+      userLanguage: _selectedLanguage,
+      currentLocation: _baseContext.currentLocation,
+      detectedObject: _baseContext.detectedObject,
+      koreanKeyword: _baseContext.culturalKeyword,
+      userIntent: _baseContext.userIntent,
+    );
+
+    try {
+      final result = await _ennoiaRepository.fetchCultureGuide(request);
+      if (_disposed) return;
+      _guide = result.toCultureGuide();
+      _ennoiaSourceLabel = result.isRealEnnoia
+          ? 'ennoia + KTO MCP'
+          : 'Mock ennoia';
+      _scanStatus = CultureScanStatus.result;
+    } catch (error) {
+      developer.log(
+        'ennoia culture guide fallback used.',
+        name: 'CultureScanController',
+        error: error.runtimeType,
+      );
+      if (_disposed) return;
+      final fallback = await _fallbackEnnoiaRepository.fetchCultureGuide(
+        request,
+      );
+      if (_disposed) return;
+      _guide = fallback.toCultureGuide();
+      _ennoiaSourceLabel = 'Mock ennoia';
+      _scanStatus = CultureScanStatus.result;
+      _friendlyMessage =
+          'NoriGo could not reach ennoia, so it is showing a mock guide.';
+    } finally {
+      _isRunningEnnoia = false;
+      _safeNotifyListeners();
+    }
   }
 
   @override

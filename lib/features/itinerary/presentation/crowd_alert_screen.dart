@@ -128,6 +128,10 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
     );
   }
 
+  Future<void> _generateRetripAlternatives() async {
+    await _controller.generateRetripAlternatives();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -204,7 +208,10 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                                   alert: alert,
                                   selectedAlternative:
                                       _controller.selectedAlternative,
+                                  sourceLabel: _controller.sourceLabel,
+                                  isGenerating: _controller.isGeneratingRetrip,
                                   scale: scale,
+                                  onGenerate: _generateRetripAlternatives,
                                   onSelectAlternative: _selectAlternative,
                                 ),
                               ],
@@ -811,13 +818,19 @@ class _AlternativesSection extends StatelessWidget {
   const _AlternativesSection({
     required this.alert,
     required this.selectedAlternative,
+    required this.sourceLabel,
+    required this.isGenerating,
     required this.scale,
+    required this.onGenerate,
     required this.onSelectAlternative,
   });
 
   final CrowdAlert alert;
   final AlternativePlace? selectedAlternative;
+  final String sourceLabel;
+  final bool isGenerating;
   final double scale;
+  final VoidCallback onGenerate;
   final ValueChanged<AlternativePlace> onSelectAlternative;
 
   @override
@@ -825,14 +838,21 @@ class _AlternativesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'AI alternatives ✨',
-          style: TextStyle(
-            color: _CrowdColors.deepPurple,
-            fontSize: 18 * scale,
-            fontWeight: FontWeight.w900,
-            height: 1.1,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'AI alternatives ✨',
+                style: TextStyle(
+                  color: _CrowdColors.deepPurple,
+                  fontSize: 18 * scale,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+              ),
+            ),
+            _AgentSourceBadge(label: sourceLabel, scale: scale),
+          ],
         ),
         SizedBox(height: 4 * scale),
         Text(
@@ -842,6 +862,46 @@ class _AlternativesSection extends StatelessWidget {
             fontSize: 14.2 * scale,
             fontWeight: FontWeight.w500,
             height: 1.15,
+          ),
+        ),
+        SizedBox(height: 10 * scale),
+        SizedBox(
+          height: 44 * scale,
+          width: double.infinity,
+          child: FilledButton.icon(
+            key: const ValueKey('generateRetripAlternativesButton'),
+            onPressed: isGenerating ? null : onGenerate,
+            icon: isGenerating
+                ? SizedBox(
+                    width: 18 * scale,
+                    height: 18 * scale,
+                    child: const CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: _CrowdColors.white,
+                    ),
+                  )
+                : Icon(Icons.travel_explore_rounded, size: 21 * scale),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                isGenerating
+                    ? 'Generating...'
+                    : 'Generate Re-Trip alternatives',
+                style: TextStyle(
+                  fontSize: 15.6 * scale,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: _CrowdColors.purple,
+              foregroundColor: _CrowdColors.white,
+              disabledBackgroundColor: _CrowdColors.purpleDark,
+              disabledForegroundColor: _CrowdColors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
           ),
         ),
         SizedBox(height: 10 * scale),
@@ -857,6 +917,44 @@ class _AlternativesSection extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+}
+
+class _AgentSourceBadge extends StatelessWidget {
+  const _AgentSourceBadge({required this.label, required this.scale});
+
+  final String label;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final isReal = label == 'ennoia + KTO MCP';
+    return Container(
+      height: 30 * scale,
+      constraints: BoxConstraints(maxWidth: 134 * scale),
+      padding: EdgeInsets.symmetric(horizontal: 10 * scale),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isReal ? _CrowdColors.diversityBg : _CrowdColors.lavender,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isReal ? _CrowdColors.diversityBorder : _CrowdColors.border,
+        ),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            color: isReal ? _CrowdColors.green : _CrowdColors.purple,
+            fontSize: 11.5 * scale,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
+      ),
     );
   }
 }

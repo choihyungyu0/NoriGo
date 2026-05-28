@@ -1,4 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
+import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
+import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
@@ -6,12 +9,22 @@ import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
 enum CrowdAlertStatus { initial, loading, loaded, switching, error }
 
 class CrowdAlertController extends ChangeNotifier {
-  CrowdAlertController({required CrowdAlertRepository repository})
-    : _repository = repository;
+  CrowdAlertController({
+    required CrowdAlertRepository repository,
+    EnnoiaAgentRepository ennoiaRepository =
+        const SupabaseEnnoiaAgentRepository(),
+    EnnoiaAgentRepository fallbackEnnoiaRepository =
+        const MockEnnoiaAgentRepository(),
+  }) : _repository = repository,
+       _ennoiaRepository = ennoiaRepository,
+       _fallbackEnnoiaRepository = fallbackEnnoiaRepository;
 
   final CrowdAlertRepository _repository;
+  final EnnoiaAgentRepository _ennoiaRepository;
+  final EnnoiaAgentRepository _fallbackEnnoiaRepository;
 
   bool _disposed = false;
+  bool _isGeneratingRetrip = false;
   CrowdAlertStatus _status = CrowdAlertStatus.initial;
   CrowdAlert? _alert;
   AlternativePlace? _selectedAlternative;
@@ -23,6 +36,10 @@ class CrowdAlertController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isLoading => _status == CrowdAlertStatus.loading;
   bool get isSwitching => _status == CrowdAlertStatus.switching;
+  bool get isGeneratingRetrip => _isGeneratingRetrip;
+  String get sourceLabel {
+    return _alert?.sourceType == 'ennoia' ? 'ennoia + KTO MCP' : 'Mock ennoia';
+  }
 
   Future<void> loadAlert() async {
     _status = CrowdAlertStatus.loading;
@@ -92,6 +109,30 @@ class CrowdAlertController extends ChangeNotifier {
       _status = CrowdAlertStatus.error;
       return false;
     } finally {
+      _safeNotifyListeners();
+    }
+  }
+
+  Future<void> generateRetripAlternatives() async {
+    _isGeneratingRetrip = true;
+    _errorMessage = null;
+    _safeNotifyListeners();
+
+    final request = RetripAgentRequest.defaults();
+
+    try {
+      final result = await _ennoiaRepository.fetchRetrip(request);
+      _alert = result.toCrowdAlert();
+      _selectedAlternative = null;
+      _status = CrowdAlertStatus.loaded;
+    } catch (_) {
+      final fallback = await _fallbackEnnoiaRepository.fetchRetrip(request);
+      _alert = fallback.toCrowdAlert();
+      _selectedAlternative = null;
+      _status = CrowdAlertStatus.loaded;
+      _errorMessage = 'Using mock ennoia alternatives.';
+    } finally {
+      _isGeneratingRetrip = false;
       _safeNotifyListeners();
     }
   }

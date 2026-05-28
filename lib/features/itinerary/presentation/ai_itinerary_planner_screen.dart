@@ -50,15 +50,24 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     final saved = await _controller.savePlan();
     if (!mounted) return;
 
+    if (saved) {
+      Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          saved
-              ? 'Itinerary saved locally for now.'
-              : _controller.errorMessage ?? 'Unable to save itinerary.',
-        ),
+        content: Text(_controller.errorMessage ?? 'Unable to save itinerary.'),
       ),
     );
+  }
+
+  Future<void> _generateWithEnnoia() async {
+    await _controller.generateWithEnnoia();
+    if (!mounted) return;
+    setState(() {
+      _selectedTimeIndex = 0;
+    });
   }
 
   void _showRouteReason() {
@@ -212,6 +221,13 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                                   dateLabel: plan.dateLabel,
                                   scale: scale,
                                   onWhyPressed: _showRouteReason,
+                                ),
+                                SizedBox(height: 12 * scale),
+                                _EnnoiaPlannerActionRow(
+                                  sourceLabel: _controller.sourceLabel,
+                                  isGenerating: _controller.isGeneratingEnnoia,
+                                  scale: scale,
+                                  onGenerate: _generateWithEnnoia,
                                 ),
                                 SizedBox(height: 14 * scale),
                                 _TimeChipRow(
@@ -456,6 +472,106 @@ class _ControlsRow extends StatelessWidget {
           child: _WhyRouteButton(scale: scale, onPressed: onWhyPressed),
         ),
       ],
+    );
+  }
+}
+
+class _EnnoiaPlannerActionRow extends StatelessWidget {
+  const _EnnoiaPlannerActionRow({
+    required this.sourceLabel,
+    required this.isGenerating,
+    required this.scale,
+    required this.onGenerate,
+  });
+
+  final String sourceLabel;
+  final bool isGenerating;
+  final double scale;
+  final VoidCallback onGenerate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _AgentSourceBadge(label: sourceLabel, scale: scale),
+        SizedBox(width: 12 * scale),
+        Expanded(
+          child: SizedBox(
+            height: 44 * scale,
+            child: FilledButton.icon(
+              key: const ValueKey('generateWithEnnoiaButton'),
+              onPressed: isGenerating ? null : onGenerate,
+              icon: isGenerating
+                  ? SizedBox(
+                      width: 18 * scale,
+                      height: 18 * scale,
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: _PlannerColors.white,
+                      ),
+                    )
+                  : Icon(Icons.travel_explore_rounded, size: 21 * scale),
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  isGenerating ? 'Generating...' : 'Generate with ennoia',
+                  style: TextStyle(
+                    fontSize: 16 * scale,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: _PlannerColors.purple,
+                foregroundColor: _PlannerColors.white,
+                disabledBackgroundColor: _PlannerColors.purpleDark,
+                disabledForegroundColor: _PlannerColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AgentSourceBadge extends StatelessWidget {
+  const _AgentSourceBadge({required this.label, required this.scale});
+
+  final String label;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final isReal = label == 'ennoia + KTO MCP';
+    return Container(
+      height: 32 * scale,
+      constraints: BoxConstraints(maxWidth: 136 * scale),
+      padding: EdgeInsets.symmetric(horizontal: 10 * scale),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isReal ? _PlannerColors.lowCrowdBg : _PlannerColors.tipBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isReal ? const Color(0xFFC7EBC0) : _PlannerColors.border,
+        ),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            color: isReal ? _PlannerColors.lowCrowdText : _PlannerColors.purple,
+            fontSize: 12 * scale,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
+      ),
     );
   }
 }
