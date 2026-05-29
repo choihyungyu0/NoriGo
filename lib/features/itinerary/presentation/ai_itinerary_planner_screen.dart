@@ -108,6 +108,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
   }
 
   Future<void> _generateWithEnnoia() async {
+    if (_controller.isGeneratingEnnoia) return;
     await _controller.generateItinerary(
       const ItineraryRequestBuilder().build(),
     );
@@ -293,6 +294,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                                   plan: plan,
                                   scale: scale,
                                   onCrowdAlertDemo: _openCrowdAlertDemo,
+                                  persistedPlanId: _controller.persistedPlanId,
                                 ),
                                 SizedBox(height: 12 * scale),
                                 _RouteSummaryCard(plan: plan, scale: scale),
@@ -598,9 +600,15 @@ class _EnnoiaPlannerActionRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            _AgentSourceBadge(label: sourceLabel, scale: scale),
+            Flexible(
+              flex: 4,
+              child: _AgentSourceBadge(label: sourceLabel, scale: scale),
+            ),
             SizedBox(width: 10 * scale),
-            _PersistenceBadge(label: persistenceLabel, scale: scale),
+            Flexible(
+              flex: 5,
+              child: _PersistenceBadge(label: persistenceLabel, scale: scale),
+            ),
           ],
         ),
         SizedBox(height: 8 * scale),
@@ -654,16 +662,25 @@ class _PersistenceBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSaved = label == 'Saved to Supabase';
+    final isUnsaved = label == 'Generated, but not saved to Supabase.';
     return Container(
       height: 32 * scale,
-      constraints: BoxConstraints(maxWidth: 136 * scale),
+      constraints: BoxConstraints(maxWidth: 228 * scale),
       padding: EdgeInsets.symmetric(horizontal: 10 * scale),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isSaved ? _PlannerColors.lowCrowdBg : const Color(0xFFFFF4DF),
+        color: isSaved
+            ? _PlannerColors.lowCrowdBg
+            : isUnsaved
+            ? const Color(0xFFFFF4DF)
+            : _PlannerColors.tipBg,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isSaved ? const Color(0xFFC7EBC0) : const Color(0xFFECD7AA),
+          color: isSaved
+              ? const Color(0xFFC7EBC0)
+              : isUnsaved
+              ? const Color(0xFFECD7AA)
+              : _PlannerColors.border,
         ),
       ),
       child: FittedBox(
@@ -674,7 +691,9 @@ class _PersistenceBadge extends StatelessWidget {
           style: TextStyle(
             color: isSaved
                 ? _PlannerColors.lowCrowdText
-                : const Color(0xFF8A5D0B),
+                : isUnsaved
+                ? const Color(0xFF8A5D0B)
+                : _PlannerColors.purple,
             fontSize: 12 * scale,
             fontWeight: FontWeight.w900,
             height: 1,
@@ -695,16 +714,25 @@ class _AgentSourceBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final isReal =
         label == 'ennoia + KTO MCP' || label == 'KTO OpenAPI + ennoia';
+    final isFallback = label == 'Demo fallback';
     return Container(
       height: 32 * scale,
-      constraints: BoxConstraints(maxWidth: 136 * scale),
+      constraints: BoxConstraints(maxWidth: 172 * scale),
       padding: EdgeInsets.symmetric(horizontal: 10 * scale),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isReal ? _PlannerColors.lowCrowdBg : _PlannerColors.tipBg,
+        color: isReal
+            ? _PlannerColors.lowCrowdBg
+            : isFallback
+            ? const Color(0xFFFFF4DF)
+            : _PlannerColors.tipBg,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isReal ? const Color(0xFFC7EBC0) : _PlannerColors.border,
+          color: isReal
+              ? const Color(0xFFC7EBC0)
+              : isFallback
+              ? const Color(0xFFECD7AA)
+              : _PlannerColors.border,
         ),
       ),
       child: FittedBox(
@@ -713,7 +741,11 @@ class _AgentSourceBadge extends StatelessWidget {
           label,
           maxLines: 1,
           style: TextStyle(
-            color: isReal ? _PlannerColors.lowCrowdText : _PlannerColors.purple,
+            color: isReal
+                ? _PlannerColors.lowCrowdText
+                : isFallback
+                ? const Color(0xFF8A5D0B)
+                : _PlannerColors.purple,
             fontSize: 12 * scale,
             fontWeight: FontWeight.w900,
             height: 1,
@@ -886,11 +918,13 @@ class _ItineraryTimeline extends StatelessWidget {
     required this.plan,
     required this.scale,
     required this.onCrowdAlertDemo,
+    required this.persistedPlanId,
   });
 
   final ItineraryPlan plan;
   final double scale;
   final VoidCallback onCrowdAlertDemo;
+  final String? persistedPlanId;
 
   @override
   Widget build(BuildContext context) {
@@ -908,8 +942,9 @@ class _ItineraryTimeline extends StatelessWidget {
             isFirst: index == 0,
             isLast: index == items.length - 1,
             scale: scale,
-            sourceNote: plan.sourceNote,
             sourceType: _sourceTypeForDetails(plan.sourceType),
+            plan: plan,
+            persistedPlanId: persistedPlanId,
             onTap: opensCrowdAlert ? onCrowdAlertDemo : null,
           ),
         );
@@ -934,8 +969,9 @@ class _ItineraryCard extends StatelessWidget {
     required this.isFirst,
     required this.isLast,
     required this.scale,
-    required this.sourceNote,
     required this.sourceType,
+    required this.plan,
+    required this.persistedPlanId,
     this.onTap,
   });
 
@@ -943,8 +979,9 @@ class _ItineraryCard extends StatelessWidget {
   final bool isFirst;
   final bool isLast;
   final double scale;
-  final String? sourceNote;
   final String sourceType;
+  final ItineraryPlan plan;
+  final String? persistedPlanId;
   final VoidCallback? onTap;
 
   @override
@@ -960,14 +997,16 @@ class _ItineraryCard extends StatelessWidget {
               ? _CompactItineraryContent(
                   item: item,
                   scale: scale,
-                  sourceNote: sourceNote,
                   sourceType: sourceType,
+                  plan: plan,
+                  persistedPlanId: persistedPlanId,
                 )
               : _WideItineraryContent(
                   item: item,
                   scale: scale,
-                  sourceNote: sourceNote,
                   sourceType: sourceType,
+                  plan: plan,
+                  persistedPlanId: persistedPlanId,
                 ),
         );
 
@@ -1009,14 +1048,16 @@ class _WideItineraryContent extends StatelessWidget {
   const _WideItineraryContent({
     required this.item,
     required this.scale,
-    required this.sourceNote,
     required this.sourceType,
+    required this.plan,
+    required this.persistedPlanId,
   });
 
   final ItineraryItem item;
   final double scale;
-  final String? sourceNote;
   final String sourceType;
+  final ItineraryPlan plan;
+  final String? persistedPlanId;
 
   @override
   Widget build(BuildContext context) {
@@ -1043,8 +1084,9 @@ class _WideItineraryContent extends StatelessWidget {
           child: _ItineraryDetails(
             item: item,
             scale: scale,
-            sourceNote: sourceNote,
             sourceType: sourceType,
+            plan: plan,
+            persistedPlanId: persistedPlanId,
           ),
         ),
         SizedBox(width: 8 * scale),
@@ -1058,14 +1100,16 @@ class _CompactItineraryContent extends StatelessWidget {
   const _CompactItineraryContent({
     required this.item,
     required this.scale,
-    required this.sourceNote,
     required this.sourceType,
+    required this.plan,
+    required this.persistedPlanId,
   });
 
   final ItineraryItem item;
   final double scale;
-  final String? sourceNote;
   final String sourceType;
+  final ItineraryPlan plan;
+  final String? persistedPlanId;
 
   @override
   Widget build(BuildContext context) {
@@ -1093,8 +1137,9 @@ class _CompactItineraryContent extends StatelessWidget {
               child: _ItineraryDetails(
                 item: item,
                 scale: scale,
-                sourceNote: sourceNote,
                 sourceType: sourceType,
+                plan: plan,
+                persistedPlanId: persistedPlanId,
               ),
             ),
           ],
@@ -1198,14 +1243,16 @@ class _ItineraryDetails extends StatelessWidget {
   const _ItineraryDetails({
     required this.item,
     required this.scale,
-    required this.sourceNote,
     required this.sourceType,
+    required this.plan,
+    required this.persistedPlanId,
   });
 
   final ItineraryItem item;
   final double scale;
-  final String? sourceNote;
   final String sourceType;
+  final ItineraryPlan plan;
+  final String? persistedPlanId;
 
   @override
   Widget build(BuildContext context) {
@@ -1238,7 +1285,12 @@ class _ItineraryDetails extends StatelessWidget {
         SizedBox(height: 4 * scale),
         TextButton.icon(
           key: ValueKey('viewKtoData-${item.id}'),
-          onPressed: () => _showKtoData(context),
+          onPressed: () => _showKtoDataEvidence(
+            context,
+            plan: plan,
+            sourceType: sourceType,
+            persistedPlanId: persistedPlanId,
+          ),
           icon: Icon(Icons.dataset_outlined, size: 15 * scale),
           label: Text(
             'View KTO data',
@@ -1257,43 +1309,142 @@ class _ItineraryDetails extends StatelessWidget {
       ],
     );
   }
+}
 
-  void _showKtoData(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'KTO data',
-                  style: TextStyle(
-                    color: _PlannerColors.deepPurple,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _KtoDataRow(
-                  label: 'kto_content_id',
-                  value: item.contentId ?? 'Not provided',
-                ),
-                _KtoDataRow(
-                  label: 'source_note',
-                  value: sourceNote ?? 'Generated from the current itinerary.',
-                ),
-                _KtoDataRow(label: 'source_type', value: sourceType),
-                _KtoDataRow(label: 'culture_tip', value: item.aiTip),
-              ],
+void _showKtoDataEvidence(
+  BuildContext context, {
+  required ItineraryPlan plan,
+  required String sourceType,
+  required String? persistedPlanId,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (context) {
+      final height = MediaQuery.sizeOf(context).height * 0.72;
+      return SafeArea(
+        child: SizedBox(
+          height: height,
+          child: _KtoEvidenceSheet(
+            plan: plan,
+            sourceType: sourceType,
+            persistedPlanId: persistedPlanId,
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _KtoEvidenceSheet extends StatelessWidget {
+  const _KtoEvidenceSheet({
+    required this.plan,
+    required this.sourceType,
+    required this.persistedPlanId,
+  });
+
+  final ItineraryPlan plan;
+  final String sourceType;
+  final String? persistedPlanId;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
+      children: [
+        const Text(
+          'KTO data',
+          style: TextStyle(
+            color: _PlannerColors.deepPurple,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _KtoDataRow(label: 'source_type', value: sourceType),
+        if (persistedPlanId != null)
+          _KtoDataRow(label: 'persistedPlanId', value: persistedPlanId!),
+        _KtoDataRow(
+          label: 'source_note',
+          value: plan.sourceNote ?? 'Generated from the current itinerary.',
+        ),
+        const SizedBox(height: 8),
+        ...plan.items.map(_KtoEvidenceItemRow.new),
+      ],
+    );
+  }
+}
+
+class _KtoEvidenceItemRow extends StatelessWidget {
+  const _KtoEvidenceItemRow(this.item);
+
+  final ItineraryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _PlannerColors.tipBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _PlannerColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.placeName,
+            style: const TextStyle(
+              color: _PlannerColors.deepPurple,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
             ),
           ),
-        );
-      },
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              _KtoEvidencePill(
+                label: 'kto_content_id',
+                value: item.contentId ?? 'Not provided',
+              ),
+              _KtoEvidencePill(label: 'crowd_level', value: item.crowdLabel),
+              _KtoEvidencePill(label: 'stay_time', value: item.stayTime),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KtoEvidencePill extends StatelessWidget {
+  const _KtoEvidencePill({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: _PlannerColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _PlannerColors.border),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          color: _PlannerColors.textSub,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
     );
   }
 }

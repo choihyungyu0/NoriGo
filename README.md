@@ -70,6 +70,14 @@ Run Flutter with only Supabase public config:
 flutter run --dart-define=SUPABASE_URL="https://your-project.supabase.co" --dart-define=SUPABASE_ANON_KEY="your-supabase-anon-key"
 ```
 
+Run the itinerary smoke test with environment variables:
+
+```powershell
+$env:SUPABASE_URL="https://your-project.supabase.co"
+$env:SUPABASE_ANON_KEY="your-supabase-anon-key"
+.\scripts\smoke_itinerary.ps1
+```
+
 For local function testing, create a local env file outside commits and serve a function:
 
 ```powershell
@@ -98,12 +106,36 @@ Rows are inserted after successful calls to:
 - `ennoia-itinerary` -> `itinerary_plans` from inside the Edge Function
 - `ennoia-retrip` -> `retrip_events`
 
+## AI Itinerary Runtime Evidence
+
+Runtime architecture:
+
+```text
+Flutter -> Supabase Edge Function -> KTO OpenAPI -> ennoia -> Supabase DB
+```
+
+The runtime itinerary path does not use ennoia MCP. Studio MCP was configured and tested, but external API execution returned `MCP_CONNECTION_REQUIRED`, so the demo runtime was stabilized with direct Korea Tourism Organization OpenAPI calls and ennoia context passing through `KTO_DATA`.
+
+Expected success values:
+
+- `source_type = kto_openapi_ennoia`
+- `itemCount = 5`
+- `ktoContentIdCount >= 3`, ideally `5`
+- `persisted = true`
+
+Evidence screenshots to capture:
+
+- Edge Function success log
+- AI itinerary screen with `KTO OpenAPI + ennoia` badge
+- `View KTO data` bottom sheet
+- Supabase `itinerary_plans` row
+
 ## Evidence Checklist
 
 - Edge Function logs show ennoia Agent requests without exposing `ENNOIA_API_KEY`.
 - Flutter UI shows `KTO OpenAPI + ennoia` for real itinerary output.
 - Flutter UI shows `Saved to Supabase` only after the insert request succeeds.
-- Flutter UI shows `Local mock only` when mock fallback is active or persistence is unavailable.
+- Flutter UI shows `Demo fallback` when demo fallback data is active.
 - Supabase itinerary rows include `source_type = 'kto_openapi_ennoia'` for live KTO OpenAPI data or `source_type = 'kto_openapi_fallback'` when demo KTO_DATA was needed.
 - RLS is enabled; before production, add Supabase Auth ownership columns and user-scoped policies.
 

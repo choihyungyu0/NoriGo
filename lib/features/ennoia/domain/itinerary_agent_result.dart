@@ -28,7 +28,8 @@ class ItineraryAgentResult {
       sourceType == 'ennoia' ||
       sourceType == 'ennoia_kto_mcp' ||
       sourceType == 'kto_openapi_ennoia' ||
-      sourceType == 'kto_openapi_fallback';
+      sourceType == 'kto_openapi_fallback' ||
+      sourceType.contains('fallback');
 
   factory ItineraryAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
@@ -199,6 +200,7 @@ class ItineraryAgentResult {
       if (normalized == 'ennoia_kto_mcp') return 'ennoia_kto_mcp';
       if (normalized == 'kto_openapi_ennoia') return 'kto_openapi_ennoia';
       if (normalized == 'kto_openapi_fallback') return 'kto_openapi_fallback';
+      if (normalized.contains('fallback')) return normalized;
       if (normalized == 'ennoia') return 'ennoia';
     }
 

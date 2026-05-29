@@ -35,30 +35,49 @@ class AiItineraryController extends ChangeNotifier {
   String _persistenceLabel = 'Local mock only';
   String? _errorMessage;
   String? _snackBarMessage;
+  String? _persistedPlanId;
   ItineraryRequest? _currentRequest;
   ItineraryAgentResult? _currentResult;
   ItineraryPlan? _plan;
+  Future<void>? _generationFuture;
 
   AiItineraryStatus get status => _status;
   ItineraryPlan? get plan => _plan;
   String? get errorMessage => _errorMessage;
   String get sourceType => _sourceType;
   String get persistenceLabel => _persistenceLabel;
+  String? get persistedPlanId => _persistedPlanId;
   bool get isLoading => _status == AiItineraryStatus.loading;
   bool get isSaving => _status == AiItineraryStatus.saving;
   bool get isGeneratingEnnoia => isLoading;
   String get sourceLabel {
-    return switch (_sourceType) {
-      'kto_openapi_ennoia' => 'KTO OpenAPI + ennoia',
-      'kto_openapi_fallback' => 'KTO fallback + ennoia',
-      'ennoia_kto_mcp' || 'ennoia' => 'ennoia + KTO MCP',
-      _ => 'Mock ennoia',
-    };
+    final sourceType = _sourceType.toLowerCase();
+    if (sourceType == 'kto_openapi_ennoia') return 'KTO OpenAPI + ennoia';
+    if (sourceType == 'ennoia_kto_mcp') return 'ennoia + KTO MCP';
+    if (sourceType.contains('fallback') || sourceType.contains('mock')) {
+      return 'Demo fallback';
+    }
+    return 'Generated itinerary';
   }
 
   Future<void> generateItinerary(ItineraryRequest request) async {
     if (_disposed) return;
 
+    final inFlight = _generationFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _generateItinerary(request);
+    _generationFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_generationFuture, future)) {
+        _generationFuture = null;
+      }
+    }
+  }
+
+  Future<void> _generateItinerary(ItineraryRequest request) async {
     _status = AiItineraryStatus.loading;
     _errorMessage = null;
     _snackBarMessage = null;
@@ -72,15 +91,10 @@ class AiItineraryController extends ChangeNotifier {
       _currentResult = result;
       _plan = result.toItineraryPlan();
       _sourceType = result.isRealEnnoia ? result.sourceType : 'mock_ennoia';
-      _persistenceLabel = result.persisted
-          ? 'Saved to Supabase'
-          : 'Local mock only';
+      _persistedPlanId = result.persistedPlanId;
+      _persistenceLabel = _persistenceLabelForResult(result);
       _status = AiItineraryStatus.loaded;
       _safeNotifyListeners();
-
-      if (result.isRealEnnoia && !result.persisted) {
-        await saveCurrentPlan();
-      }
     } catch (error) {
       final message = _messageForError(error);
       developer.log(
@@ -136,9 +150,8 @@ class AiItineraryController extends ChangeNotifier {
 
     if (!hasSession) {
       _status = AiItineraryStatus.loaded;
-      _persistenceLabel = 'Local mock only';
-      _snackBarMessage =
-          'Itinerary generated, but saving requires a Supabase session.';
+      _persistenceLabel = 'Generated, but not saved to Supabase.';
+      _snackBarMessage = 'Generated, but not saved to Supabase.';
       _safeNotifyListeners();
       return false;
     }
@@ -158,9 +171,8 @@ class AiItineraryController extends ChangeNotifier {
       );
       if (_disposed) return false;
       _status = AiItineraryStatus.loaded;
-      _persistenceLabel = 'Local mock only';
-      _snackBarMessage =
-          'Itinerary generated, but saving requires a Supabase session.';
+      _persistenceLabel = 'Generated, but not saved to Supabase.';
+      _snackBarMessage = 'Generated, but not saved to Supabase.';
       _safeNotifyListeners();
       return false;
     }
@@ -182,6 +194,7 @@ class AiItineraryController extends ChangeNotifier {
       _currentResult = fallback;
       _plan = fallback.toItineraryPlan();
       _sourceType = 'mock_ennoia';
+      _persistedPlanId = null;
       _persistenceLabel = 'Local mock only';
       _status = AiItineraryStatus.loaded;
     } catch (_) {
@@ -217,5 +230,11 @@ class AiItineraryController extends ChangeNotifier {
     }
 
     return 'Unable to reach KTO OpenAPI + ennoia.';
+  }
+
+  String _persistenceLabelForResult(ItineraryAgentResult result) {
+    if (result.persisted) return 'Saved to Supabase';
+    if (result.isRealEnnoia) return 'Generated, but not saved to Supabase.';
+    return 'Local mock only';
   }
 }

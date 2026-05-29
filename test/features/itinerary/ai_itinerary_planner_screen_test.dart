@@ -104,7 +104,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('generateWithEnnoiaButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mock ennoia'), findsOneWidget);
+    expect(find.text('Demo fallback'), findsOneWidget);
     expect(find.text('Gyeongbokgung Palace'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -134,8 +134,39 @@ void main() {
   testWidgets('AI Itinerary screen shows source badge', (tester) async {
     await _pumpPlanner(tester);
 
-    expect(find.text('Mock ennoia'), findsOneWidget);
+    expect(find.text('Demo fallback'), findsOneWidget);
     expect(find.text('Local mock only'), findsOneWidget);
+  });
+
+  testWidgets('View KTO data shows itinerary evidence', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final controller = AiItineraryController(
+      ennoiaRepository: const _KtoEvidenceRepository(),
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AiItineraryPlannerScreen(
+          controller: controller,
+          initialRequest: ItineraryAgentRequest.defaults(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('KTO OpenAPI + ennoia'), findsOneWidget);
+
+    await tester.tap(find.text('View KTO data').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('KTO data'), findsOneWidget);
+    expect(find.text('kto_openapi_ennoia'), findsOneWidget);
+    expect(find.text('evidence-plan-1'), findsOneWidget);
+    expect(find.textContaining('126508'), findsOneWidget);
+    expect(find.textContaining('126537'), findsOneWidget);
   });
 
   test('mock repository returns five itinerary items', () async {
@@ -151,6 +182,7 @@ Future<void> _pumpPlanner(
   WidgetTester tester, {
   String? headerAsset,
   Map<String, WidgetBuilder>? routes,
+  AiItineraryController? controller,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 932));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -160,6 +192,7 @@ Future<void> _pumpPlanner(
       home: AiItineraryPlannerScreen(
         headerAsset:
             headerAsset ?? 'assets/images/itinerary/itinerary_header_bg.png',
+        controller: controller,
       ),
       routes: routes ?? const {},
     ),
@@ -192,6 +225,115 @@ class _PendingItineraryRepository implements EnnoiaAgentRepository {
   @override
   Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request) async {
     return RetripAgentResult.mock();
+  }
+
+  @override
+  Future<void> saveCultureScanRecord(
+    CultureGuideAgentRequest request,
+    CultureGuideResult result,
+  ) async {}
+
+  @override
+  Future<void> saveItineraryPlan(
+    ItineraryAgentRequest request,
+    ItineraryAgentResult result,
+  ) async {}
+
+  @override
+  Future<void> saveReTripEvent(
+    RetripAgentRequest request,
+    RetripAgentResult result,
+  ) async {}
+}
+
+class _KtoEvidenceRepository implements EnnoiaAgentRepository {
+  const _KtoEvidenceRepository();
+
+  @override
+  Future<CultureGuideResult> fetchCultureGuide(
+    CultureGuideAgentRequest request,
+  ) async {
+    return CultureGuideResult.mock(sourceType: 'kto_openapi_ennoia');
+  }
+
+  @override
+  Future<ItineraryAgentResult> fetchItinerary(
+    ItineraryAgentRequest request,
+  ) async {
+    return ItineraryAgentResult(
+      id: 'kto-evidence',
+      dateLabel: 'May 18, Sun',
+      title: 'AI Itinerary Planner',
+      estimatedTimeSaved: '1h 25m',
+      sourceType: 'kto_openapi_ennoia',
+      sourceNote: 'Generated with KTO OpenAPI data.',
+      persisted: true,
+      persistedPlanId: 'evidence-plan-1',
+      items: const [
+        ItineraryAgentItemResult(
+          id: 'gyeongbokgung',
+          order: 1,
+          time: '09:00',
+          placeName: 'Gyeongbokgung Palace',
+          crowdLevel: 'low',
+          stayTime: 'Stay 1h 30m',
+          aiTip: 'Start early.',
+          contentId: '126508',
+        ),
+        ItineraryAgentItemResult(
+          id: 'bukchon',
+          order: 2,
+          time: '11:00',
+          placeName: 'Bukchon Hanok Village',
+          crowdLevel: 'moderate',
+          stayTime: 'Stay 1h',
+          aiTip: 'Use quiet alleys.',
+          contentId: '126537',
+        ),
+        ItineraryAgentItemResult(
+          id: 'gwangjang',
+          order: 3,
+          time: '12:30',
+          placeName: 'Gwangjang Market',
+          crowdLevel: 'moderate',
+          stayTime: 'Stay 1h',
+          aiTip: 'Try local snacks.',
+          contentId: '132183',
+        ),
+        ItineraryAgentItemResult(
+          id: 'ikseon',
+          order: 4,
+          time: '14:00',
+          placeName: 'Ikseon-dong Cafe',
+          crowdLevel: 'low',
+          stayTime: 'Stay 1h',
+          aiTip: 'Good photo stop.',
+          contentId: '2375858',
+        ),
+        ItineraryAgentItemResult(
+          id: 'namsan',
+          order: 5,
+          time: '18:00',
+          placeName: 'Namsan Seoul Tower',
+          crowdLevel: 'moderate',
+          stayTime: 'Stay 1h 30m',
+          aiTip: 'Arrive before sunset.',
+          contentId: '126535',
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<ItineraryAgentResult> generateItinerary(
+    ItineraryAgentRequest request,
+  ) {
+    return fetchItinerary(request);
+  }
+
+  @override
+  Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request) async {
+    return RetripAgentResult.mock(sourceType: 'kto_openapi_ennoia');
   }
 
   @override
