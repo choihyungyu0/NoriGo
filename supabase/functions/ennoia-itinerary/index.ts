@@ -254,10 +254,22 @@ async function buildKtoData(
 ): Promise<KtoDataResult> {
   const keywords = keywordsFromInterests(requestPayload.interests);
   const placesByContentId = new Map<string, KtoPlace>();
+  const fetchedResults: KtoPlace[][] = [];
 
   try {
     for (const keyword of keywords) {
-      const places = await fetchKtoKeywordResults(keyword, serviceKey);
+      fetchedResults.push(await fetchKtoKeywordResults(keyword, serviceKey));
+    }
+
+    for (const places of fetchedResults) {
+      const place = places.find((candidate) =>
+        candidate.contentid && !placesByContentId.has(candidate.contentid)
+      );
+      if (place) placesByContentId.set(place.contentid, place);
+      if (placesByContentId.size >= 5) break;
+    }
+
+    for (const places of fetchedResults) {
       for (const place of places) {
         if (!place.contentid || placesByContentId.has(place.contentid)) {
           continue;
@@ -450,8 +462,23 @@ function extractOpenAiContent(decoded: unknown): string | null {
   if (isJsonMap(message) && typeof message.content === "string") {
     return message.content;
   }
+  if (isJsonMap(message) && Array.isArray(message.content)) {
+    return textFromContentParts(message.content);
+  }
 
   return typeof firstChoice.text === "string" ? firstChoice.text : null;
+}
+
+function textFromContentParts(parts: unknown[]): string | null {
+  const text = parts
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (!isJsonMap(part)) return "";
+      return typeof part.text === "string" ? part.text : "";
+    })
+    .join("")
+    .trim();
+  return text.length > 0 ? text : null;
 }
 
 function extractJsonLikeText(content: string): string | null {
@@ -500,30 +527,37 @@ function normalizeItineraryPayload(payload: JsonMap, ktoData: KtoPlace[]): JsonM
   ]);
   if (!Array.isArray(items)) return payload;
 
+  const usedContentIds = new Set<string>();
   const normalizedItems = items.map((item, index) => {
     if (!isJsonMap(item)) return item;
 
-    const contentId = stringValue(item, [
+    const requestedContentId = stringValue(item, [
       "kto_content_id",
       "ktoContentId",
       "contentId",
       "content_id",
       "contentid",
     ]);
-    const match = contentId
-      ? ktoData.find((place) => place.contentid == contentId)
-      : matchKtoPlaceByTitle(item, ktoData);
+    const directMatch = requestedContentId &&
+        !usedContentIds.has(requestedContentId)
+      ? ktoData.find((place) => place.contentid == requestedContentId)
+      : null;
+    const titleMatch = directMatch
+      ? null
+      : matchKtoPlaceByTitle(item, ktoData, usedContentIds);
+    const match = directMatch ?? titleMatch ??
+      ktoData.find((place) => !usedContentIds.has(place.contentid));
 
     if (!match) return item;
+    usedContentIds.add(match.contentid);
 
     return {
       ...item,
       id: stringValue(item, ["id"]) ?? slug(match.title),
       order: numberValue(item, ["order", "sequence"]) ?? index + 1,
-      placeName: stringValue(item, ["placeName", "place_name", "name", "title"]) ??
-        match.title,
-      kto_content_id: contentId ?? match.contentid,
-      contentId: contentId ?? match.contentid,
+      placeName: match.title,
+      kto_content_id: match.contentid,
+      contentId: match.contentid,
       contenttypeid:
         stringValue(item, ["contenttypeid", "contentTypeId"]) ??
           match.contenttypeid,
@@ -548,7 +582,11 @@ function normalizeItineraryPayload(payload: JsonMap, ktoData: KtoPlace[]): JsonM
   return payload;
 }
 
-function matchKtoPlaceByTitle(item: JsonMap, ktoData: KtoPlace[]): KtoPlace | null {
+function matchKtoPlaceByTitle(
+  item: JsonMap,
+  ktoData: KtoPlace[],
+  usedContentIds: Set<string>,
+): KtoPlace | null {
   const placeName = stringValue(item, [
     "placeName",
     "place_name",
@@ -558,7 +596,8 @@ function matchKtoPlaceByTitle(item: JsonMap, ktoData: KtoPlace[]): KtoPlace | nu
   if (!placeName) return null;
 
   return ktoData.find((place) =>
-    placeName.includes(place.title) || place.title.includes(placeName)
+    !usedContentIds.has(place.contentid) &&
+    (placeName.includes(place.title) || place.title.includes(placeName))
   ) ?? null;
 }
 
