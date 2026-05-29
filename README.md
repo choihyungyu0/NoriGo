@@ -17,13 +17,13 @@ No Supabase, OAuth, public data, camera, map, or AI credentials are hardcoded. T
 
 ## ennoia Integration
 
-The ennoia Apps builder currently cannot select NoriGo's MCP/function-calling agents directly. NoriGo therefore keeps Flutter as the app surface and calls the ennoia Agent API through Supabase Edge Functions:
+NoriGo keeps Flutter as the app surface and calls Supabase Edge Functions for private API work:
 
 ```text
-Flutter app -> Supabase Edge Function -> ennoia Agent API -> Korea Tourism Organization MCP -> JSON response -> Flutter screen
+Flutter app -> Supabase Edge Function -> Korea Tourism Organization OpenAPI -> KTO_DATA -> ennoia Itinerary API Agent -> JSON response -> Flutter screen
 ```
 
-The Korea Tourism Organization MCP stays inside the deployed ennoia Agent. Flutter never receives the ennoia API key.
+Flutter never receives the ennoia API key or Korea Tourism Organization OpenAPI service key. Culture Guide and Re-Trip still use their existing ennoia agent paths; itinerary generation avoids MCP at runtime by passing KTO_DATA directly to an MCP-free ennoia API Agent.
 
 Created Edge Functions:
 
@@ -47,10 +47,11 @@ Required Supabase Edge Function secrets:
 npx.cmd supabase secrets set ENNOIA_API_ENDPOINT="https://api.ennoia.so/api/preset/v2/chat/completions"
 npx.cmd supabase secrets set ENNOIA_PROJECT="KNTO-PROMPTON-2026-278"
 npx.cmd supabase secrets set ENNOIA_CULTURE_HASH="dc44d0299932b02678332570c300d55fbfb0ce66a17d99748b7d037af057c979"
-npx.cmd supabase secrets set ENNOIA_ITINERARY_HASH="9318087e471c153d5f82ba62f1cb3ca5a96a4890eb915c38184fcd8cb982092c"
+npx.cmd supabase secrets set ENNOIA_ITINERARY_API_HASH="your-mcp-free-itinerary-api-agent-hash"
 npx.cmd supabase secrets set ENNOIA_RETRIP_HASH="aca71cdc813b24da90d4b20b03e5bbd7c7ca7bf8aa60769a1ba7eebd934d5ac1"
 npx.cmd supabase secrets set ENNOIA_USER_ID="norigo-demo-user"
 npx.cmd supabase secrets set ENNOIA_API_KEY="your-ennoia-api-key"
+npx.cmd supabase secrets set KTO_SERVICE_KEY="your-kto-openapi-service-key"
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are available to hosted Supabase Edge Functions by default. If serving locally, include both in `supabase/.env.local` so itinerary persistence can be tested locally too.
@@ -100,10 +101,10 @@ Rows are inserted after successful calls to:
 ## Evidence Checklist
 
 - Edge Function logs show ennoia Agent requests without exposing `ENNOIA_API_KEY`.
-- Flutter UI shows `ennoia + KTO MCP` for real agent output.
+- Flutter UI shows `KTO OpenAPI + ennoia` for real itinerary output.
 - Flutter UI shows `Saved to Supabase` only after the insert request succeeds.
 - Flutter UI shows `Local mock only` when mock fallback is active or persistence is unavailable.
-- Supabase table rows include `source_type = 'ennoia_kto_mcp'` and evidence-friendly `source_note` / `raw_json` fields where available.
+- Supabase itinerary rows include `source_type = 'kto_openapi_ennoia'` for live KTO OpenAPI data or `source_type = 'kto_openapi_fallback'` when demo KTO_DATA was needed.
 - RLS is enabled; before production, add Supabase Auth ownership columns and user-scoped policies.
 
 ## Run

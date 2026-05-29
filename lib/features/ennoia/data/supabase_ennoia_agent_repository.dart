@@ -98,7 +98,7 @@ class SupabaseEnnoiaAgentRepository implements EnnoiaAgentRepository {
       'time_saved': result.estimatedTimeSaved,
       'source_note': result.sourceNote ?? _sourceNote,
       'raw_json': {'request': request.toJson(), 'result': result.toJson()},
-      'source_type': _persistedSourceType,
+      'source_type': result.sourceType,
     });
   }
 

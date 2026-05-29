@@ -25,7 +25,10 @@ class ItineraryAgentResult {
   final String? persistedPlanId;
 
   bool get isRealEnnoia =>
-      sourceType == 'ennoia' || sourceType == 'ennoia_kto_mcp';
+      sourceType == 'ennoia' ||
+      sourceType == 'ennoia_kto_mcp' ||
+      sourceType == 'kto_openapi_ennoia' ||
+      sourceType == 'kto_openapi_fallback';
 
   factory ItineraryAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
@@ -189,14 +192,16 @@ class ItineraryAgentResult {
   }
 
   static String _sourceType(Map<String, Object?> json) {
-    final source = json['source'] ?? json['sourceType'] ?? json['source_type'];
-    if (source is String && source.trim().toLowerCase() == 'mock') {
-      return 'mock';
+    final source = json['source_type'] ?? json['sourceType'] ?? json['source'];
+    if (source is String && source.trim().isNotEmpty) {
+      final normalized = source.trim().toLowerCase().replaceAll('-', '_');
+      if (normalized == 'mock') return 'mock';
+      if (normalized == 'ennoia_kto_mcp') return 'ennoia_kto_mcp';
+      if (normalized == 'kto_openapi_ennoia') return 'kto_openapi_ennoia';
+      if (normalized == 'kto_openapi_fallback') return 'kto_openapi_fallback';
+      if (normalized == 'ennoia') return 'ennoia';
     }
-    if (source is String &&
-        source.trim().toLowerCase().replaceAll('-', '_') == 'ennoia_kto_mcp') {
-      return 'ennoia_kto_mcp';
-    }
+
     return 'ennoia';
   }
 

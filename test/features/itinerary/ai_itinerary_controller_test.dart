@@ -36,7 +36,7 @@ void main() {
 
     expect(controller.status, AiItineraryStatus.error);
     expect(controller.plan, isNull);
-    expect(controller.errorMessage, 'Unable to reach ennoia + KTO MCP.');
+    expect(controller.errorMessage, 'Unable to reach KTO OpenAPI + ennoia.');
 
     controller.dispose();
   });
@@ -89,6 +89,24 @@ void main() {
       controller.dispose();
     },
   );
+
+  test('KTO OpenAPI itinerary shows the new source badge', () async {
+    final controller = AiItineraryController(
+      ennoiaRepository: const _StaticRepository(
+        sourceType: 'kto_openapi_ennoia',
+        persisted: true,
+      ),
+      fallbackRepository: const _StaticRepository(sourceType: 'mock'),
+    );
+
+    await controller.generateItinerary(ItineraryAgentRequest.defaults());
+
+    expect(controller.plan?.items, hasLength(5));
+    expect(controller.sourceLabel, 'KTO OpenAPI + ennoia');
+    expect(controller.persistenceLabel, 'Saved to Supabase');
+
+    controller.dispose();
+  });
 }
 
 class _StaticDemoAuthService extends DemoAuthService {

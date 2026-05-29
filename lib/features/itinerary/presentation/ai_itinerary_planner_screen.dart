@@ -373,7 +373,7 @@ class _LoadingItineraryCard extends StatelessWidget {
                   ),
                   SizedBox(height: 6 * scale),
                   Text(
-                    'Using ennoia + KTO MCP',
+                    'Using KTO OpenAPI + ennoia',
                     style: TextStyle(
                       color: _PlannerColors.textSub,
                       fontSize: 14 * scale,
@@ -693,7 +693,8 @@ class _AgentSourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReal = label == 'ennoia + KTO MCP';
+    final isReal =
+        label == 'ennoia + KTO MCP' || label == 'KTO OpenAPI + ennoia';
     return Container(
       height: 32 * scale,
       constraints: BoxConstraints(maxWidth: 136 * scale),
@@ -917,7 +918,13 @@ class _ItineraryTimeline extends StatelessWidget {
   }
 
   String _sourceTypeForDetails(String sourceType) {
-    return sourceType == 'ennoia' ? 'ennoia_kto_mcp' : 'mock_ennoia';
+    return switch (sourceType) {
+      'ennoia' => 'ennoia_kto_mcp',
+      'ennoia_kto_mcp' ||
+      'kto_openapi_ennoia' ||
+      'kto_openapi_fallback' => sourceType,
+      _ => 'mock_ennoia',
+    };
   }
 }
 

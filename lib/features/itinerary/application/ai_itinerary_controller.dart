@@ -48,7 +48,12 @@ class AiItineraryController extends ChangeNotifier {
   bool get isSaving => _status == AiItineraryStatus.saving;
   bool get isGeneratingEnnoia => isLoading;
   String get sourceLabel {
-    return _sourceType == 'ennoia_kto_mcp' ? 'ennoia + KTO MCP' : 'Mock ennoia';
+    return switch (_sourceType) {
+      'kto_openapi_ennoia' => 'KTO OpenAPI + ennoia',
+      'kto_openapi_fallback' => 'KTO fallback + ennoia',
+      'ennoia_kto_mcp' || 'ennoia' => 'ennoia + KTO MCP',
+      _ => 'Mock ennoia',
+    };
   }
 
   Future<void> generateItinerary(ItineraryRequest request) async {
@@ -66,7 +71,7 @@ class AiItineraryController extends ChangeNotifier {
       _currentRequest = request;
       _currentResult = result;
       _plan = result.toItineraryPlan();
-      _sourceType = result.isRealEnnoia ? 'ennoia_kto_mcp' : 'mock_ennoia';
+      _sourceType = result.isRealEnnoia ? result.sourceType : 'mock_ennoia';
       _persistenceLabel = result.persisted
           ? 'Saved to Supabase'
           : 'Local mock only';
@@ -211,6 +216,6 @@ class AiItineraryController extends ChangeNotifier {
       return error.message;
     }
 
-    return 'Unable to reach ennoia + KTO MCP.';
+    return 'Unable to reach KTO OpenAPI + ennoia.';
   }
 }

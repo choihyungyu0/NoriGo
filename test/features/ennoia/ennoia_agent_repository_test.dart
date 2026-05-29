@@ -35,7 +35,7 @@ void main() {
 
   test('itinerary parser accepts Edge Function persistence metadata', () {
     final result = ItineraryAgentResult.fromJson({
-      'source': 'ennoia',
+      'source_type': 'kto_openapi_ennoia',
       'dateLabel': 'May 18, Sun',
       'title': 'AI Itinerary Planner',
       'estimatedTimeSaved': '1h',
@@ -56,6 +56,7 @@ void main() {
     });
 
     expect(result.isRealEnnoia, isTrue);
+    expect(result.sourceType, 'kto_openapi_ennoia');
     expect(result.persisted, isTrue);
     expect(result.persistedPlanId, 'plan-1');
     expect(result.items.first.contentId, '1000');

@@ -128,7 +128,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Creating your AI itinerary...'), findsOneWidget);
-    expect(find.text('Using ennoia + KTO MCP'), findsOneWidget);
+    expect(find.text('Using KTO OpenAPI + ennoia'), findsOneWidget);
   });
 
   testWidgets('AI Itinerary screen shows source badge', (tester) async {
