@@ -164,6 +164,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                 guide: guide,
                                 scanStatus: _controller.scanStatus,
                                 sourceLabel: _controller.ennoiaSourceLabel,
+                                persistenceLabel: _controller.persistenceLabel,
                                 isEnnoiaLoading: _controller.isRunningEnnoia,
                                 onRunEnnoia: _runEnnoiaCultureGuide,
                                 scale: scale,
@@ -647,6 +648,7 @@ class _CultureGuideCard extends StatelessWidget {
     required this.guide,
     required this.scanStatus,
     required this.sourceLabel,
+    required this.persistenceLabel,
     required this.isEnnoiaLoading,
     required this.onRunEnnoia,
     required this.scale,
@@ -655,6 +657,7 @@ class _CultureGuideCard extends StatelessWidget {
   final CultureGuide guide;
   final CultureScanStatus scanStatus;
   final String sourceLabel;
+  final String persistenceLabel;
   final bool isEnnoiaLoading;
   final VoidCallback onRunEnnoia;
   final double scale;
@@ -736,6 +739,8 @@ class _CultureGuideCard extends StatelessWidget {
               ),
             ],
           ),
+          SizedBox(height: 7 * scale),
+          _PersistenceBadge(label: persistenceLabel, scale: scale),
           SizedBox(height: 14 * scale),
           Text(
             guide.question,
@@ -814,6 +819,44 @@ class _CultureGuideCard extends StatelessWidget {
             body: guide.story,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PersistenceBadge extends StatelessWidget {
+  const _PersistenceBadge({required this.label, required this.scale});
+
+  final String label;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSaved = label == 'Saved to Supabase';
+    return Container(
+      height: 24 * scale,
+      constraints: BoxConstraints(maxWidth: 128 * scale),
+      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isSaved ? const Color(0xFFEAF8DE) : const Color(0xFFFFF4DF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isSaved ? const Color(0xFFD3E9C6) : const Color(0xFFECD7AA),
+        ),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            color: isSaved ? const Color(0xFF258616) : const Color(0xFF8A5D0B),
+            fontSize: 10.6 * scale,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
       ),
     );
   }

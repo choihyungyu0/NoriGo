@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:norigo/app/router.dart';
+import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/onboarding/presentation/interests_alerts_screen.dart';
 
 void main() {
@@ -120,6 +122,36 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Interests & Alerts'), findsOneWidget);
+  });
+
+  testWidgets('Finish setup navigates to itinerary route', (tester) async {
+    Object? routeArguments;
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const InterestsAlertsScreen(),
+        onGenerateRoute: (settings) {
+          if (settings.name == AppRoutes.itinerary) {
+            routeArguments = settings.arguments;
+            return MaterialPageRoute<void>(
+              builder: (_) => const Scaffold(
+                body: Placeholder(key: ValueKey('itineraryRoute')),
+              ),
+              settings: settings,
+            );
+          }
+          return null;
+        },
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('finishSetupButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('itineraryRoute')), findsOneWidget);
+    expect(routeArguments, isA<ItineraryAgentRequest>());
   });
 }
 

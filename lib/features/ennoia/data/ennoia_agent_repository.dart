@@ -9,7 +9,24 @@ abstract interface class EnnoiaAgentRepository {
 
   Future<ItineraryAgentResult> fetchItinerary(ItineraryAgentRequest request);
 
+  Future<ItineraryAgentResult> generateItinerary(ItineraryAgentRequest request);
+
   Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request);
+
+  Future<void> saveCultureScanRecord(
+    CultureGuideAgentRequest request,
+    CultureGuideResult result,
+  );
+
+  Future<void> saveItineraryPlan(
+    ItineraryAgentRequest request,
+    ItineraryAgentResult result,
+  );
+
+  Future<void> saveReTripEvent(
+    RetripAgentRequest request,
+    RetripAgentResult result,
+  );
 }
 
 class CultureGuideAgentRequest {

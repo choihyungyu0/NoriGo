@@ -9,6 +9,9 @@ class ItineraryAgentResult {
     required this.items,
     required this.estimatedTimeSaved,
     required this.sourceType,
+    this.sourceNote,
+    this.persisted = false,
+    this.persistedPlanId,
   });
 
   final String id;
@@ -17,12 +20,17 @@ class ItineraryAgentResult {
   final List<ItineraryAgentItemResult> items;
   final String estimatedTimeSaved;
   final String sourceType;
+  final String? sourceNote;
+  final bool persisted;
+  final String? persistedPlanId;
 
-  bool get isRealEnnoia => sourceType == 'ennoia';
+  bool get isRealEnnoia =>
+      sourceType == 'ennoia' || sourceType == 'ennoia_kto_mcp';
 
   factory ItineraryAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
-    final fallback = ItineraryAgentResult.mock(sourceType: _sourceType(json));
+    final sourceType = _sourceType(json);
+    final fallback = ItineraryAgentResult.mock(sourceType: sourceType);
     final rawItems = _list(data, const [
       'items',
       'itinerary',
@@ -35,6 +43,12 @@ class ItineraryAgentResult {
         .map((item) => ItineraryAgentItemResult.fromJson(item))
         .take(5)
         .toList(growable: false);
+
+    if (items.isEmpty && sourceType != 'mock') {
+      throw const FormatException(
+        'Real ennoia itinerary did not include items.',
+      );
+    }
 
     return ItineraryAgentResult(
       id: _string(data, const ['id'], fallback.id),
@@ -51,17 +65,41 @@ class ItineraryAgentResult {
         'timeSaved',
       ], fallback.estimatedTimeSaved),
       items: items.isEmpty ? fallback.items : items,
-      sourceType: fallback.sourceType,
+      sourceType: sourceType,
+      sourceNote:
+          _nullableString(data, const [
+            'sourceNote',
+            'source_note',
+            'evidence',
+            'evidenceNote',
+            'evidence_note',
+          ]) ??
+          _nullableString(json, const [
+            'sourceNote',
+            'source_note',
+            'evidence',
+            'evidenceNote',
+            'evidence_note',
+          ]),
+      persisted: _persisted(json),
+      persistedPlanId: _persistedPlanId(json),
     );
   }
 
-  factory ItineraryAgentResult.mock({String sourceType = 'mock'}) {
+  factory ItineraryAgentResult.mock({
+    String sourceType = 'mock',
+    bool persisted = false,
+    String? persistedPlanId,
+  }) {
     return ItineraryAgentResult(
       id: 'mock-seoul-one-day',
       dateLabel: 'May 18, Sun',
       title: 'AI Itinerary Planner',
       estimatedTimeSaved: '1h 25m',
       sourceType: sourceType,
+      sourceNote: 'Mock itinerary evidence for demo fallback.',
+      persisted: persisted,
+      persistedPlanId: persistedPlanId,
       items: const [
         ItineraryAgentItemResult(
           id: 'gyeongbokgung-palace',
@@ -120,10 +158,25 @@ class ItineraryAgentResult {
       title: title,
       estimatedTimeSaved: estimatedTimeSaved,
       sourceType: sourceType,
+      sourceNote: sourceNote,
       items: items
           .map((item) => item.toItineraryItem())
           .toList(growable: false),
     );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'dateLabel': dateLabel,
+      'title': title,
+      'estimatedTimeSaved': estimatedTimeSaved,
+      'sourceType': sourceType,
+      'sourceNote': sourceNote,
+      'persisted': persisted,
+      'persistedPlanId': persistedPlanId,
+      'items': items.map((item) => item.toJson()).toList(growable: false),
+    };
   }
 
   static Map<String, Object?>? _nestedMap(Map<String, Object?> json) {
@@ -140,7 +193,36 @@ class ItineraryAgentResult {
     if (source is String && source.trim().toLowerCase() == 'mock') {
       return 'mock';
     }
+    if (source is String &&
+        source.trim().toLowerCase().replaceAll('-', '_') == 'ennoia_kto_mcp') {
+      return 'ennoia_kto_mcp';
+    }
     return 'ennoia';
+  }
+
+  static bool _persisted(Map<String, Object?> json) {
+    final value = json['persisted'];
+    if (value is bool) return value;
+
+    final persistence = json['persistence'];
+    if (persistence is Map && persistence['saved'] is bool) {
+      return persistence['saved'] as bool;
+    }
+
+    return false;
+  }
+
+  static String? _persistedPlanId(Map<String, Object?> json) {
+    final value = json['persistedPlanId'] ?? json['persisted_plan_id'];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+
+    final persistence = json['persistence'];
+    if (persistence is Map) {
+      final id = persistence['id'] ?? persistence['plan_id'];
+      if (id is String && id.trim().isNotEmpty) return id.trim();
+    }
+
+    return null;
   }
 
   static List<Object?> _list(Map<String, Object?> json, List<String> keys) {
@@ -161,6 +243,14 @@ class ItineraryAgentResult {
       if (value is String && value.trim().isNotEmpty) return value.trim();
     }
     return fallback;
+  }
+
+  static String? _nullableString(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
   }
 }
 
@@ -219,6 +309,8 @@ class ItineraryAgentItemResult {
       aiTip: _string(json, const [
         'aiTip',
         'ai_tip',
+        'cultureTip',
+        'culture_tip',
         'tip',
         'reason',
         'description',
@@ -228,7 +320,13 @@ class ItineraryAgentItemResult {
         'imageAssetPath',
         'image_asset_path',
       ]),
-      contentId: _nullableString(json, const ['contentId', 'content_id']),
+      contentId: _nullableValueAsString(json, const [
+        'contentId',
+        'content_id',
+        'ktoContentId',
+        'kto_content_id',
+        'contentid',
+      ]),
       mapX: _double(json, const ['mapX', 'mapx', 'x']),
       mapY: _double(json, const ['mapY', 'mapy', 'y']),
     );
@@ -249,6 +347,23 @@ class ItineraryAgentItemResult {
       mapX: mapX,
       mapY: mapY,
     );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'order': order,
+      'time': time,
+      'placeName': placeName,
+      'crowdLevel': crowdLevel,
+      'stayTime': stayTime,
+      'aiTip': aiTip,
+      'extraBadge': extraBadge,
+      'imageAssetPath': imageAssetPath,
+      'contentId': contentId,
+      'mapX': mapX,
+      'mapY': mapY,
+    };
   }
 
   static ItineraryCrowdLevel _crowdLevel(String value) {
@@ -278,6 +393,18 @@ class ItineraryAgentItemResult {
     for (final key in keys) {
       final value = json[key];
       if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
+
+  static String? _nullableValueAsString(
+    Map<dynamic, dynamic> json,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+      if (value is num) return value.toString();
     }
     return null;
   }

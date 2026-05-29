@@ -1,6 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
+import 'package:norigo/features/ennoia/domain/culture_guide_result.dart';
+import 'package:norigo/features/ennoia/domain/itinerary_agent_result.dart';
+import 'package:norigo/features/ennoia/domain/retrip_agent_result.dart';
+import 'package:norigo/features/itinerary/application/ai_itinerary_controller.dart';
 import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
 
@@ -102,6 +109,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('AI Itinerary screen shows loading state', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = AiItineraryController(
+      ennoiaRepository: _PendingItineraryRepository(),
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AiItineraryPlannerScreen(
+          controller: controller,
+          initialRequest: ItineraryAgentRequest.defaults(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Creating your AI itinerary...'), findsOneWidget);
+    expect(find.text('Using ennoia + KTO MCP'), findsOneWidget);
+  });
+
+  testWidgets('AI Itinerary screen shows source badge', (tester) async {
+    await _pumpPlanner(tester);
+
+    expect(find.text('Mock ennoia'), findsOneWidget);
+    expect(find.text('Local mock only'), findsOneWidget);
+  });
+
   test('mock repository returns five itinerary items', () async {
     final plan = await const MockItineraryRepository().fetchPlan();
 
@@ -129,4 +165,50 @@ Future<void> _pumpPlanner(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _PendingItineraryRepository implements EnnoiaAgentRepository {
+  final _itineraryCompleter = Completer<ItineraryAgentResult>();
+
+  @override
+  Future<CultureGuideResult> fetchCultureGuide(
+    CultureGuideAgentRequest request,
+  ) async {
+    return CultureGuideResult.mock();
+  }
+
+  @override
+  Future<ItineraryAgentResult> fetchItinerary(ItineraryAgentRequest request) {
+    return _itineraryCompleter.future;
+  }
+
+  @override
+  Future<ItineraryAgentResult> generateItinerary(
+    ItineraryAgentRequest request,
+  ) {
+    return fetchItinerary(request);
+  }
+
+  @override
+  Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request) async {
+    return RetripAgentResult.mock();
+  }
+
+  @override
+  Future<void> saveCultureScanRecord(
+    CultureGuideAgentRequest request,
+    CultureGuideResult result,
+  ) async {}
+
+  @override
+  Future<void> saveItineraryPlan(
+    ItineraryAgentRequest request,
+    ItineraryAgentResult result,
+  ) async {}
+
+  @override
+  Future<void> saveReTripEvent(
+    RetripAgentRequest request,
+    RetripAgentResult result,
+  ) async {}
 }

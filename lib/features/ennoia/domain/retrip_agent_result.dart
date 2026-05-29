@@ -12,6 +12,8 @@ class RetripAgentResult {
     required this.foreignerQueueTip,
     required this.alternatives,
     required this.sourceType,
+    this.recommendedAction = 'Choose a lower-crowd alternative nearby.',
+    this.sourceNote,
   });
 
   final String id;
@@ -23,6 +25,8 @@ class RetripAgentResult {
   final String foreignerQueueTip;
   final List<RetripAlternativeResult> alternatives;
   final String sourceType;
+  final String recommendedAction;
+  final String? sourceNote;
 
   bool get isRealEnnoia => sourceType == 'ennoia';
 
@@ -71,6 +75,20 @@ class RetripAgentResult {
       ], fallback.foreignerQueueTip),
       alternatives: alternatives.isEmpty ? fallback.alternatives : alternatives,
       sourceType: fallback.sourceType,
+      recommendedAction: _string(data, const [
+        'recommendedAction',
+        'recommended_action',
+        'action',
+        'nextStep',
+        'next_step',
+      ], fallback.recommendedAction),
+      sourceNote: _nullableString(data, const [
+        'sourceNote',
+        'source_note',
+        'evidence',
+        'evidenceNote',
+        'evidence_note',
+      ]),
     );
   }
 
@@ -85,6 +103,8 @@ class RetripAgentResult {
       foreignerQueueTip:
           'Even if no visible line, app-based queues may already be full.',
       sourceType: sourceType,
+      recommendedAction: 'Switch to a nearby low-crowd dessert cafe.',
+      sourceNote: 'Mock Re-Trip evidence for demo fallback.',
       alternatives: const [
         RetripAlternativeResult(
           id: 'cafe-owall',
@@ -130,6 +150,24 @@ class RetripAgentResult {
     );
   }
 
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'originalPlace': originalPlace,
+      'scheduledTime': scheduledTime,
+      'crowdLevel': crowdLevel,
+      'estimatedWait': estimatedWait,
+      'alertMessage': alertMessage,
+      'foreignerQueueTip': foreignerQueueTip,
+      'recommendedAction': recommendedAction,
+      'sourceType': sourceType,
+      'sourceNote': sourceNote,
+      'alternatives': alternatives
+          .map((alternative) => alternative.toJson())
+          .toList(growable: false),
+    };
+  }
+
   static Map<String, Object?>? _nestedMap(Map<String, Object?> json) {
     for (final key in const ['retrip', 'reTrip', 'result', 'data']) {
       final value = json[key];
@@ -165,6 +203,14 @@ class RetripAgentResult {
       if (value is String && value.trim().isNotEmpty) return value.trim();
     }
     return fallback;
+  }
+
+  static String? _nullableString(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
   }
 }
 
@@ -245,6 +291,21 @@ class RetripAlternativeResult {
       mapX: mapX,
       mapY: mapY,
     );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'walkingTime': walkingTime,
+      'diversityScore': diversityScore,
+      'crowdLevel': crowdLevel,
+      'imageAssetPath': imageAssetPath,
+      'contentId': contentId,
+      'mapX': mapX,
+      'mapY': mapY,
+    };
   }
 
   static String _string(

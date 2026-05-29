@@ -54,6 +54,7 @@ Deno.serve(async (request) => {
   const project = Deno.env.get("ENNOIA_PROJECT");
   const apiKey = Deno.env.get("ENNOIA_API_KEY");
   const hash = Deno.env.get("ENNOIA_RETRIP_HASH");
+  const ennoiaUserId = Deno.env.get("ENNOIA_USER_ID") ?? "norigo-demo-user";
 
   if (!endpoint || !project || !apiKey || !hash) {
     return jsonResponse(mockRetrip(), 200);
@@ -78,6 +79,7 @@ Deno.serve(async (request) => {
       headers: {
         project,
         apiKey,
+        "X-ENNOIA-USER-ID": ennoiaUserId,
         "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify(ennoiaPayload),

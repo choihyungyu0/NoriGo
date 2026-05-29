@@ -43,7 +43,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
 
   void _continue() {
     if (AppRouter.routes.containsKey(AppRoutes.interests)) {
-      Navigator.of(context).pushNamed(AppRoutes.interests);
+      Navigator.of(context).pushNamed(AppRoutes.interests, arguments: _basics);
       return;
     }
 

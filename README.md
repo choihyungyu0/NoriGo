@@ -31,6 +31,16 @@ Created Edge Functions:
 - `supabase/functions/ennoia-itinerary/index.ts`
 - `supabase/functions/ennoia-retrip/index.ts`
 
+Persistence tables:
+
+- `culture_scan_records`
+- `itinerary_plans`
+- `retrip_events`
+
+After a real itinerary response, the `ennoia-itinerary` Edge Function writes the parsed result to `itinerary_plans` with the Supabase service role key and returns `persisted: true`. Flutter then shows `Saved to Supabase`. Mock fallback still stays local and shows `Local mock only`.
+
+The migration enables RLS and creates insert/select policies for the `authenticated` role only. This project does not yet include a real Supabase Auth session or per-user `user_id` columns, so production policies must be tightened before launch by adding ownership columns and scoping `using` / `with check` to `auth.uid()`.
+
 Required Supabase Edge Function secrets:
 
 ```powershell
@@ -39,8 +49,11 @@ npx.cmd supabase secrets set ENNOIA_PROJECT="KNTO-PROMPTON-2026-278"
 npx.cmd supabase secrets set ENNOIA_CULTURE_HASH="dc44d0299932b02678332570c300d55fbfb0ce66a17d99748b7d037af057c979"
 npx.cmd supabase secrets set ENNOIA_ITINERARY_HASH="9318087e471c153d5f82ba62f1cb3ca5a96a4890eb915c38184fcd8cb982092c"
 npx.cmd supabase secrets set ENNOIA_RETRIP_HASH="aca71cdc813b24da90d4b20b03e5bbd7c7ca7bf8aa60769a1ba7eebd934d5ac1"
+npx.cmd supabase secrets set ENNOIA_USER_ID="norigo-demo-user"
 npx.cmd supabase secrets set ENNOIA_API_KEY="your-ennoia-api-key"
 ```
+
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are available to hosted Supabase Edge Functions by default. If serving locally, include both in `supabase/.env.local` so itinerary persistence can be tested locally too.
 
 Deploy the functions:
 
@@ -63,6 +76,35 @@ npx.cmd supabase functions serve ennoia-culture-guide --env-file supabase/.env.l
 ```
 
 Do not commit real API keys or local env files.
+
+## Supabase Persistence
+
+Apply the persistence migration:
+
+```powershell
+npx.cmd supabase db push
+```
+
+Or apply the SQL file directly in the Supabase SQL editor:
+
+```text
+supabase/migrations/20260529193000_create_ennoia_persistence_tables.sql
+```
+
+Rows are inserted after successful calls to:
+
+- `ennoia-culture-guide` -> `culture_scan_records`
+- `ennoia-itinerary` -> `itinerary_plans` from inside the Edge Function
+- `ennoia-retrip` -> `retrip_events`
+
+## Evidence Checklist
+
+- Edge Function logs show ennoia Agent requests without exposing `ENNOIA_API_KEY`.
+- Flutter UI shows `ennoia + KTO MCP` for real agent output.
+- Flutter UI shows `Saved to Supabase` only after the insert request succeeds.
+- Flutter UI shows `Local mock only` when mock fallback is active or persistence is unavailable.
+- Supabase table rows include `source_type = 'ennoia_kto_mcp'` and evidence-friendly `source_note` / `raw_json` fields where available.
+- RLS is enabled; before production, add Supabase Auth ownership columns and user-scoped policies.
 
 ## Run
 

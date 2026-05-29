@@ -6,6 +6,7 @@ import 'package:norigo/ai/harness/culture_guide_harness.dart';
 import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
+import 'package:norigo/features/ennoia/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/data/culture_guide_mock_data.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
@@ -45,6 +46,7 @@ class CultureScanController extends ChangeNotifier {
   String _selectedLanguage = 'English';
   String? _friendlyMessage;
   String _ennoiaSourceLabel = 'Mock ennoia';
+  String _persistenceLabel = 'Local mock only';
   bool _flashEnabled = false;
   bool _isRunningEnnoia = false;
   bool _disposed = false;
@@ -58,6 +60,8 @@ class CultureScanController extends ChangeNotifier {
   String? get friendlyMessage => _friendlyMessage;
 
   String get ennoiaSourceLabel => _ennoiaSourceLabel;
+
+  String get persistenceLabel => _persistenceLabel;
 
   bool get isRunningEnnoia => _isRunningEnnoia;
 
@@ -159,6 +163,7 @@ class CultureScanController extends ChangeNotifier {
 
       _guide = guide;
       _ennoiaSourceLabel = 'Mock ennoia';
+      _persistenceLabel = 'Local mock only';
       _scanStatus = CultureScanStatus.result;
     } catch (error) {
       if (_disposed) return;
@@ -168,6 +173,8 @@ class CultureScanController extends ChangeNotifier {
         error: error.runtimeType,
       );
       _guide = CultureGuideMockData.fallbackGuide;
+      _ennoiaSourceLabel = 'Mock ennoia';
+      _persistenceLabel = 'Local mock only';
       _scanStatus = CultureScanStatus.error;
       _friendlyMessage =
           'NoriGo could not complete the scan, so it is showing a safe guide.';
@@ -199,6 +206,11 @@ class CultureScanController extends ChangeNotifier {
       _ennoiaSourceLabel = result.isRealEnnoia
           ? 'ennoia + KTO MCP'
           : 'Mock ennoia';
+      final saved = result.isRealEnnoia
+          ? await _saveCultureScanRecord(request, result)
+          : false;
+      if (_disposed) return;
+      _persistenceLabel = saved ? 'Saved to Supabase' : 'Local mock only';
       _scanStatus = CultureScanStatus.result;
     } catch (error) {
       developer.log(
@@ -213,12 +225,30 @@ class CultureScanController extends ChangeNotifier {
       if (_disposed) return;
       _guide = fallback.toCultureGuide();
       _ennoiaSourceLabel = 'Mock ennoia';
+      _persistenceLabel = 'Local mock only';
       _scanStatus = CultureScanStatus.result;
       _friendlyMessage =
           'NoriGo could not reach ennoia, so it is showing a mock guide.';
     } finally {
       _isRunningEnnoia = false;
       _safeNotifyListeners();
+    }
+  }
+
+  Future<bool> _saveCultureScanRecord(
+    CultureGuideAgentRequest request,
+    CultureGuideResult result,
+  ) async {
+    try {
+      await _ennoiaRepository.saveCultureScanRecord(request, result);
+      return true;
+    } catch (error) {
+      developer.log(
+        'Supabase culture scan persistence skipped.',
+        name: 'CultureScanController',
+        error: error.runtimeType,
+      );
+      return false;
     }
   }
 

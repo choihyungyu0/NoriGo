@@ -1,7 +1,10 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/foundation.dart';
 import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
+import 'package:norigo/features/ennoia/domain/retrip_agent_result.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
@@ -29,11 +32,13 @@ class CrowdAlertController extends ChangeNotifier {
   CrowdAlert? _alert;
   AlternativePlace? _selectedAlternative;
   String? _errorMessage;
+  String _persistenceLabel = 'Local mock only';
 
   CrowdAlertStatus get status => _status;
   CrowdAlert? get alert => _alert;
   AlternativePlace? get selectedAlternative => _selectedAlternative;
   String? get errorMessage => _errorMessage;
+  String get persistenceLabel => _persistenceLabel;
   bool get isLoading => _status == CrowdAlertStatus.loading;
   bool get isSwitching => _status == CrowdAlertStatus.switching;
   bool get isGeneratingRetrip => _isGeneratingRetrip;
@@ -49,6 +54,7 @@ class CrowdAlertController extends ChangeNotifier {
     try {
       _alert = await _repository.fetchCurrentCrowdAlert();
       _selectedAlternative = null;
+      _persistenceLabel = 'Local mock only';
       _status = CrowdAlertStatus.loaded;
     } catch (_) {
       _errorMessage = 'Unable to load crowd alert.';
@@ -124,16 +130,38 @@ class CrowdAlertController extends ChangeNotifier {
       final result = await _ennoiaRepository.fetchRetrip(request);
       _alert = result.toCrowdAlert();
       _selectedAlternative = null;
+      final saved = result.isRealEnnoia
+          ? await _saveReTripEvent(request, result)
+          : false;
+      _persistenceLabel = saved ? 'Saved to Supabase' : 'Local mock only';
       _status = CrowdAlertStatus.loaded;
     } catch (_) {
       final fallback = await _fallbackEnnoiaRepository.fetchRetrip(request);
       _alert = fallback.toCrowdAlert();
       _selectedAlternative = null;
+      _persistenceLabel = 'Local mock only';
       _status = CrowdAlertStatus.loaded;
       _errorMessage = 'Using mock ennoia alternatives.';
     } finally {
       _isGeneratingRetrip = false;
       _safeNotifyListeners();
+    }
+  }
+
+  Future<bool> _saveReTripEvent(
+    RetripAgentRequest request,
+    RetripAgentResult result,
+  ) async {
+    try {
+      await _ennoiaRepository.saveReTripEvent(request, result);
+      return true;
+    } catch (error) {
+      developer.log(
+        'Supabase Re-Trip persistence skipped.',
+        name: 'CrowdAlertController',
+        error: error.runtimeType,
+      );
+      return false;
     }
   }
 

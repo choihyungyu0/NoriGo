@@ -21,7 +21,32 @@ class MockEnnoiaAgentRepository implements EnnoiaAgentRepository {
   }
 
   @override
+  Future<ItineraryAgentResult> generateItinerary(
+    ItineraryAgentRequest request,
+  ) {
+    return fetchItinerary(request);
+  }
+
+  @override
   Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request) async {
     return RetripAgentResult.mock();
   }
+
+  @override
+  Future<void> saveCultureScanRecord(
+    CultureGuideAgentRequest request,
+    CultureGuideResult result,
+  ) async {}
+
+  @override
+  Future<void> saveItineraryPlan(
+    ItineraryAgentRequest request,
+    ItineraryAgentResult result,
+  ) async {}
+
+  @override
+  Future<void> saveReTripEvent(
+    RetripAgentRequest request,
+    RetripAgentResult result,
+  ) async {}
 }

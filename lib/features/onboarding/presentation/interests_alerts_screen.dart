@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/features/itinerary/application/itinerary_request_builder.dart';
 import 'package:norigo/features/onboarding/domain/interests_alerts.dart';
+import 'package:norigo/features/onboarding/domain/trip_basics.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
 const _readyPenguinAsset =
@@ -25,6 +27,8 @@ class InterestsAlertsScreen extends StatefulWidget {
 
 class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
   InterestsAlerts _settings = const InterestsAlerts();
+  TripBasics? _basics;
+  bool _readRouteArguments = false;
 
   static const _interests = [
     _InterestOption('Food', '🍜'),
@@ -61,6 +65,18 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_readRouteArguments) return;
+    _readRouteArguments = true;
+
+    final arguments = ModalRoute.of(context)?.settings.arguments;
+    if (arguments is TripBasics) {
+      _basics = arguments;
+    }
+  }
+
   void _requestEssentialAccess() {
     _update(_settings.copyWith(essentialAccessRequested: true));
     _showSnackBar('Permission flow will be connected later.');
@@ -88,10 +104,16 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
 
   void _finishSetup() {
     if (AppRouter.routes.containsKey(AppRoutes.itinerary)) {
+      final request = const ItineraryRequestBuilder().build(
+        basics: _basics,
+        alerts: _settings,
+      );
       try {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil(AppRoutes.itinerary, (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.itinerary,
+          (route) => false,
+          arguments: request,
+        );
         return;
       } on FlutterError {
         _showSnackBar('Setup complete. Itinerary screen will be added next.');
