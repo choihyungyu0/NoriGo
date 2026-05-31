@@ -24,4 +24,30 @@ class ItineraryPlan {
   final String? sourceNote;
   final String? summary;
   final String? persistedPlanId;
+
+  ItineraryPlan copyWith({
+    String? id,
+    String? dateLabel,
+    String? title,
+    List<ItineraryItem>? items,
+    String? estimatedTimeSaved,
+    String? sourceType,
+    String? sourceBadge,
+    String? sourceNote,
+    String? summary,
+    String? persistedPlanId,
+  }) {
+    return ItineraryPlan(
+      id: id ?? this.id,
+      dateLabel: dateLabel ?? this.dateLabel,
+      title: title ?? this.title,
+      items: items ?? this.items,
+      estimatedTimeSaved: estimatedTimeSaved ?? this.estimatedTimeSaved,
+      sourceType: sourceType ?? this.sourceType,
+      sourceBadge: sourceBadge ?? this.sourceBadge,
+      sourceNote: sourceNote ?? this.sourceNote,
+      summary: summary ?? this.summary,
+      persistedPlanId: persistedPlanId ?? this.persistedPlanId,
+    );
+  }
 }

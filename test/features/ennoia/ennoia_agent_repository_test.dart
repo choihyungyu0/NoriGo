@@ -115,6 +115,6 @@ void main() {
 
     expect(result.alternatives, hasLength(3));
     expect(result.toCrowdAlert().alternatives, hasLength(3));
-    expect(result.sourceType, 'mock');
+    expect(result.sourceType, 'mock_ennoia');
   });
 }

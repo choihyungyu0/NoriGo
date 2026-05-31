@@ -4,7 +4,10 @@ import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
 abstract interface class CrowdAlertRepository {
   Future<CrowdAlert> fetchCurrentCrowdAlert();
 
-  Future<void> switchToAlternative(AlternativePlace alternative);
+  Future<void> switchToAlternative(
+    CrowdAlert alert,
+    AlternativePlace alternative,
+  );
 
   Future<void> keepOriginalPlan();
 }

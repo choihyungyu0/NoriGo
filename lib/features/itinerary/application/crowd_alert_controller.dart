@@ -3,9 +3,11 @@ import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
 import 'package:norigo/features/itinerary/application/itinerary_source_label.dart';
+import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
+import 'package:norigo/features/itinerary/domain/retrip_context.dart';
 
 enum CrowdAlertStatus { initial, loading, loaded, switching, error }
 
@@ -16,13 +18,16 @@ class CrowdAlertController extends ChangeNotifier {
         const SupabaseEnnoiaAgentRepository(),
     EnnoiaAgentRepository fallbackEnnoiaRepository =
         const MockEnnoiaAgentRepository(),
+    RetripContext? retripContext,
   }) : _repository = repository,
        _ennoiaRepository = ennoiaRepository,
-       _fallbackEnnoiaRepository = fallbackEnnoiaRepository;
+       _fallbackEnnoiaRepository = fallbackEnnoiaRepository,
+       _retripContext = retripContext;
 
   final CrowdAlertRepository _repository;
   final EnnoiaAgentRepository _ennoiaRepository;
   final EnnoiaAgentRepository _fallbackEnnoiaRepository;
+  final RetripContext? _retripContext;
 
   bool _disposed = false;
   bool _isGeneratingRetrip = false;
@@ -39,7 +44,19 @@ class CrowdAlertController extends ChangeNotifier {
   bool get isSwitching => _status == CrowdAlertStatus.switching;
   bool get isGeneratingRetrip => _isGeneratingRetrip;
   String get sourceLabel {
-    return itinerarySourceLabel(_alert?.sourceType);
+    return itinerarySourceLabel(
+      _alert?.sourceType,
+      sourceBadge: _alert?.sourceBadge,
+    );
+  }
+
+  bool get hasActualItem => _retripContext != null;
+
+  RetripAgentRequest get currentRequest {
+    final context = _retripContext;
+    return context == null
+        ? RetripAgentRequest.defaults()
+        : RetripAgentRequest.fromContext(context);
   }
 
   Future<void> loadAlert() async {
@@ -102,11 +119,21 @@ class CrowdAlertController extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      await _repository.switchToAlternative(alternative);
+      final currentAlert = _alert;
+      if (currentAlert == null) {
+        throw StateError('No alert is ready.');
+      }
+      await _repository.switchToAlternative(currentAlert, alternative);
+      _replaceCurrentPlanItem(currentAlert, alternative);
       _status = CrowdAlertStatus.loaded;
       return true;
     } catch (_) {
-      _errorMessage = 'Unable to switch the plan.';
+      final currentAlert = _alert;
+      if (currentAlert != null) {
+        _replaceCurrentPlanItem(currentAlert, alternative);
+      }
+      _errorMessage =
+          'Recommendation selected, but plan update could not be saved.';
       _status = CrowdAlertStatus.error;
       return false;
     } finally {
@@ -114,12 +141,25 @@ class CrowdAlertController extends ChangeNotifier {
     }
   }
 
+  void _replaceCurrentPlanItem(
+    CrowdAlert currentAlert,
+    AlternativePlace alternative,
+  ) {
+    final originalItemId =
+        currentAlert.originalItemId ?? _retripContext?.item.id;
+    if (originalItemId == null) return;
+    ItinerarySessionStore.replaceItem(
+      originalItemId: originalItemId,
+      alternative: alternative,
+    );
+  }
+
   Future<void> generateRetripAlternatives() async {
     _isGeneratingRetrip = true;
     _errorMessage = null;
     _safeNotifyListeners();
 
-    final request = RetripAgentRequest.defaults();
+    final request = currentRequest;
 
     try {
       final result = await _ennoiaRepository.fetchRetrip(request);

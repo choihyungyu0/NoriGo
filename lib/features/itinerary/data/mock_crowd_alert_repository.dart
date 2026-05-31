@@ -18,7 +18,10 @@ class MockCrowdAlertRepository implements CrowdAlertRepository {
   }
 
   @override
-  Future<void> switchToAlternative(AlternativePlace alternative) async {
+  Future<void> switchToAlternative(
+    CrowdAlert alert,
+    AlternativePlace alternative,
+  ) async {
     // Supabase will later persist the selected alternative itinerary item.
   }
 

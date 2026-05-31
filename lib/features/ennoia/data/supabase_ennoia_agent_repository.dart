@@ -125,22 +125,48 @@ class SupabaseEnnoiaAgentRepository implements EnnoiaAgentRepository {
 
   Object? _extractOpenAiContent(Object? decoded) {
     if (decoded is! Map) return null;
+    if (decoded['output_text'] is String) return decoded['output_text'];
+    if (decoded['content'] is String) return decoded['content'];
+    if (decoded['content'] is Map) return decoded['content'];
+    if (decoded['data'] is Map || decoded['data'] is List) {
+      return decoded['data'];
+    }
+    final message = decoded['message'];
+    if (message is Map) {
+      final content = message['content'];
+      if (content is String) return content;
+      if (content is List) return _textFromContentParts(content);
+    }
     final choices = decoded['choices'];
     if (choices is! List || choices.isEmpty) return null;
 
     final firstChoice = choices.first;
     if (firstChoice is! Map) return null;
 
-    final message = firstChoice['message'];
-    if (message is Map && message['content'] is String) {
-      return message['content'];
+    final choiceMessage = firstChoice['message'];
+    if (choiceMessage is Map) {
+      final content = choiceMessage['content'];
+      if (content is String) return content;
+      if (content is List) return _textFromContentParts(content);
     }
     if (firstChoice['text'] is String) return firstChoice['text'];
     return null;
   }
 
+  String _textFromContentParts(List<Object?> parts) {
+    return parts
+        .map((part) {
+          if (part is String) return part;
+          if (part is Map && part['text'] is String) return part['text'];
+          if (part is Map && part['content'] is String) return part['content'];
+          return '';
+        })
+        .where((part) => part.isNotEmpty)
+        .join('\n');
+  }
+
   Object? _parseContentString(String content) {
-    final trimmed = content.trim();
+    final trimmed = _stripMarkdownFence(content.trim());
     if (trimmed.isEmpty) {
       throw const EnnoiaAgentException('ennoia returned empty content.');
     }
@@ -152,6 +178,13 @@ class SupabaseEnnoiaAgentRepository implements EnnoiaAgentRepository {
       if (jsonLike == null) rethrow;
       return jsonDecode(jsonLike);
     }
+  }
+
+  String _stripMarkdownFence(String content) {
+    return content
+        .replaceFirst(RegExp(r'^```(?:json)?\s*', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'\s*```$'), '')
+        .trim();
   }
 
   String? _extractJsonLikeText(String content) {

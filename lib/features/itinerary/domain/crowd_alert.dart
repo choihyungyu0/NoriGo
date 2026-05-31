@@ -11,6 +11,12 @@ class CrowdAlert {
     required this.foreignerQueueTip,
     required this.alternatives,
     this.sourceType = 'mock',
+    this.sourceBadge,
+    this.planId,
+    this.originalItemId,
+    this.retripEventId,
+    this.persisted = false,
+    this.recommendedAction,
   });
 
   final String id;
@@ -22,4 +28,10 @@ class CrowdAlert {
   final String foreignerQueueTip;
   final List<AlternativePlace> alternatives;
   final String sourceType;
+  final String? sourceBadge;
+  final String? planId;
+  final String? originalItemId;
+  final String? retripEventId;
+  final bool persisted;
+  final String? recommendedAction;
 }

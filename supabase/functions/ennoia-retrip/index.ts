@@ -1,4 +1,6 @@
 type RetripRequest = {
+  plan_id?: string;
+  original_item_id?: string;
   user_language: string;
   current_location: string;
   original_place: string;
@@ -96,34 +98,40 @@ export async function handleRetripRequest(request: Request): Promise<Response> {
   }
 
   if (candidates.length < alternativeCount) {
-    return jsonResponse(
-      buildFallbackRetrip(
-        params,
-        ktoServiceKey
-          ? "KTO OpenAPI returned fewer than 3 usable alternatives"
-          : "KTO_SERVICE_KEY is missing",
-      ),
-      200,
+    const retrip = buildFallbackRetrip(
+      params,
+      ktoServiceKey
+        ? "KTO OpenAPI returned fewer than 3 usable alternatives"
+        : "KTO_SERVICE_KEY is missing",
     );
+    return jsonResponse(await withPersistence(request, params, retrip), 200);
   }
 
   const alternatives = candidates.slice(0, alternativeCount);
 
   try {
     const ennoiaPayload = await requestEnnoiaRetrip(request, params, alternatives);
-    return jsonResponse(
-      buildKtoRetrip(params, alternatives, candidates.length, ennoiaPayload),
-      200,
+    const retrip = buildKtoRetrip(
+      params,
+      alternatives,
+      candidates.length,
+      ennoiaPayload,
     );
+    return jsonResponse(await withPersistence(request, params, retrip), 200);
   } catch (error) {
+    const ennoiaErrorCode = ennoiaFailureCode(error);
     console.error(
       "ennoia retrip request failed",
       error instanceof Error ? error.message : "unknown error",
     );
-    return jsonResponse(
-      buildKtoRetrip(params, alternatives, candidates.length, null),
-      200,
+    const retrip = buildKtoRetrip(
+      params,
+      alternatives,
+      candidates.length,
+      null,
+      ennoiaErrorCode,
     );
+    return jsonResponse(await withPersistence(request, params, retrip), 200);
   }
 }
 
@@ -205,7 +213,7 @@ async function fetchKtoKeyword(
 function buildSearchPlan(params: RetripRequest): string[] {
   const base = locationHintFor(params.current_location)?.keyword ?? "서울";
   const haystack = normalize(
-    `${params.original_place_type} ${params.original_place_value} ${params.user_preference}`,
+    `${params.original_place_type} ${params.original_place_value} ${params.user_preference} ${params.trigger_type}`,
   );
   const keywords = new Set<string>();
 
@@ -229,6 +237,15 @@ function buildSearchPlan(params: RetripRequest): string[] {
     keywords.add(`${base} 관광`);
     keywords.add(`${base} 맛집`);
     keywords.add(`${base} 카페`);
+  }
+
+  if (haystack.includes("night") || haystack.includes("view")) {
+    keywords.add(`${base} 야경`);
+    keywords.add("남산");
+  }
+  if (haystack.includes("shop") || haystack.includes("shopping")) {
+    keywords.add(`${base} 쇼핑`);
+    keywords.add("시장");
   }
 
   keywords.add("광장시장");
@@ -316,7 +333,8 @@ async function requestEnnoiaRetrip(
   const endpoint = Deno.env.get("ENNOIA_API_ENDPOINT")?.trim();
   const project = Deno.env.get("ENNOIA_PROJECT")?.trim();
   const apiKey = Deno.env.get("ENNOIA_API_KEY")?.trim();
-  const hash = Deno.env.get("ENNOIA_RETRIP_HASH")?.trim();
+  const retripApiHash = Deno.env.get("ENNOIA_RETRIP_API_HASH")?.trim();
+  const hash = retripApiHash || Deno.env.get("ENNOIA_RETRIP_HASH")?.trim();
 
   if (!endpoint || !project || !apiKey || !hash) {
     throw new Error("ennoia Edge Function secrets are missing");
@@ -325,19 +343,11 @@ async function requestEnnoiaRetrip(
   const ktoAlternatives = alternatives.map(toEnnoiaAlternative);
   const payload = {
     hash,
-    params: {
-      ...params,
-      KTO_ALTERNATIVES: ktoAlternatives,
-    },
+    params: buildRetripEnnoiaParams(params, ktoAlternatives),
     messages: [
       {
         role: "user",
-        content: [
-          "Use only KTO_ALTERNATIVES.",
-          "Return valid JSON only with exactly 3 alternatives.",
-          "Preserve contentid as content_id.",
-          JSON.stringify({ request: params, KTO_ALTERNATIVES: ktoAlternatives }),
-        ].join("\n"),
+        content: buildRetripEnnoiaPrompt(params, ktoAlternatives),
       },
     ],
   };
@@ -358,10 +368,72 @@ async function requestEnnoiaRetrip(
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`ennoia returned HTTP ${response.status}: ${text.slice(0, 240)}`);
+    console.error("ennoia retrip HTTP failure", {
+      ennoia_status: response.status,
+      ennoia_status_text: response.statusText,
+      ennoia_body_preview: safeBodyPreview(text),
+      hasApiKey: Boolean(apiKey),
+      hasProject: Boolean(project),
+      hasEndpoint: Boolean(endpoint),
+      hasRetripApiHash: Boolean(retripApiHash),
+      hasRetripHash: Boolean(hash),
+      hashSuffix: hash.slice(-8),
+    });
+    throw new EnnoiaRetripError(
+      `ennoia returned HTTP ${response.status}`,
+      response.status,
+      readEnnoiaErrorCode(text),
+    );
   }
 
   return parseAgentPayload(text);
+}
+
+function buildRetripEnnoiaParams(
+  params: RetripRequest,
+  ktoAlternatives: JsonRecord[],
+): JsonRecord {
+  return {
+    ...params,
+    KTO_DATA: JSON.stringify(ktoAlternatives),
+  };
+}
+
+function buildRetripEnnoiaPrompt(
+  params: RetripRequest,
+  ktoAlternatives: JsonRecord[],
+): string {
+  return [
+    "Use only the provided KTO_DATA.",
+    "Do not call tools.",
+    "Do not invent place names.",
+    "Do not invent kto_content_id.",
+    "Return valid JSON only.",
+    "Return exactly 3 alternatives.",
+    "Each alternative must preserve the selected KTO contentid as kto_content_id.",
+    "If a field is unknown, use an empty string.",
+    JSON.stringify({
+      user_request: params,
+      KTO_DATA: ktoAlternatives,
+      response_shape: {
+        source_type: "kto_openapi_ennoia",
+        alert_message: "short alert message",
+        foreigner_queue_tip: "practical queue tip",
+        recommended_action: "short action",
+        alternatives: [
+          {
+            place_name: "KTO title",
+            kto_content_id: "contentid from KTO_DATA",
+            recommendation_copy: "why this alternative fits",
+            reason: "short reason",
+            walking_time: "5 min walk",
+            diversity_score: 90,
+            crowd_level: "Low",
+          },
+        ],
+      },
+    }),
+  ].join("\n");
 }
 
 function buildKtoRetrip(
@@ -369,16 +441,27 @@ function buildKtoRetrip(
   alternatives: KtoAlternative[],
   candidateCount: number,
   ennoiaPayload: JsonRecord | null,
+  ennoiaErrorCode?: string | null,
 ): JsonRecord {
   const payloadAlternatives = readPayloadAlternatives(ennoiaPayload);
-  const usedEnnoia = payloadAlternatives.length > 0;
+  const usedEnnoia = payloadAlternatives.length >= alternativeCount;
+  const sourceType = usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_basic";
+  const sourceBadge = usedEnnoia ? "KTO OpenAPI + ennoia" : "KTO OpenAPI";
+  const sourceNote = usedEnnoia
+    ? "KTO OpenAPI data succeeded; ennoia generated the Re-Trip recommendation copy from selected KTO_DATA."
+    : "KTO OpenAPI data succeeded; ennoia generation failed and basic descriptions were generated by the backend.";
 
   return {
-    source: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_basic",
-    source_type: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_basic",
+    source: sourceType,
+    source_type: sourceType,
+    source_badge: sourceBadge,
+    source_note: sourceNote,
     fallback: false,
     ennoia_fallback: !usedEnnoia,
+    ...(usedEnnoia ? {} : { ennoia_error_code: ennoiaErrorCode ?? "ennoia_generation_failed" }),
     candidate_count: candidateCount,
+    plan_id: params.plan_id ?? null,
+    original_item_id: params.original_item_id ?? null,
     id: `kto-retrip-${shortHash(
       `${params.current_location}|${params.original_place}|${params.user_preference}`,
     )}`,
@@ -398,11 +481,15 @@ function buildKtoRetrip(
       "Even if no visible line, app-based queues may already be full.",
     foreigner_queue_tip:
       "Even if no visible line, app-based queues may already be full.",
-    alternatives: alternatives.map((candidate, index) =>
+    recommended_action: `Switch to ${alternatives[0]?.title ?? "a lower-crowd nearby stop"}`,
+    persisted: false,
+    alternatives: alternatives.slice(0, alternativeCount).map((candidate, index) =>
       alternativeFromCandidate(
         candidate,
-        payloadAlternatives.find((item) => itemMatchesCandidate(item, candidate)) ??
-          payloadAlternatives[index],
+        usedEnnoia
+          ? payloadAlternatives.find((item) => itemMatchesCandidate(item, candidate)) ??
+            payloadAlternatives[index]
+          : undefined,
       )
     ),
   };
@@ -412,9 +499,14 @@ function buildFallbackRetrip(params: RetripRequest, reason: string): JsonRecord 
   return {
     source: "kto_openapi_fallback",
     source_type: "kto_openapi_fallback",
+    source_badge: "Demo fallback",
     fallback: true,
     source_note:
       `Demo fallback was used because ${reason}. Real KTO OpenAPI success is not claimed for this response.`,
+    plan_id: params.plan_id ?? null,
+    original_item_id: params.original_item_id ?? null,
+    recommended_action: "Review demo fallback alternatives.",
+    persisted: false,
     id: "cafe-arte-crowd-alert",
     originalPlace: params.original_place,
     original_place: params.original_place,
@@ -433,25 +525,34 @@ function buildFallbackRetrip(params: RetripRequest, reason: string): JsonRecord 
         id: "cafe-owall",
         name: "Cafe Owall",
         description: "Demo fallback dessert option while live KTO data is unavailable.",
+        recommendation_copy: "Demo fallback dessert option while live KTO data is unavailable.",
         walkingTime: "5 min walk",
+        distance: "5 min walk",
         diversityScore: 92,
         crowdLevel: "Low",
+        kto_content_id: "",
       },
       {
         id: "seosullan-small-book-cafe",
         name: "Seosullan Small Book Cafe",
         description: "Demo fallback quiet cafe while live KTO data is unavailable.",
+        recommendation_copy: "Demo fallback quiet cafe while live KTO data is unavailable.",
         walkingTime: "7 min walk",
+        distance: "7 min walk",
         diversityScore: 88,
         crowdLevel: "Low",
+        kto_content_id: "",
       },
       {
         id: "yunsul-bakery",
         name: "Yunsul Bakery",
         description: "Demo fallback bakery while live KTO data is unavailable.",
+        recommendation_copy: "Demo fallback bakery while live KTO data is unavailable.",
         walkingTime: "8 min walk",
+        distance: "8 min walk",
         diversityScore: 90,
         crowdLevel: "Low",
+        kto_content_id: "",
       },
     ],
   };
@@ -489,8 +590,14 @@ function alternativeFromCandidate(
     name,
     place_name: name,
     description,
+    recommendation_copy: readPayloadString(ennoiaItem, [
+      "recommendation_copy",
+      "recommendationCopy",
+      "copy",
+    ]) || description,
     walkingTime,
     walking_time: walkingTime,
+    distance: walkingTime,
     diversityScore,
     diversity_score: diversityScore,
     crowdLevel,
@@ -498,9 +605,13 @@ function alternativeFromCandidate(
     contentId: candidate.contentid,
     content_id: candidate.contentid,
     kto_content_id: candidate.contentid,
+    contentTypeId: candidate.contenttypeid,
+    content_type_id: candidate.contenttypeid,
     firstimage: candidate.firstimage,
     image_url: candidate.firstimage,
+    imageUrl: candidate.firstimage,
     addr1: candidate.addr1,
+    address: candidate.addr1,
     mapx: candidate.mapx,
     mapy: candidate.mapy,
   };
@@ -550,6 +661,7 @@ function parseAgentPayload(text: string): JsonRecord | null {
     if (typeof content === "string") {
       return parseJsonLike(content);
     }
+    if (isRecord(content)) return content;
     if (isRecord(decoded)) return decoded;
   } catch (_) {
     return parseJsonLike(text);
@@ -559,6 +671,15 @@ function parseAgentPayload(text: string): JsonRecord | null {
 
 function extractOpenAiContent(decoded: unknown): unknown {
   if (!isRecord(decoded)) return null;
+  if (typeof decoded.output_text === "string") return decoded.output_text;
+  if (typeof decoded.content === "string") return decoded.content;
+  if (isRecord(decoded.content)) return decoded.content;
+  if (isRecord(decoded.data)) return decoded.data;
+  if (isRecord(decoded.message)) {
+    const messageContent = decoded.message.content;
+    if (typeof messageContent === "string") return messageContent;
+    if (Array.isArray(messageContent)) return textFromContentParts(messageContent);
+  }
   const choices = decoded.choices;
   if (!Array.isArray(choices) || choices.length === 0) return null;
   const first = choices[0];
@@ -567,11 +688,24 @@ function extractOpenAiContent(decoded: unknown): unknown {
   if (isRecord(first.message) && typeof first.message.content === "string") {
     return first.message.content;
   }
+  if (isRecord(first.message) && Array.isArray(first.message.content)) {
+    return textFromContentParts(first.message.content);
+  }
   return null;
 }
 
+function textFromContentParts(parts: unknown[]): string {
+  return parts.map((part) => {
+    if (typeof part === "string") return part;
+    if (!isRecord(part)) return "";
+    if (typeof part.text === "string") return part.text;
+    if (typeof part.content === "string") return part.content;
+    return "";
+  }).filter(Boolean).join("\n");
+}
+
 function parseJsonLike(content: string): JsonRecord | null {
-  const trimmed = content.trim();
+  const trimmed = stripJsonFence(content.trim());
   if (!trimmed) return null;
 
   try {
@@ -588,6 +722,13 @@ function parseJsonLike(content: string): JsonRecord | null {
       return null;
     }
   }
+}
+
+function stripJsonFence(content: string): string {
+  return content
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 }
 
 function readPayloadAlternatives(payload: JsonRecord | null): JsonRecord[] {
@@ -608,6 +749,166 @@ function itemMatchesCandidate(item: JsonRecord, candidate: KtoAlternative): bool
     "contentid",
   ]);
   return id === candidate.contentid;
+}
+
+async function withPersistence(
+  request: Request,
+  params: RetripRequest,
+  retrip: JsonRecord,
+): Promise<JsonRecord> {
+  const retripEventId = await persistRetripEvent(request, params, retrip);
+  return {
+    ...retrip,
+    persisted: Boolean(retripEventId),
+    retripEventId: retripEventId ?? null,
+    retrip_event_id: retripEventId ?? null,
+  };
+}
+
+async function persistRetripEvent(
+  request: Request,
+  params: RetripRequest,
+  retrip: JsonRecord,
+): Promise<string | null> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim();
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
+  const row = {
+    user_id: readJwtSub(request),
+    plan_id: uuidOrNull(params.plan_id),
+    original_item_id: params.original_item_id ?? null,
+    original_place_name: params.original_place,
+    trigger_type: params.trigger_type,
+    crowd_level: params.crowd_level,
+    estimated_wait: params.estimated_wait,
+    source_type: readPayloadString(retrip, ["source_type", "source"]) ??
+      "kto_openapi_basic",
+    source_badge: readPayloadString(retrip, ["source_badge"]),
+    recommended_action: readPayloadString(retrip, ["recommended_action"]),
+    raw_json: retrip,
+  };
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl.replace(/\/+$/, "")}/rest/v1/retrip_events`,
+      {
+        method: "POST",
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json; charset=utf-8",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify(row),
+      },
+    );
+
+    const text = await response.text();
+    if (!response.ok) {
+      console.error("retrip event persistence failed", {
+        status: response.status,
+        body_preview: safeBodyPreview(text),
+      });
+      return null;
+    }
+
+    const decoded = JSON.parse(text);
+    if (Array.isArray(decoded) && isRecord(decoded[0])) {
+      const id = decoded[0].id;
+      return typeof id === "string" ? id : null;
+    }
+  } catch (error) {
+    console.error(
+      "retrip event persistence failed",
+      error instanceof Error ? error.message : "unknown error",
+    );
+  }
+  return null;
+}
+
+function readJwtSub(request: Request): string | null {
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+
+  try {
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, "=");
+    const decoded = JSON.parse(atob(padded));
+    return typeof decoded.sub === "string" && decoded.sub ? decoded.sub : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function uuidOrNull(value: string | undefined): string | null {
+  if (!value) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    .test(value)
+    ? value
+    : null;
+}
+
+function ennoiaFailureCode(error: unknown): string {
+  if (error instanceof EnnoiaRetripError && error.errorCode) {
+    return error.errorCode;
+  }
+  const message = error instanceof Error ? error.message : "";
+  if (message.toLowerCase().includes("mcp connection")) {
+    return "MCP_CONNECTION_REQUIRED";
+  }
+  return "ennoia_generation_failed";
+}
+
+function safeBodyPreview(text: string): string {
+  return text
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]")
+    .replace(
+      /("?(?:apiKey|apikey|authorization|token)"?\s*[:=]\s*")([^"]+)(")/gi,
+      "$1[redacted]$3",
+    )
+    .slice(0, 320);
+}
+
+function readEnnoiaErrorCode(text: string): string | null {
+  try {
+    const decoded = JSON.parse(text);
+    if (!isRecord(decoded)) return null;
+    const errorCode = decoded.error_code;
+    if (errorCode === 40065 || errorCode === "40065") {
+      return "MCP_CONNECTION_REQUIRED";
+    }
+    if (typeof errorCode === "string" && errorCode.trim()) {
+      return errorCode.trim();
+    }
+    const errorType = decoded.error_type;
+    if (typeof errorType === "string" && errorType.trim()) {
+      return errorType.trim();
+    }
+    const message = decoded.message;
+    if (
+      typeof message === "string" &&
+      message.toLowerCase().includes("mcp connection")
+    ) {
+      return "MCP_CONNECTION_REQUIRED";
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
+}
+
+class EnnoiaRetripError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly errorCode: string | null,
+  ) {
+    super(message);
+    this.name = "EnnoiaRetripError";
+  }
 }
 
 async function readJsonBody(

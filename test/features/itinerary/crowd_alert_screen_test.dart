@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/mock_crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
 
 void main() {
+  setUp(ItinerarySessionStore.resetForTesting);
+
   testWidgets('CrowdAlertScreen renders alert and alternatives', (
     tester,
   ) async {
@@ -58,7 +61,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('switchPlanButton')));
     await tester.pump();
 
-    expect(find.text('Your itinerary has been updated.'), findsOneWidget);
+    expect(find.text('Plan updated.'), findsOneWidget);
   });
 
   testWidgets('Itinerary tab is active in bottom navigation', (tester) async {

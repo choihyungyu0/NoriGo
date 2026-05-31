@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:norigo/app/router.dart';
+import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
 import 'package:norigo/features/itinerary/data/itinerary_repository.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_item.dart';
@@ -8,6 +8,8 @@ import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
 
 void main() {
+  setUp(ItinerarySessionStore.resetForTesting);
+
   testWidgets('AiItineraryPlannerScreen renders core itinerary content', (
     tester,
   ) async {
@@ -47,36 +49,31 @@ void main() {
     );
   });
 
-  testWidgets('save this plan button opens crowd alert route', (tester) async {
-    await _pumpPlanner(
-      tester,
-      routes: {
-        AppRoutes.itineraryCrowdAlert: (_) =>
-            const Scaffold(body: Placeholder(key: ValueKey('crowdAlertRoute'))),
-      },
-    );
+  testWidgets('save this plan button opens crowd alert for selected item', (
+    tester,
+  ) async {
+    await _pumpPlanner(tester);
 
     await tester.tap(find.byKey(const ValueKey('savePlanButton')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('crowdAlertRoute')), findsOneWidget);
+    expect(find.text('Crowd Alert'), findsOneWidget);
+    expect(find.text('Gyeongbokgung Palace'), findsWidgets);
   });
 
-  testWidgets('dessert cafe card opens crowd alert demo route', (tester) async {
-    await _pumpPlanner(
-      tester,
-      routes: {
-        AppRoutes.itineraryCrowdAlert: (_) =>
-            const Scaffold(body: Placeholder(key: ValueKey('crowdAlertRoute'))),
-      },
-    );
+  testWidgets('itinerary card opens crowd alert with actual item', (
+    tester,
+  ) async {
+    await _pumpPlanner(tester);
 
-    final trigger = find.byKey(const ValueKey('crowd-alert-demo-dessert-cafe'));
+    final trigger = find.byKey(const ValueKey('crowd-alert-item-dessert-cafe'));
     await tester.ensureVisible(trigger);
     await tester.tap(trigger);
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('crowdAlertRoute')), findsOneWidget);
+    expect(find.text('Crowd Alert'), findsOneWidget);
+    expect(find.text('Dessert Cafe'), findsWidgets);
+    expect(find.text('Cafe Arte'), findsNothing);
   });
 
   testWidgets('missing header image asset falls back without crashing', (
@@ -158,6 +155,36 @@ void main() {
     expect(find.text('264337'), findsOneWidget);
   });
 
+  testWidgets('itinerary screen shows selected Re-Trip replacement', (
+    tester,
+  ) async {
+    ItinerarySessionStore.savePlan(
+      const ItineraryPlan(
+        id: 'saved-plan',
+        dateLabel: 'May 18, Sun',
+        title: 'Updated route',
+        estimatedTimeSaved: '1h',
+        items: [
+          ItineraryItem(
+            id: 'seoul-museum-of-art',
+            order: 1,
+            time: '09:00',
+            placeName: 'Seoul Museum of Art',
+            crowdLevel: ItineraryCrowdLevel.low,
+            stayTime: 'Stay 1h',
+            aiTip: 'Quiet indoor art stop near the palace route.',
+            contentId: '130856',
+          ),
+        ],
+      ),
+    );
+
+    await _pumpPlanner(tester);
+
+    expect(find.text('Seoul Museum of Art'), findsOneWidget);
+    expect(find.text('KTO 130856'), findsOneWidget);
+  });
+
   test('mock repository returns five itinerary items', () async {
     final plan = await const MockItineraryRepository().fetchPlan();
 
@@ -199,5 +226,5 @@ class _StaticItineraryRepository implements ItineraryRepository {
   Future<ItineraryPlan> fetchPlan() async => plan;
 
   @override
-  Future<void> savePlan(ItineraryPlan plan) async {}
+  Future<ItineraryPlan> savePlan(ItineraryPlan plan) async => plan;
 }

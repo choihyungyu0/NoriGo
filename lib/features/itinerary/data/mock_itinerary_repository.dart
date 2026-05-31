@@ -11,8 +11,8 @@ class MockItineraryRepository implements ItineraryRepository {
   }
 
   @override
-  Future<void> savePlan(ItineraryPlan plan) async {
-    return;
+  Future<ItineraryPlan> savePlan(ItineraryPlan plan) async {
+    return plan;
   }
 
   static const mockPlan = ItineraryPlan(

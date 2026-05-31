@@ -1,6 +1,7 @@
 import 'package:norigo/features/ennoia/domain/culture_guide_result.dart';
 import 'package:norigo/features/ennoia/domain/itinerary_agent_result.dart';
 import 'package:norigo/features/ennoia/domain/retrip_agent_result.dart';
+import 'package:norigo/features/itinerary/domain/retrip_context.dart';
 
 abstract interface class EnnoiaAgentRepository {
   Future<CultureGuideResult> fetchCultureGuide(
@@ -107,6 +108,8 @@ class ItineraryAgentRequest {
 
 class RetripAgentRequest {
   const RetripAgentRequest({
+    this.planId,
+    this.originalItemId,
     required this.userLanguage,
     required this.currentLocation,
     required this.originalPlace,
@@ -119,6 +122,8 @@ class RetripAgentRequest {
     required this.userPreference,
   });
 
+  final String? planId;
+  final String? originalItemId;
   final String userLanguage;
   final String currentLocation;
   final String originalPlace;
@@ -146,8 +151,33 @@ class RetripAgentRequest {
     );
   }
 
+  factory RetripAgentRequest.fromContext(RetripContext context) {
+    final item = context.item;
+    final locationParts = [
+      item.address,
+      item.placeName,
+    ].whereType<String>().where((value) => value.trim().isNotEmpty).join(', ');
+    return RetripAgentRequest(
+      planId: context.planId,
+      originalItemId: context.originalItemId,
+      userLanguage: 'English',
+      currentLocation: locationParts.isEmpty ? item.placeName : locationParts,
+      originalPlace: item.placeName,
+      originalPlaceType: item.contentTypeId ?? item.extraBadge ?? 'Attraction',
+      originalPlaceValue:
+          '${item.placeName}, ${item.aiTip}, ${item.cultureTip ?? ''}',
+      scheduledTime: item.time,
+      triggerType: context.triggerType,
+      crowdLevel: context.crowdLevel,
+      estimatedWait: context.estimatedWait,
+      userPreference: context.userPreference,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {
+      if (planId != null) 'plan_id': planId,
+      if (originalItemId != null) 'original_item_id': originalItemId,
       'user_language': userLanguage,
       'current_location': currentLocation,
       'original_place': originalPlace,

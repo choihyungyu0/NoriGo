@@ -12,6 +12,12 @@ class RetripAgentResult {
     required this.foreignerQueueTip,
     required this.alternatives,
     required this.sourceType,
+    this.sourceBadge,
+    this.planId,
+    this.originalItemId,
+    this.retripEventId,
+    this.persisted = false,
+    this.recommendedAction,
   });
 
   final String id;
@@ -23,6 +29,12 @@ class RetripAgentResult {
   final String foreignerQueueTip;
   final List<RetripAlternativeResult> alternatives;
   final String sourceType;
+  final String? sourceBadge;
+  final String? planId;
+  final String? originalItemId;
+  final String? retripEventId;
+  final bool persisted;
+  final String? recommendedAction;
 
   bool get isRealEnnoia =>
       sourceType == 'ennoia' ||
@@ -32,7 +44,9 @@ class RetripAgentResult {
 
   factory RetripAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
-    final fallback = RetripAgentResult.mock(sourceType: _sourceType(json));
+    final fallback = RetripAgentResult.mock(
+      sourceType: _sourceType(data) ?? _sourceType(json) ?? 'ennoia',
+    );
     final rawAlternatives = _list(data, const [
       'alternatives',
       'places',
@@ -75,6 +89,31 @@ class RetripAgentResult {
       ], fallback.foreignerQueueTip),
       alternatives: alternatives.isEmpty ? fallback.alternatives : alternatives,
       sourceType: fallback.sourceType,
+      sourceBadge:
+          _nullableString(data, const ['sourceBadge', 'source_badge']) ??
+          _nullableString(json, const ['sourceBadge', 'source_badge']),
+      planId:
+          _nullableString(data, const ['planId', 'plan_id']) ??
+          _nullableString(json, const ['planId', 'plan_id']),
+      originalItemId:
+          _nullableString(data, const ['originalItemId', 'original_item_id']) ??
+          _nullableString(json, const ['originalItemId', 'original_item_id']),
+      retripEventId:
+          _nullableString(data, const ['retripEventId', 'retrip_event_id']) ??
+          _nullableString(json, const ['retripEventId', 'retrip_event_id']),
+      persisted:
+          _bool(data, const ['persisted']) ??
+          _bool(json, const ['persisted']) ??
+          false,
+      recommendedAction:
+          _nullableString(data, const [
+            'recommendedAction',
+            'recommended_action',
+          ]) ??
+          _nullableString(json, const [
+            'recommendedAction',
+            'recommended_action',
+          ]),
     );
   }
 
@@ -89,6 +128,12 @@ class RetripAgentResult {
       foreignerQueueTip:
           'Even if no visible line, app-based queues may already be full.',
       sourceType: sourceType,
+      sourceBadge: null,
+      planId: null,
+      originalItemId: null,
+      retripEventId: null,
+      persisted: false,
+      recommendedAction: null,
       alternatives: const [
         RetripAlternativeResult(
           id: 'cafe-owall',
@@ -128,6 +173,12 @@ class RetripAgentResult {
       alertMessage: alertMessage,
       foreignerQueueTip: foreignerQueueTip,
       sourceType: sourceType,
+      sourceBadge: sourceBadge,
+      planId: planId,
+      originalItemId: originalItemId,
+      retripEventId: retripEventId,
+      persisted: persisted,
+      recommendedAction: recommendedAction,
       alternatives: alternatives
           .map((alternative) => alternative.toAlternativePlace())
           .toList(growable: false),
@@ -143,12 +194,12 @@ class RetripAgentResult {
     return null;
   }
 
-  static String _sourceType(Map<String, Object?> json) {
+  static String? _sourceType(Map<String, Object?> json) {
     final source = json['source'] ?? json['sourceType'] ?? json['source_type'];
     if (source is String && source.trim().isNotEmpty) {
       return source.trim();
     }
-    return 'ennoia';
+    return null;
   }
 
   static List<Object?> _list(Map<String, Object?> json, List<String> keys) {
@@ -170,6 +221,22 @@ class RetripAgentResult {
     }
     return fallback;
   }
+
+  static String? _nullableString(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
+
+  static bool? _bool(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is bool) return value;
+    }
+    return null;
+  }
 }
 
 class RetripAlternativeResult {
@@ -181,7 +248,11 @@ class RetripAlternativeResult {
     required this.diversityScore,
     required this.crowdLevel,
     this.imageAssetPath,
+    this.imageUrl,
     this.contentId,
+    this.contentTypeId,
+    this.address,
+    this.recommendationCopy,
     this.mapX,
     this.mapY,
   });
@@ -193,7 +264,11 @@ class RetripAlternativeResult {
   final int diversityScore;
   final String crowdLevel;
   final String? imageAssetPath;
+  final String? imageUrl;
   final String? contentId;
+  final String? contentTypeId;
+  final String? address;
+  final String? recommendationCopy;
   final double? mapX;
   final double? mapY;
 
@@ -230,11 +305,26 @@ class RetripAlternativeResult {
         'imageAssetPath',
         'image_asset_path',
       ]),
+      imageUrl: _nullableString(json, const [
+        'imageUrl',
+        'image_url',
+        'firstimage',
+      ]),
       contentId: _nullableString(json, const [
         'contentId',
         'content_id',
         'kto_content_id',
         'contentid',
+      ]),
+      contentTypeId: _nullableString(json, const [
+        'contentTypeId',
+        'content_type_id',
+        'contenttypeid',
+      ]),
+      address: _nullableString(json, const ['address', 'addr1']),
+      recommendationCopy: _nullableString(json, const [
+        'recommendationCopy',
+        'recommendation_copy',
       ]),
       mapX: _double(json, const ['mapX', 'mapx', 'x']),
       mapY: _double(json, const ['mapY', 'mapy', 'y']),
@@ -250,7 +340,11 @@ class RetripAlternativeResult {
       diversityScore: diversityScore,
       crowdLevel: crowdLevel,
       imageAssetPath: imageAssetPath,
+      imageUrl: imageUrl,
       contentId: contentId,
+      contentTypeId: contentTypeId,
+      address: address,
+      recommendationCopy: recommendationCopy,
       mapX: mapX,
       mapY: mapY,
     );

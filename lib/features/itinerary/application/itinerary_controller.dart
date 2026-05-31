@@ -3,6 +3,7 @@ import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
 import 'package:norigo/features/itinerary/application/itinerary_source_label.dart';
+import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/itinerary_repository.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
 import 'package:norigo/features/onboarding/application/onboarding_preferences_store.dart';
@@ -48,7 +49,9 @@ class ItineraryController extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      _plan = await _repository.fetchPlan();
+      _plan =
+          ItinerarySessionStore.currentPlan ?? await _repository.fetchPlan();
+      ItinerarySessionStore.savePlan(_plan!);
     } catch (_) {
       _errorMessage = 'Unable to load itinerary.';
     } finally {
@@ -70,7 +73,9 @@ class ItineraryController extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      await _repository.savePlan(currentPlan);
+      final savedPlan = await _repository.savePlan(currentPlan);
+      _plan = savedPlan;
+      ItinerarySessionStore.savePlan(savedPlan);
       return true;
     } catch (_) {
       _errorMessage = 'Unable to save itinerary.';
@@ -91,9 +96,11 @@ class ItineraryController extends ChangeNotifier {
     try {
       final result = await _ennoiaRepository.fetchItinerary(request);
       _plan = result.toItineraryPlan();
+      ItinerarySessionStore.savePlan(_plan!);
     } catch (_) {
       final fallback = await _fallbackEnnoiaRepository.fetchItinerary(request);
       _plan = fallback.toItineraryPlan();
+      ItinerarySessionStore.savePlan(_plan!);
       _errorMessage = 'Using mock ennoia itinerary.';
     } finally {
       _isGeneratingEnnoia = false;

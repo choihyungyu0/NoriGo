@@ -5,10 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/features/itinerary/application/itinerary_controller.dart';
 import 'package:norigo/features/itinerary/application/itinerary_source_label.dart';
+import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/itinerary_repository.dart';
-import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
+import 'package:norigo/features/itinerary/data/supabase_itinerary_repository.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_item.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
+import 'package:norigo/features/itinerary/domain/retrip_context.dart';
+import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
 const _headerAsset = 'assets/images/itinerary/itinerary_header_bg.png';
@@ -18,7 +21,7 @@ class AiItineraryPlannerScreen extends StatefulWidget {
     super.key,
     this.logoAsset = _logoAsset,
     this.headerAsset = _headerAsset,
-    this.repository = const MockItineraryRepository(),
+    this.repository = const SupabaseItineraryRepository(),
     this.autoGenerateOnOpen = true,
   });
 
@@ -54,7 +57,13 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     if (!mounted) return;
 
     if (saved) {
-      Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
+      final plan = _controller.plan;
+      final item = _selectedItem(plan);
+      if (plan != null && item != null) {
+        _openCrowdAlertForItem(item);
+      } else {
+        Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
+      }
       return;
     }
 
@@ -74,6 +83,10 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
   }
 
   void _loadInitialPlan() {
+    if (ItinerarySessionStore.currentPlan != null) {
+      _controller.loadPlan();
+      return;
+    }
     if (widget.autoGenerateOnOpen) {
       _controller.generateWithEnnoia();
       return;
@@ -140,8 +153,29 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     );
   }
 
-  void _openCrowdAlertDemo() {
-    Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
+  ItineraryItem? _selectedItem(ItineraryPlan? plan) {
+    if (plan == null || plan.items.isEmpty) return null;
+    if (_selectedTimeIndex >= 0 && _selectedTimeIndex < plan.items.length) {
+      return plan.items[_selectedTimeIndex];
+    }
+    return plan.items.first;
+  }
+
+  void _openCrowdAlertForItem(ItineraryItem item) {
+    final plan = _controller.plan;
+    if (plan == null) {
+      Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CrowdAlertScreen(
+          retripContext: RetripContext(plan: plan, item: item),
+        ),
+        settings: const RouteSettings(name: AppRoutes.itineraryCrowdAlert),
+      ),
+    );
   }
 
   void _handleBottomNavigation(int index) {
@@ -260,7 +294,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                                 _ItineraryTimeline(
                                   items: plan.items,
                                   scale: scale,
-                                  onCrowdAlertDemo: _openCrowdAlertDemo,
+                                  onCrowdAlert: _openCrowdAlertForItem,
                                 ),
                                 SizedBox(height: 12 * scale),
                                 _RouteSummaryCard(plan: plan, scale: scale),
@@ -753,19 +787,18 @@ class _ItineraryTimeline extends StatelessWidget {
   const _ItineraryTimeline({
     required this.items,
     required this.scale,
-    required this.onCrowdAlertDemo,
+    required this.onCrowdAlert,
   });
 
   final List<ItineraryItem> items;
   final double scale;
-  final VoidCallback onCrowdAlertDemo;
+  final ValueChanged<ItineraryItem> onCrowdAlert;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: List.generate(items.length, (index) {
         final item = items[index];
-        final opensCrowdAlert = item.id == 'dessert-cafe';
 
         return Padding(
           padding: EdgeInsets.only(bottom: index == items.length - 1 ? 0 : 10),
@@ -774,7 +807,7 @@ class _ItineraryTimeline extends StatelessWidget {
             isFirst: index == 0,
             isLast: index == items.length - 1,
             scale: scale,
-            onTap: opensCrowdAlert ? onCrowdAlertDemo : null,
+            onTap: () => onCrowdAlert(item),
           ),
         );
       }),
@@ -816,7 +849,7 @@ class _ItineraryCard extends StatelessWidget {
             : Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  key: const ValueKey('crowd-alert-demo-dessert-cafe'),
+                  key: ValueKey('crowd-alert-item-${item.id}'),
                   borderRadius: BorderRadius.circular(8),
                   onTap: onTap,
                   child: card,

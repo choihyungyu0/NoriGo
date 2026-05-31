@@ -22,6 +22,21 @@ class MockEnnoiaAgentRepository implements EnnoiaAgentRepository {
 
   @override
   Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request) async {
-    return RetripAgentResult.mock();
+    return RetripAgentResult(
+      id: 'mock-retrip-${request.originalPlace.toLowerCase().replaceAll(' ', '-')}',
+      originalPlace: request.originalPlace,
+      scheduledTime: request.scheduledTime,
+      crowdLevel: request.crowdLevel,
+      estimatedWait: request.estimatedWait,
+      alertMessage:
+          '${request.originalPlace} may become very busy within 30 minutes.',
+      foreignerQueueTip:
+          'Even if no visible line, app-based queues may already be full.',
+      sourceType: 'mock_ennoia',
+      sourceBadge: 'Mock ennoia',
+      alternatives: RetripAgentResult.mock(
+        sourceType: 'mock_ennoia',
+      ).alternatives,
+    );
   }
 }

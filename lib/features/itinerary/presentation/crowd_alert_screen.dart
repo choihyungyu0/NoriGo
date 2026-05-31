@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/features/itinerary/application/crowd_alert_controller.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
-import 'package:norigo/features/itinerary/data/mock_crowd_alert_repository.dart';
+import 'package:norigo/features/itinerary/data/supabase_crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
+import 'package:norigo/features/itinerary/domain/retrip_context.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
 
@@ -15,13 +16,15 @@ class CrowdAlertScreen extends StatefulWidget {
   const CrowdAlertScreen({
     super.key,
     this.logoAsset = _logoAsset,
-    this.repository = const MockCrowdAlertRepository(),
+    this.repository = const SupabaseCrowdAlertRepository(),
     this.autoGenerateOnOpen = true,
+    this.retripContext,
   });
 
   final String logoAsset;
   final CrowdAlertRepository repository;
   final bool autoGenerateOnOpen;
+  final RetripContext? retripContext;
 
   @override
   State<CrowdAlertScreen> createState() => _CrowdAlertScreenState();
@@ -33,7 +36,10 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = CrowdAlertController(repository: widget.repository);
+    _controller = CrowdAlertController(
+      repository: widget.repository,
+      retripContext: widget.retripContext,
+    );
     _loadInitialAlert();
   }
 
@@ -114,11 +120,16 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
       SnackBar(
         content: Text(
           switched
-              ? 'Your itinerary has been updated.'
-              : _controller.errorMessage ?? 'Unable to switch the plan.',
+              ? 'Plan updated.'
+              : _controller.errorMessage ??
+                    'Recommendation selected, but plan update could not be saved.',
         ),
       ),
     );
+
+    if (switched && Navigator.of(context).canPop()) {
+      Navigator.of(context).maybePop();
+    }
   }
 
   Future<void> _selectAlternative(AlternativePlace alternative) async {
@@ -208,7 +219,11 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                                   scale: scale,
                                 ),
                                 SizedBox(height: 16 * scale),
-                                _MiniItineraryTimeline(scale: scale),
+                                _MiniItineraryTimeline(
+                                  alert: alert,
+                                  retripContext: widget.retripContext,
+                                  scale: scale,
+                                ),
                                 SizedBox(height: 18 * scale),
                                 _AlertMessageCard(
                                   alert: alert,
@@ -335,8 +350,14 @@ class _CrowdAlertHeader extends StatelessWidget {
 }
 
 class _MiniItineraryTimeline extends StatelessWidget {
-  const _MiniItineraryTimeline({required this.scale});
+  const _MiniItineraryTimeline({
+    required this.alert,
+    required this.retripContext,
+    required this.scale,
+  });
 
+  final CrowdAlert alert;
+  final RetripContext? retripContext;
   final double scale;
 
   static const _points = [
@@ -365,6 +386,7 @@ class _MiniItineraryTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final points = _timelinePoints();
     return SizedBox(
       height: 142 * scale,
       child: Stack(
@@ -388,7 +410,7 @@ class _MiniItineraryTimeline extends StatelessWidget {
           ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: _points.map((point) {
+            children: points.map((point) {
               return Expanded(
                 child: _MiniTimelineItem(point: point, scale: scale),
               );
@@ -397,6 +419,56 @@ class _MiniItineraryTimeline extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<_MiniTimelinePoint> _timelinePoints() {
+    final context = retripContext;
+    if (context == null) return _points;
+
+    final items = context.plan.items.take(4).toList(growable: true);
+    if (!items.any((item) => item.id == context.item.id)) {
+      if (items.length == 4) {
+        items[2] = context.item;
+      } else {
+        items.add(context.item);
+      }
+    }
+    if (items.isEmpty) return _points;
+
+    return items
+        .map((item) {
+          final selected = item.id == context.item.id;
+          return _MiniTimelinePoint(
+            title: _compactTitle(item.placeName),
+            time: selected ? alert.scheduledTime : item.time,
+            icon: _iconFor(item.placeName, item.contentTypeId),
+            selected: selected,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  String _compactTitle(String title) {
+    final words = title.split(RegExp(r'\s+')).where((word) => word.isNotEmpty);
+    final compact = words.take(3).join('\n');
+    return compact.isEmpty ? title : compact;
+  }
+
+  IconData _iconFor(String name, String? contentTypeId) {
+    final lower = name.toLowerCase();
+    if (contentTypeId == '39' ||
+        lower.contains('cafe') ||
+        lower.contains('coffee') ||
+        lower.contains('카페')) {
+      return Icons.local_cafe_rounded;
+    }
+    if (lower.contains('hanok') || lower.contains('한옥')) {
+      return Icons.holiday_village_rounded;
+    }
+    if (lower.contains('tower') || lower.contains('view')) {
+      return Icons.cell_tower_rounded;
+    }
+    return Icons.account_balance_rounded;
   }
 }
 
@@ -713,7 +785,7 @@ class _OriginalPlanDetails extends StatelessWidget {
           ),
           SizedBox(height: 9 * scale),
           Text(
-            'Emotional, popular brunch cafe',
+            alert.recommendedAction ?? 'Original stop from your itinerary',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -941,7 +1013,7 @@ class _AgentSourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReal = label == 'ennoia + KTO MCP';
+    final isReal = label == 'KTO OpenAPI + ennoia';
     return Container(
       height: 30 * scale,
       constraints: BoxConstraints(maxWidth: 134 * scale),
@@ -1008,6 +1080,7 @@ class _AlternativePlaceCard extends StatelessWidget {
               width: compact ? 92 * scale : 105 * scale,
               height: 56 * scale,
               radius: 8 * scale,
+              imageUrl: alternative.imageUrl,
             ),
             SizedBox(width: 12 * scale),
             Expanded(
@@ -1057,7 +1130,7 @@ class _AlternativeText extends StatelessWidget {
         ),
         SizedBox(height: 8 * scale),
         Text(
-          alternative.description,
+          alternative.recommendationCopy ?? alternative.description,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -1078,7 +1151,12 @@ class _AlternativeText extends StatelessWidget {
             SizedBox(width: 4 * scale),
             Flexible(
               child: Text(
-                alternative.walkingTime,
+                [
+                  alternative.walkingTime,
+                  alternative.crowdLevel,
+                  if (alternative.contentId != null)
+                    'KTO ${alternative.contentId}',
+                ].join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -1390,15 +1468,18 @@ class _PlaceImagePlaceholder extends StatelessWidget {
     required this.width,
     required this.height,
     required this.radius,
+    this.imageUrl,
   });
 
   final IconData icon;
   final double width;
   final double height;
   final double radius;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
+    final url = imageUrl;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: Container(
@@ -1412,7 +1493,16 @@ class _PlaceImagePlaceholder extends StatelessWidget {
           ),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, color: _CrowdColors.purple, size: 32),
+        child: url == null || url.isEmpty
+            ? Icon(icon, color: _CrowdColors.purple, size: 32)
+            : Image.network(
+                url,
+                width: width,
+                height: height,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    Icon(icon, color: _CrowdColors.purple, size: 32),
+              ),
       ),
     );
   }

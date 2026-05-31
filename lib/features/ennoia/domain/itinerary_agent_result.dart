@@ -218,6 +218,7 @@ class ItineraryAgentItemResult {
     this.imageAssetPath,
     this.imageUrl,
     this.contentId,
+    this.contentTypeId,
     this.address,
     this.cultureTip,
     this.mapX,
@@ -235,6 +236,7 @@ class ItineraryAgentItemResult {
   final String? imageAssetPath;
   final String? imageUrl;
   final String? contentId;
+  final String? contentTypeId;
   final String? address;
   final String? cultureTip;
   final double? mapX;
@@ -287,6 +289,11 @@ class ItineraryAgentItemResult {
         'content_id',
         'contentid',
       ]),
+      contentTypeId: _nullableString(json, const [
+        'contentTypeId',
+        'content_type_id',
+        'contenttypeid',
+      ]),
       address: _nullableString(json, const ['addr1', 'address']),
       cultureTip: _nullableString(json, const [
         'cultureTip',
@@ -311,6 +318,7 @@ class ItineraryAgentItemResult {
       imageAssetPath: imageAssetPath,
       imageUrl: imageUrl,
       contentId: contentId,
+      contentTypeId: contentTypeId,
       address: address,
       cultureTip: cultureTip,
       mapX: mapX,
