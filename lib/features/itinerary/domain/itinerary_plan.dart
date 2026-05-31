@@ -8,6 +8,9 @@ class ItineraryPlan {
     required this.items,
     required this.estimatedTimeSaved,
     this.sourceType = 'mock',
+    this.sourceBadge,
+    this.sourceNote,
+    this.summary,
   });
 
   final String id;
@@ -16,4 +19,7 @@ class ItineraryPlan {
   final List<ItineraryItem> items;
   final String estimatedTimeSaved;
   final String sourceType;
+  final String? sourceBadge;
+  final String? sourceNote;
+  final String? summary;
 }

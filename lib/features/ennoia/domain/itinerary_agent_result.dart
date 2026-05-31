@@ -9,6 +9,9 @@ class ItineraryAgentResult {
     required this.items,
     required this.estimatedTimeSaved,
     required this.sourceType,
+    this.summary,
+    this.sourceBadge,
+    this.sourceNote,
   });
 
   final String id;
@@ -17,12 +20,18 @@ class ItineraryAgentResult {
   final List<ItineraryAgentItemResult> items;
   final String estimatedTimeSaved;
   final String sourceType;
+  final String? summary;
+  final String? sourceBadge;
+  final String? sourceNote;
 
-  bool get isRealEnnoia => sourceType == 'ennoia';
+  bool get isRealEnnoia =>
+      sourceType == 'ennoia' || sourceType == 'kto_openapi_ennoia';
 
   factory ItineraryAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
-    final fallback = ItineraryAgentResult.mock(sourceType: _sourceType(json));
+    final fallback = ItineraryAgentResult.mock(
+      sourceType: _sourceType(json) ?? _sourceType(data) ?? 'ennoia',
+    );
     final rawItems = _list(data, const [
       'items',
       'itinerary',
@@ -52,6 +61,15 @@ class ItineraryAgentResult {
       ], fallback.estimatedTimeSaved),
       items: items.isEmpty ? fallback.items : items,
       sourceType: fallback.sourceType,
+      summary:
+          _nullableString(data, const ['summary', 'route_summary']) ??
+          _nullableString(json, const ['summary', 'route_summary']),
+      sourceBadge:
+          _nullableString(data, const ['sourceBadge', 'source_badge']) ??
+          _nullableString(json, const ['sourceBadge', 'source_badge']),
+      sourceNote:
+          _nullableString(data, const ['sourceNote', 'source_note']) ??
+          _nullableString(json, const ['sourceNote', 'source_note']),
     );
   }
 
@@ -62,6 +80,9 @@ class ItineraryAgentResult {
       title: 'AI Itinerary Planner',
       estimatedTimeSaved: '1h 25m',
       sourceType: sourceType,
+      summary: null,
+      sourceBadge: null,
+      sourceNote: null,
       items: const [
         ItineraryAgentItemResult(
           id: 'gyeongbokgung-palace',
@@ -120,6 +141,9 @@ class ItineraryAgentResult {
       title: title,
       estimatedTimeSaved: estimatedTimeSaved,
       sourceType: sourceType,
+      sourceBadge: sourceBadge,
+      sourceNote: sourceNote,
+      summary: summary,
       items: items
           .map((item) => item.toItineraryItem())
           .toList(growable: false),
@@ -135,12 +159,12 @@ class ItineraryAgentResult {
     return null;
   }
 
-  static String _sourceType(Map<String, Object?> json) {
+  static String? _sourceType(Map<String, Object?> json) {
     final source = json['source'] ?? json['sourceType'] ?? json['source_type'];
-    if (source is String && source.trim().toLowerCase() == 'mock') {
-      return 'mock';
+    if (source is String && source.trim().isNotEmpty) {
+      return source.trim();
     }
-    return 'ennoia';
+    return null;
   }
 
   static List<Object?> _list(Map<String, Object?> json, List<String> keys) {
@@ -162,6 +186,14 @@ class ItineraryAgentResult {
     }
     return fallback;
   }
+
+  static String? _nullableString(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
 }
 
 class ItineraryAgentItemResult {
@@ -175,7 +207,10 @@ class ItineraryAgentItemResult {
     required this.aiTip,
     this.extraBadge,
     this.imageAssetPath,
+    this.imageUrl,
     this.contentId,
+    this.address,
+    this.cultureTip,
     this.mapX,
     this.mapY,
   });
@@ -189,7 +224,10 @@ class ItineraryAgentItemResult {
   final String aiTip;
   final String? extraBadge;
   final String? imageAssetPath;
+  final String? imageUrl;
   final String? contentId;
+  final String? address;
+  final String? cultureTip;
   final double? mapX;
   final double? mapY;
 
@@ -228,7 +266,24 @@ class ItineraryAgentItemResult {
         'imageAssetPath',
         'image_asset_path',
       ]),
-      contentId: _nullableString(json, const ['contentId', 'content_id']),
+      imageUrl: _nullableString(json, const [
+        'imageUrl',
+        'image_url',
+        'firstimage',
+        'image',
+      ]),
+      contentId: _nullableString(json, const [
+        'kto_content_id',
+        'contentId',
+        'content_id',
+        'contentid',
+      ]),
+      address: _nullableString(json, const ['addr1', 'address']),
+      cultureTip: _nullableString(json, const [
+        'cultureTip',
+        'culture_tip',
+        'local_tip',
+      ]),
       mapX: _double(json, const ['mapX', 'mapx', 'x']),
       mapY: _double(json, const ['mapY', 'mapy', 'y']),
     );
@@ -245,7 +300,10 @@ class ItineraryAgentItemResult {
       aiTip: aiTip,
       extraBadge: extraBadge,
       imageAssetPath: imageAssetPath,
+      imageUrl: imageUrl,
       contentId: contentId,
+      address: address,
+      cultureTip: cultureTip,
       mapX: mapX,
       mapY: mapY,
     );

@@ -16,10 +16,12 @@ class CrowdAlertScreen extends StatefulWidget {
     super.key,
     this.logoAsset = _logoAsset,
     this.repository = const MockCrowdAlertRepository(),
+    this.autoGenerateOnOpen = true,
   });
 
   final String logoAsset;
   final CrowdAlertRepository repository;
+  final bool autoGenerateOnOpen;
 
   @override
   State<CrowdAlertScreen> createState() => _CrowdAlertScreenState();
@@ -32,7 +34,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
   void initState() {
     super.initState();
     _controller = CrowdAlertController(repository: widget.repository);
-    _controller.loadAlert();
+    _loadInitialAlert();
   }
 
   @override
@@ -132,6 +134,14 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
     await _controller.generateRetripAlternatives();
   }
 
+  void _loadInitialAlert() {
+    if (widget.autoGenerateOnOpen) {
+      _controller.generateRetripAlternatives();
+      return;
+    }
+    _controller.loadAlert();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -161,7 +171,9 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                     builder: (context, _) {
                       final alert = _controller.alert;
 
-                      if (_controller.isLoading && alert == null) {
+                      if ((_controller.isLoading ||
+                              _controller.isGeneratingRetrip) &&
+                          alert == null) {
                         return const Center(
                           child: CircularProgressIndicator(
                             color: _CrowdColors.purple,
@@ -174,7 +186,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                           message:
                               _controller.errorMessage ??
                               'Unable to load crowd alert.',
-                          onRetry: _controller.loadAlert,
+                          onRetry: _loadInitialAlert,
                         );
                       }
 

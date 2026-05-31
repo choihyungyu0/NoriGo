@@ -28,6 +28,14 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<UserProfile> signUpWithEmail({
+    required String email,
+    required String password,
+  }) {
+    return _mockDelay(MockNoriGoData.user);
+  }
+
+  @override
   Future<void> signOut() => _mockDelay(null);
 }
 

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/data/repositories/repository_interfaces.dart';
+import 'package:norigo/data/repositories/supabase_auth_repository.dart';
 
 const _defaultLogoAsset = 'assets/images/splash/norigo_logo_full.png';
 const _defaultHeaderAsset = 'assets/images/auth/login_header_bg.png';
@@ -12,10 +14,12 @@ class LoginScreen extends StatefulWidget {
     super.key,
     this.logoAsset = _defaultLogoAsset,
     this.headerAsset = _defaultHeaderAsset,
+    this.authRepository = const SupabaseAuthRepository(),
   });
 
   final String logoAsset;
   final String headerAsset;
+  final AuthRepository authRepository;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -27,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   var _selectedTab = _AuthTab.login;
   var _obscurePassword = true;
+  var _isSubmitting = false;
 
   @override
   void dispose() {
@@ -47,29 +52,60 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
 
-    if (_selectedTab == _AuthTab.signUp) {
-      _showSnackBar('Sign up flow will be added soon.');
-      return;
-    }
+    setState(() {
+      _isSubmitting = true;
+    });
 
-    if (AppRouter.routes.containsKey(AppRoutes.tripBasics)) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.tripBasics);
-      return;
-    }
+    try {
+      if (_selectedTab == _AuthTab.signUp) {
+        await widget.authRepository.signUpWithEmail(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+      } else {
+        await widget.authRepository.signInWithEmail(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+      }
 
-    _showSnackBar(
-      'Login flow is ready. Trip basics route is not connected yet.',
-    );
+      if (!mounted) return;
+      if (AppRouter.routes.containsKey(AppRoutes.tripBasics)) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.tripBasics);
+        return;
+      }
+
+      _showSnackBar('Auth succeeded. Trip basics route is not connected yet.');
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar(_friendlyAuthError(error));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _friendlyAuthError(Object error) {
+    final message = error is AuthRepositoryException
+        ? error.message
+        : 'Unable to authenticate right now.';
+    if (message.toLowerCase().contains('invalid login')) {
+      return 'Invalid email or password.';
+    }
+    return message;
   }
 
   @override
@@ -124,6 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onTabChanged: _selectTab,
                               onTogglePassword: _togglePasswordVisibility,
                               onSubmit: _submit,
+                              isSubmitting: _isSubmitting,
                               onForgotPassword: () {
                                 _showSnackBar(
                                   'Password reset will be connected later.',
@@ -357,6 +394,7 @@ class _AuthFormCard extends StatelessWidget {
     required this.onTabChanged,
     required this.onTogglePassword,
     required this.onSubmit,
+    required this.isSubmitting,
     required this.onForgotPassword,
     required this.onOutlineTap,
     required this.onGoogleTap,
@@ -372,6 +410,7 @@ class _AuthFormCard extends StatelessWidget {
   final ValueChanged<_AuthTab> onTabChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
+  final bool isSubmitting;
   final VoidCallback onForgotPassword;
   final VoidCallback onOutlineTap;
   final VoidCallback onGoogleTap;
@@ -462,6 +501,7 @@ class _AuthFormCard extends StatelessWidget {
             _PrimaryAuthButton(
               key: const ValueKey('authSubmitButton'),
               text: isLogin ? 'Log in' : 'Create account',
+              isLoading: isSubmitting,
               onTap: onSubmit,
             ),
             SizedBox(height: 12 * scale),
@@ -639,10 +679,12 @@ class _PrimaryAuthButton extends StatelessWidget {
   const _PrimaryAuthButton({
     super.key,
     required this.text,
+    required this.isLoading,
     required this.onTap,
   });
 
   final String text;
+  final bool isLoading;
   final VoidCallback onTap;
 
   @override
@@ -665,7 +707,7 @@ class _PrimaryAuthButton extends StatelessWidget {
           ],
         ),
         child: FilledButton(
-          onPressed: onTap,
+          onPressed: isLoading ? null : onTap,
           style: FilledButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
@@ -673,14 +715,23 @@ class _PrimaryAuthButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
           ),
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: _AuthColors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: _AuthColors.white,
+                  ),
+                )
+              : Text(
+                  text,
+                  style: const TextStyle(
+                    color: _AuthColors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
         ),
       ),
     );

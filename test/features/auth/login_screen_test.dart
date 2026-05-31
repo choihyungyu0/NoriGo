@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:norigo/app/router.dart';
+import 'package:norigo/data/models/user_profile.dart';
+import 'package:norigo/data/repositories/repository_interfaces.dart';
+import 'package:norigo/data/repositories/supabase_auth_repository.dart';
 import 'package:norigo/features/auth/presentation/login_screen.dart';
 
 void main() {
@@ -39,6 +43,75 @@ void main() {
     expect(find.text('Log in instead'), findsOneWidget);
   });
 
+  testWidgets('login submits to auth repository and opens onboarding', (
+    tester,
+  ) async {
+    final repository = _FakeAuthRepository();
+    await _pumpLoginScreen(tester, authRepository: repository);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('emailField')),
+      'traveler@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('passwordField')),
+      'password123',
+    );
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    expect(repository.signInCount, 1);
+    expect(repository.signUpCount, 0);
+    expect(find.byKey(const ValueKey('tripBasicsRoute')), findsOneWidget);
+  });
+
+  testWidgets('sign up submits to auth repository and opens onboarding', (
+    tester,
+  ) async {
+    final repository = _FakeAuthRepository();
+    await _pumpLoginScreen(tester, authRepository: repository);
+
+    await tester.tap(find.text('Sign up'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('emailField')),
+      'new@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('passwordField')),
+      'password123',
+    );
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    expect(repository.signInCount, 0);
+    expect(repository.signUpCount, 1);
+    expect(find.byKey(const ValueKey('tripBasicsRoute')), findsOneWidget);
+  });
+
+  testWidgets('auth failure stays on login and shows error', (tester) async {
+    await _pumpLoginScreen(
+      tester,
+      authRepository: _FakeAuthRepository(
+        error: const AuthRepositoryException('Invalid login credentials'),
+      ),
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('emailField')),
+      'traveler@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('passwordField')),
+      'password123',
+    );
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Invalid email or password.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tripBasicsRoute')), findsNothing);
+  });
+
   testWidgets('missing image assets use fallbacks without crashing', (
     tester,
   ) async {
@@ -58,13 +131,75 @@ Future<void> _pumpLoginScreen(
   WidgetTester tester, {
   String? logoAsset,
   String? headerAsset,
-}) {
-  return tester.pumpWidget(
+  AuthRepository? authRepository,
+}) async {
+  await tester.binding.setSurfaceSize(const Size(430, 932));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
+  await tester.pumpWidget(
     MaterialApp(
       home: LoginScreen(
         logoAsset: logoAsset ?? 'assets/images/splash/norigo_logo_full.png',
         headerAsset: headerAsset ?? 'assets/images/auth/login_header_bg.png',
+        authRepository: authRepository ?? _FakeAuthRepository(),
       ),
+      routes: {
+        AppRoutes.tripBasics: (_) =>
+            const Scaffold(body: Placeholder(key: ValueKey('tripBasicsRoute'))),
+      },
     ),
   );
+}
+
+Future<void> _tapSubmit(WidgetTester tester) async {
+  final button = find.byKey(const ValueKey('authSubmitButton'));
+  await tester.ensureVisible(button);
+  await tester.tap(button);
+}
+
+class _FakeAuthRepository implements AuthRepository {
+  _FakeAuthRepository({this.error});
+
+  final Object? error;
+  var signInCount = 0;
+  var signUpCount = 0;
+
+  @override
+  Future<UserProfile?> getCurrentUser() async => null;
+
+  @override
+  Future<UserProfile> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    signInCount += 1;
+    final error = this.error;
+    if (error != null) throw error;
+    return _profile(email);
+  }
+
+  @override
+  Future<UserProfile> signUpWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    signUpCount += 1;
+    final error = this.error;
+    if (error != null) throw error;
+    return _profile(email);
+  }
+
+  @override
+  Future<void> signOut() async {}
+
+  UserProfile _profile(String email) {
+    return UserProfile(
+      id: 'test-user',
+      displayName: 'Test Traveler',
+      email: email,
+      badge: 'Local Explorer',
+      currentCity: 'Seoul',
+      language: 'English',
+    );
+  }
 }

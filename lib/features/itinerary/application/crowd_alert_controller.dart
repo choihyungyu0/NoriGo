@@ -38,7 +38,13 @@ class CrowdAlertController extends ChangeNotifier {
   bool get isSwitching => _status == CrowdAlertStatus.switching;
   bool get isGeneratingRetrip => _isGeneratingRetrip;
   String get sourceLabel {
-    return _alert?.sourceType == 'ennoia' ? 'ennoia + KTO MCP' : 'Mock ennoia';
+    return switch (_alert?.sourceType) {
+      'kto_openapi_ennoia' => 'KTO OpenAPI + ennoia',
+      'kto_openapi_direct' => 'KTO OpenAPI',
+      'kto_openapi_fallback' => 'Demo fallback',
+      'ennoia' => 'ennoia',
+      _ => 'Mock ennoia',
+    };
   }
 
   Future<void> loadAlert() async {

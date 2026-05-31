@@ -109,6 +109,8 @@ Future<void> _pumpCrowdAlert(WidgetTester tester) async {
   await tester.binding.setSurfaceSize(const Size(430, 932));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  await tester.pumpWidget(const MaterialApp(home: CrowdAlertScreen()));
+  await tester.pumpWidget(
+    const MaterialApp(home: CrowdAlertScreen(autoGenerateOnOpen: false)),
+  );
   await tester.pumpAndSettle();
 }

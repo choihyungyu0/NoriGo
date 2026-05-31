@@ -17,13 +17,13 @@ No Supabase, OAuth, public data, camera, map, or AI credentials are hardcoded. T
 
 ## ennoia Integration
 
-The ennoia Apps builder currently cannot select NoriGo's MCP/function-calling agents directly. NoriGo therefore keeps Flutter as the app surface and calls the ennoia Agent API through Supabase Edge Functions:
+NoriGo keeps Flutter as the app surface and calls the ennoia Agent API through Supabase Edge Functions. The itinerary function now retrieves dynamic Korea Tourism Organization OpenAPI candidates itself, scores them, selects a route, and sends the selected `KTO_DATA` to ennoia for personalized explanations:
 
 ```text
-Flutter app -> Supabase Edge Function -> ennoia Agent API -> Korea Tourism Organization MCP -> JSON response -> Flutter screen
+Flutter app -> Supabase Edge Function -> KTO OpenAPI -> candidate scoring -> ennoia Agent API -> JSON response -> Flutter screen
 ```
 
-The Korea Tourism Organization MCP stays inside the deployed ennoia Agent. Flutter never receives the ennoia API key.
+Flutter receives only the public Supabase URL and anon key through `--dart-define`. Email login and sign up call Supabase Auth REST endpoints from the app. After login, Edge Function calls send the signed-in user's Supabase access token in `Authorization` and the public anon key in `apikey`; `KTO_SERVICE_KEY` and `ENNOIA_API_KEY` stay in Supabase Edge Function secrets.
 
 Created Edge Functions:
 
@@ -40,7 +40,12 @@ npx.cmd supabase secrets set ENNOIA_CULTURE_HASH="dc44d0299932b02678332570c300d5
 npx.cmd supabase secrets set ENNOIA_ITINERARY_HASH="9318087e471c153d5f82ba62f1cb3ca5a96a4890eb915c38184fcd8cb982092c"
 npx.cmd supabase secrets set ENNOIA_RETRIP_HASH="aca71cdc813b24da90d4b20b03e5bbd7c7ca7bf8aa60769a1ba7eebd934d5ac1"
 npx.cmd supabase secrets set ENNOIA_API_KEY="your-ennoia-api-key"
+npx.cmd supabase secrets set KTO_SERVICE_KEY="your-kto-openapi-service-key"
 ```
+
+The AI itinerary is not manually fixed. User interests, base location, companion type, and crowd preference expand into multiple Korean KTO keyword searches. The Edge Function deduplicates by KTO `contentid`, keeps real candidate fields, scores candidates for preference fit, content type relevance, images, address quality, Seoul relevance, route distance, crowd preference, and diversity, then builds a five-stop route before ennoia writes `reason`, `culture_tip`, `stay_time`, and `crowd_level`.
+
+Fallback exists only when `KTO_SERVICE_KEY` is missing, KTO OpenAPI fails, or fewer than five usable KTO candidates are available after keyword searches. Fallback responses use `source_type = kto_openapi_fallback`, `source_badge = Demo fallback`, and a `source_note` that does not claim real KTO OpenAPI success. Real KTO + ennoia responses use `source_type = kto_openapi_ennoia`.
 
 Deploy the functions:
 

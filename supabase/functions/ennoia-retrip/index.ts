@@ -11,10 +11,25 @@ type RetripRequest = {
   user_preference: string;
 };
 
+type JsonRecord = Record<string, unknown>;
+
+type KtoAlternative = {
+  title: string;
+  contentid: string;
+  contenttypeid: string;
+  addr1: string;
+  firstimage: string;
+  mapx?: number;
+  mapy?: number;
+  matched_keyword: string;
+  score: number;
+  distance_km?: number;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-ennoia-user-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -31,7 +46,22 @@ const requiredFields: Array<keyof RetripRequest> = [
   "user_preference",
 ];
 
-Deno.serve(async (request) => {
+const ktoKeywordSearchUrl =
+  "https://apis.data.go.kr/B551011/KorService2/searchKeyword2";
+const alternativeCount = 3;
+
+const locationHints = [
+  { names: ["bukchon", "북촌"], keyword: "북촌", mapx: 126.984, mapy: 37.582 },
+  { names: ["jongno", "종로"], keyword: "종로", mapx: 126.991, mapy: 37.573 },
+  { names: ["ikseon", "익선동"], keyword: "익선동", mapx: 126.989, mapy: 37.573 },
+  { names: ["myeongdong", "명동"], keyword: "명동", mapx: 126.985, mapy: 37.563 },
+  { names: ["hongdae", "홍대"], keyword: "홍대", mapx: 126.923, mapy: 37.557 },
+  { names: ["seongsu", "성수"], keyword: "성수", mapx: 127.044, mapy: 37.544 },
+  { names: ["gangnam", "강남"], keyword: "강남", mapx: 127.027, mapy: 37.498 },
+  { names: ["seoul", "서울"], keyword: "서울", mapx: 126.978, mapy: 37.566 },
+];
+
+export async function handleRetripRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -50,76 +80,551 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: validationError }, 400);
   }
 
-  const endpoint = Deno.env.get("ENNOIA_API_ENDPOINT");
-  const project = Deno.env.get("ENNOIA_PROJECT");
-  const apiKey = Deno.env.get("ENNOIA_API_KEY");
-  const hash = Deno.env.get("ENNOIA_RETRIP_HASH");
+  const params = bodyResult.body as RetripRequest;
+  const ktoServiceKey = Deno.env.get("KTO_SERVICE_KEY")?.trim();
+  let candidates: KtoAlternative[] = [];
 
-  if (!endpoint || !project || !apiKey || !hash) {
-    return jsonResponse(mockRetrip(), 200);
+  if (ktoServiceKey) {
+    try {
+      candidates = await retrieveKtoAlternatives(params, ktoServiceKey);
+    } catch (error) {
+      console.error(
+        "KTO retrip alternative retrieval failed",
+        error instanceof Error ? error.message : "unknown error",
+      );
+    }
   }
 
-  const params = bodyResult.body as RetripRequest;
-  const ennoiaPayload = {
-    hash,
-    params,
-    messages: [
-      {
-        role: "user",
-        content:
-          "Use Korea Tourism Organization MCP to recommend three nearby alternatives. Return exactly 3 alternatives in valid JSON.",
-      },
-    ],
-  };
+  if (candidates.length < alternativeCount) {
+    return jsonResponse(
+      buildFallbackRetrip(
+        params,
+        ktoServiceKey
+          ? "KTO OpenAPI returned fewer than 3 usable alternatives"
+          : "KTO_SERVICE_KEY is missing",
+      ),
+      200,
+    );
+  }
+
+  const alternatives = candidates.slice(0, alternativeCount);
 
   try {
-    const ennoiaResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        project,
-        apiKey,
-        "Content-Type": "application/json; charset=utf-8",
-      },
-      body: JSON.stringify(ennoiaPayload),
-    });
-
-    return new Response(await ennoiaResponse.text(), {
-      status: ennoiaResponse.status,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json; charset=utf-8",
-      },
-    });
+    const ennoiaPayload = await requestEnnoiaRetrip(request, params, alternatives);
+    return jsonResponse(
+      buildKtoRetrip(params, alternatives, candidates.length, ennoiaPayload),
+      200,
+    );
   } catch (error) {
     console.error(
       "ennoia retrip request failed",
       error instanceof Error ? error.message : "unknown error",
     );
-    return jsonResponse({ error: "Unable to reach ennoia." }, 502);
+    return jsonResponse(
+      buildKtoRetrip(params, alternatives, candidates.length, null),
+      200,
+    );
   }
-});
+}
+
+if (import.meta.main) {
+  Deno.serve(handleRetripRequest);
+}
+
+async function retrieveKtoAlternatives(
+  params: RetripRequest,
+  serviceKey: string,
+): Promise<KtoAlternative[]> {
+  const searches = buildSearchPlan(params);
+  const byId = new Map<string, KtoAlternative>();
+
+  for (let index = 0; index < searches.length; index += 4) {
+    const batch = searches.slice(index, index + 4);
+    const results = await Promise.allSettled(
+      batch.map((keyword) => fetchKtoKeyword(keyword, params, serviceKey)),
+    );
+
+    results.forEach((result) => {
+      if (result.status === "rejected") return;
+      for (const candidate of result.value) {
+        const existing = byId.get(candidate.contentid);
+        if (existing) {
+          existing.score = Math.max(existing.score, candidate.score);
+          if (!existing.firstimage && candidate.firstimage) {
+            existing.firstimage = candidate.firstimage;
+          }
+        } else {
+          byId.set(candidate.contentid, candidate);
+        }
+      }
+    });
+
+    if (byId.size >= 10) break;
+  }
+
+  return [...byId.values()]
+    .map((candidate) => scoreAlternative(candidate, params))
+    .filter((candidate) =>
+      normalize(candidate.title) !== normalize(params.original_place)
+    )
+    .sort((a, b) => b.score - a.score);
+}
+
+async function fetchKtoKeyword(
+  keyword: string,
+  params: RetripRequest,
+  serviceKey: string,
+): Promise<KtoAlternative[]> {
+  const url = new URL(ktoKeywordSearchUrl);
+  url.searchParams.set("MobileOS", "ETC");
+  url.searchParams.set("MobileApp", "NoriGo");
+  url.searchParams.set("_type", "json");
+  url.searchParams.set("arrange", "O");
+  url.searchParams.set("numOfRows", "10");
+  url.searchParams.set("pageNo", "1");
+  url.searchParams.set("areaCode", "1");
+  url.searchParams.set("keyword", keyword);
+
+  const key = serviceKey.includes("%") ? serviceKey : encodeURIComponent(serviceKey);
+  const response = await fetch(`${url.toString()}&serviceKey=${key}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`KTO returned HTTP ${response.status}`);
+  }
+
+  const decoded = await response.json();
+  const items = getNested(decoded, ["response", "body", "items", "item"]);
+  const records = Array.isArray(items) ? items.filter(isRecord) : isRecord(items) ? [items] : [];
+
+  return records
+    .map((record) => normalizeKtoAlternative(record, keyword))
+    .filter((candidate): candidate is KtoAlternative => candidate !== null);
+}
+
+function buildSearchPlan(params: RetripRequest): string[] {
+  const base = locationHintFor(params.current_location)?.keyword ?? "서울";
+  const haystack = normalize(
+    `${params.original_place_type} ${params.original_place_value} ${params.user_preference}`,
+  );
+  const keywords = new Set<string>();
+
+  if (haystack.includes("cafe") || haystack.includes("dessert") || haystack.includes("카페")) {
+    keywords.add(`${base} 카페`);
+    keywords.add(`${base} 디저트`);
+    keywords.add("익선동 카페");
+    keywords.add("한옥 카페");
+    keywords.add("종로 카페");
+  }
+  if (haystack.includes("hanok") || haystack.includes("한옥")) {
+    keywords.add("북촌한옥마을");
+    keywords.add("익선동");
+  }
+  if (haystack.includes("quiet") || haystack.includes("local")) {
+    keywords.add("북촌");
+    keywords.add("서촌");
+    keywords.add("서울숲");
+  }
+  if (keywords.size === 0) {
+    keywords.add(`${base} 관광`);
+    keywords.add(`${base} 맛집`);
+    keywords.add(`${base} 카페`);
+  }
+
+  keywords.add("광장시장");
+  keywords.add("인사동");
+
+  return [...keywords].slice(0, 10);
+}
+
+function normalizeKtoAlternative(
+  rawItem: JsonRecord,
+  keyword: string,
+): KtoAlternative | null {
+  const title = readString(rawItem, "title");
+  const contentid = readString(rawItem, "contentid");
+  if (!title || !contentid) return null;
+
+  return {
+    title,
+    contentid,
+    contenttypeid: readString(rawItem, "contenttypeid"),
+    addr1: readString(rawItem, "addr1"),
+    firstimage: readString(rawItem, "firstimage") ||
+      readString(rawItem, "firstimage2"),
+    mapx: readNumber(rawItem, "mapx"),
+    mapy: readNumber(rawItem, "mapy"),
+    matched_keyword: keyword,
+    score: 0,
+  };
+}
+
+function scoreAlternative(
+  candidate: KtoAlternative,
+  params: RetripRequest,
+): KtoAlternative {
+  const base = locationHintFor(params.current_location);
+  const preference = normalize(
+    `${params.original_place_type} ${params.original_place_value} ${params.user_preference}`,
+  );
+  let score = 40;
+
+  if (candidate.firstimage) score += 8;
+  if (candidate.addr1.includes("서울")) score += 8;
+  if (candidate.contenttypeid === "39") score += 14;
+  if (candidate.contenttypeid === "12") score += 7;
+  if (preference.includes("cafe") && candidate.title.includes("카페")) score += 16;
+  if (preference.includes("dessert") && candidate.matched_keyword.includes("디저트")) {
+    score += 10;
+  }
+  if (preference.includes("hanok") && (
+    candidate.title.includes("한옥") ||
+    candidate.addr1.includes("종로") ||
+    candidate.matched_keyword.includes("한옥")
+  )) {
+    score += 8;
+  }
+  if (preference.includes("quiet") && !candidate.title.includes("시장")) {
+    score += 5;
+  }
+
+  let distance: number | undefined;
+  if (
+    base &&
+    candidate.mapx !== undefined &&
+    candidate.mapy !== undefined
+  ) {
+    distance = haversineKm(base.mapy, base.mapx, candidate.mapy, candidate.mapx);
+    if (distance <= 1.5) score += 12;
+    else if (distance <= 3) score += 8;
+    else if (distance <= 6) score += 4;
+    else score -= 4;
+  }
+
+  return {
+    ...candidate,
+    score: Math.max(1, Math.round(score)),
+    distance_km: distance,
+  };
+}
+
+async function requestEnnoiaRetrip(
+  request: Request,
+  params: RetripRequest,
+  alternatives: KtoAlternative[],
+): Promise<JsonRecord | null> {
+  const endpoint = Deno.env.get("ENNOIA_API_ENDPOINT")?.trim();
+  const project = Deno.env.get("ENNOIA_PROJECT")?.trim();
+  const apiKey = Deno.env.get("ENNOIA_API_KEY")?.trim();
+  const hash = Deno.env.get("ENNOIA_RETRIP_HASH")?.trim();
+
+  if (!endpoint || !project || !apiKey || !hash) {
+    throw new Error("ennoia Edge Function secrets are missing");
+  }
+
+  const ktoAlternatives = alternatives.map(toEnnoiaAlternative);
+  const payload = {
+    hash,
+    params: {
+      ...params,
+      KTO_ALTERNATIVES: ktoAlternatives,
+    },
+    messages: [
+      {
+        role: "user",
+        content: [
+          "Use only KTO_ALTERNATIVES.",
+          "Return valid JSON only with exactly 3 alternatives.",
+          "Preserve contentid as content_id.",
+          JSON.stringify({ request: params, KTO_ALTERNATIVES: ktoAlternatives }),
+        ].join("\n"),
+      },
+    ],
+  };
+  const ennoiaUserId = request.headers.get("x-ennoia-user-id")?.trim() ||
+    Deno.env.get("ENNOIA_USER_ID")?.trim() ||
+    "norigo-demo-user";
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      project,
+      apiKey,
+      "X-ENNOIA-USER-ID": ennoiaUserId,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`ennoia returned HTTP ${response.status}: ${text.slice(0, 240)}`);
+  }
+
+  return parseAgentPayload(text);
+}
+
+function buildKtoRetrip(
+  params: RetripRequest,
+  alternatives: KtoAlternative[],
+  candidateCount: number,
+  ennoiaPayload: JsonRecord | null,
+): JsonRecord {
+  const payloadAlternatives = readPayloadAlternatives(ennoiaPayload);
+  const usedEnnoia = payloadAlternatives.length > 0;
+
+  return {
+    source: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_direct",
+    source_type: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_direct",
+    fallback: false,
+    ennoia_fallback: !usedEnnoia,
+    candidate_count: candidateCount,
+    id: `kto-retrip-${shortHash(
+      `${params.current_location}|${params.original_place}|${params.user_preference}`,
+    )}`,
+    originalPlace: params.original_place,
+    original_place: params.original_place,
+    scheduledTime: params.scheduled_time,
+    scheduled_time: params.scheduled_time,
+    crowdLevel: params.crowd_level,
+    crowd_level: params.crowd_level,
+    estimatedWait: params.estimated_wait,
+    estimated_wait: params.estimated_wait,
+    alertMessage:
+      `${params.original_place} may become very busy within 30 minutes.`,
+    alert_message:
+      `${params.original_place} may become very busy within 30 minutes.`,
+    foreignerQueueTip:
+      "Even if no visible line, app-based queues may already be full.",
+    foreigner_queue_tip:
+      "Even if no visible line, app-based queues may already be full.",
+    alternatives: alternatives.map((candidate, index) =>
+      alternativeFromCandidate(
+        candidate,
+        payloadAlternatives.find((item) => itemMatchesCandidate(item, candidate)) ??
+          payloadAlternatives[index],
+      )
+    ),
+  };
+}
+
+function buildFallbackRetrip(params: RetripRequest, reason: string): JsonRecord {
+  return {
+    source: "kto_openapi_fallback",
+    source_type: "kto_openapi_fallback",
+    fallback: true,
+    source_note:
+      `Demo fallback was used because ${reason}. Real KTO OpenAPI success is not claimed for this response.`,
+    id: "cafe-arte-crowd-alert",
+    originalPlace: params.original_place,
+    original_place: params.original_place,
+    scheduledTime: params.scheduled_time,
+    scheduled_time: params.scheduled_time,
+    crowdLevel: params.crowd_level,
+    crowd_level: params.crowd_level,
+    estimatedWait: params.estimated_wait,
+    estimated_wait: params.estimated_wait,
+    alertMessage:
+      `${params.original_place} may become very busy within 30 minutes.`,
+    foreignerQueueTip:
+      "Even if no visible line, app-based queues may already be full.",
+    alternatives: [
+      {
+        id: "cafe-owall",
+        name: "Cafe Owall",
+        description: "Demo fallback dessert option while live KTO data is unavailable.",
+        walkingTime: "5 min walk",
+        diversityScore: 92,
+        crowdLevel: "Low",
+      },
+      {
+        id: "seosullan-small-book-cafe",
+        name: "Seosullan Small Book Cafe",
+        description: "Demo fallback quiet cafe while live KTO data is unavailable.",
+        walkingTime: "7 min walk",
+        diversityScore: 88,
+        crowdLevel: "Low",
+      },
+      {
+        id: "yunsul-bakery",
+        name: "Yunsul Bakery",
+        description: "Demo fallback bakery while live KTO data is unavailable.",
+        walkingTime: "8 min walk",
+        diversityScore: 90,
+        crowdLevel: "Low",
+      },
+    ],
+  };
+}
+
+function alternativeFromCandidate(
+  candidate: KtoAlternative,
+  ennoiaItem: JsonRecord | undefined,
+): JsonRecord {
+  const name = readPayloadString(ennoiaItem, ["name", "place_name", "placeName"]) ||
+    candidate.title;
+  const description = readPayloadString(ennoiaItem, [
+    "description",
+    "reason",
+    "value",
+  ]) || descriptionFor(candidate);
+  const walkingTime = readPayloadString(ennoiaItem, [
+    "walkingTime",
+    "walking_time",
+    "distance",
+  ]) || walkingTimeFor(candidate.distance_km);
+  const diversityScore = readPayloadNumber(ennoiaItem, [
+    "diversityScore",
+    "diversity_score",
+    "score",
+  ]) ?? diversityScoreFor(candidate.score);
+  const crowdLevel = readPayloadString(ennoiaItem, [
+    "crowdLevel",
+    "crowd_level",
+    "crowd",
+  ]) || "Low";
+
+  return {
+    id: slug(name),
+    name,
+    place_name: name,
+    description,
+    walkingTime,
+    walking_time: walkingTime,
+    diversityScore,
+    diversity_score: diversityScore,
+    crowdLevel,
+    crowd_level: crowdLevel,
+    contentId: candidate.contentid,
+    content_id: candidate.contentid,
+    kto_content_id: candidate.contentid,
+    firstimage: candidate.firstimage,
+    image_url: candidate.firstimage,
+    addr1: candidate.addr1,
+    mapx: candidate.mapx,
+    mapy: candidate.mapy,
+  };
+}
+
+function descriptionFor(candidate: KtoAlternative): string {
+  if (candidate.contenttypeid === "39" || candidate.title.includes("카페")) {
+    return "KTO-listed food or cafe option near the current route.";
+  }
+  if (candidate.title.includes("한옥") || candidate.addr1.includes("종로")) {
+    return "KTO-listed nearby stop that keeps the hanok-area route compact.";
+  }
+  return "KTO-listed nearby alternative selected to reduce crowd friction.";
+}
+
+function walkingTimeFor(distanceKm: number | undefined): string {
+  if (distanceKm === undefined) return "8 min walk";
+  if (distanceKm <= 0.8) return "5 min walk";
+  if (distanceKm <= 1.4) return "8 min walk";
+  if (distanceKm <= 2.2) return "12 min walk";
+  return "15 min walk";
+}
+
+function diversityScoreFor(score: number): number {
+  return Math.max(82, Math.min(96, Math.round(score)));
+}
+
+function toEnnoiaAlternative(candidate: KtoAlternative): JsonRecord {
+  return {
+    title: candidate.title,
+    contentid: candidate.contentid,
+    contenttypeid: candidate.contenttypeid,
+    addr1: candidate.addr1,
+    firstimage: candidate.firstimage,
+    mapx: candidate.mapx,
+    mapy: candidate.mapy,
+    matched_keyword: candidate.matched_keyword,
+    score: candidate.score,
+    distance_km: candidate.distance_km,
+  };
+}
+
+function parseAgentPayload(text: string): JsonRecord | null {
+  try {
+    const decoded = JSON.parse(text);
+    const content = extractOpenAiContent(decoded);
+    if (typeof content === "string") {
+      return parseJsonLike(content);
+    }
+    if (isRecord(decoded)) return decoded;
+  } catch (_) {
+    return parseJsonLike(text);
+  }
+  return null;
+}
+
+function extractOpenAiContent(decoded: unknown): unknown {
+  if (!isRecord(decoded)) return null;
+  const choices = decoded.choices;
+  if (!Array.isArray(choices) || choices.length === 0) return null;
+  const first = choices[0];
+  if (!isRecord(first)) return null;
+  if (typeof first.text === "string") return first.text;
+  if (isRecord(first.message) && typeof first.message.content === "string") {
+    return first.message.content;
+  }
+  return null;
+}
+
+function parseJsonLike(content: string): JsonRecord | null {
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  try {
+    const decoded = JSON.parse(trimmed);
+    return isRecord(decoded) ? decoded : null;
+  } catch (_) {
+    const objectStart = trimmed.indexOf("{");
+    const objectEnd = trimmed.lastIndexOf("}");
+    if (objectStart === -1 || objectEnd <= objectStart) return null;
+    try {
+      const decoded = JSON.parse(trimmed.slice(objectStart, objectEnd + 1));
+      return isRecord(decoded) ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+function readPayloadAlternatives(payload: JsonRecord | null): JsonRecord[] {
+  if (!payload) return [];
+  const nested = firstRecord(payload, ["retrip", "reTrip", "result", "data"]) ?? payload;
+  for (const key of ["alternatives", "places", "recommendations", "items"]) {
+    const value = nested[key];
+    if (Array.isArray(value)) return value.filter(isRecord);
+  }
+  return [];
+}
+
+function itemMatchesCandidate(item: JsonRecord, candidate: KtoAlternative): boolean {
+  const id = readPayloadString(item, [
+    "content_id",
+    "contentId",
+    "kto_content_id",
+    "contentid",
+  ]);
+  return id === candidate.contentid;
+}
 
 async function readJsonBody(
   request: Request,
-): Promise<{ ok: true; body: Record<string, unknown> } | {
-  ok: false;
-  error: string;
-}> {
+): Promise<{ ok: true; body: JsonRecord } | { ok: false; error: string }> {
   try {
     const body = await request.json();
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return { ok: false, error: "Request body must be a JSON object." };
     }
-    return { ok: true, body: body as Record<string, unknown> };
+    return { ok: true, body: body as JsonRecord };
   } catch (_) {
     return { ok: false, error: "Request body must be valid JSON." };
   }
 }
 
-function validateFields(
-  body: Record<string, unknown>,
-  fields: string[],
-): string | null {
+function validateFields(body: JsonRecord, fields: string[]): string | null {
   for (const field of fields) {
     const value = body[field];
     if (typeof value !== "string" || value.trim().length === 0) {
@@ -139,42 +644,109 @@ function jsonResponse(body: unknown, status: number): Response {
   });
 }
 
-function mockRetrip() {
-  return {
-    source: "mock",
-    id: "cafe-arte-crowd-alert",
-    originalPlace: "Cafe Arte",
-    scheduledTime: "13:00",
-    crowdLevel: "Very High",
-    estimatedWait: "40-60 min",
-    alertMessage: "Cafe Arte may become very busy within 30 minutes.",
-    foreignerQueueTip:
-      "Even if no visible line, app-based queues may already be full.",
-    alternatives: [
-      {
-        id: "cafe-owall",
-        name: "Cafe Owall",
-        description: "Dessert in a calm hanok alley",
-        walkingTime: "5 min walk",
-        diversityScore: 92,
-        crowdLevel: "Low",
-      },
-      {
-        id: "seosullan-small-book-cafe",
-        name: "Seosullan Small Book Cafe",
-        description: "Quiet book cafe beloved by locals",
-        walkingTime: "7 min walk",
-        diversityScore: 88,
-        crowdLevel: "Low",
-      },
-      {
-        id: "yunsul-bakery",
-        name: "Yunsul Bakery",
-        description: "Local favorite bakery with short wait",
-        walkingTime: "8 min walk",
-        diversityScore: 90,
-        crowdLevel: "Low",
-      },
-    ],
-  };
+function locationHintFor(value: string) {
+  const normalized = normalize(value);
+  return locationHints.find((hint) =>
+    hint.names.some((name) => normalized.includes(normalize(name)))
+  );
+}
+
+function normalize(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function readString(record: JsonRecord, key: string): string {
+  const value = record[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readNumber(record: JsonRecord, key: string): number | undefined {
+  const value = record[key];
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function readPayloadString(
+  record: JsonRecord | undefined | null,
+  keys: string[],
+): string | null {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number") return String(value);
+  }
+  return null;
+}
+
+function readPayloadNumber(
+  record: JsonRecord | undefined | null,
+  keys: string[],
+): number | null {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+}
+
+function firstRecord(record: JsonRecord, keys: string[]): JsonRecord | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (isRecord(value)) return value;
+  }
+  return null;
+}
+
+function getNested(value: unknown, path: string[]): unknown {
+  let current = value;
+  for (const key of path) {
+    if (!isRecord(current)) return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const earthKm = 6371;
+  const dLat = degreesToRadians(lat2 - lat1);
+  const dLon = degreesToRadians(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(degreesToRadians(lat1)) *
+      Math.cos(degreesToRadians(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+  return earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function degreesToRadians(degrees: number): number {
+  return degrees * (Math.PI / 180);
+}
+
+function slug(value: string): string {
+  const ascii = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return ascii || `place-${shortHash(value)}`;
+}
+
+function shortHash(value: string): string {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(36);
 }

@@ -24,7 +24,10 @@ class RetripAgentResult {
   final List<RetripAlternativeResult> alternatives;
   final String sourceType;
 
-  bool get isRealEnnoia => sourceType == 'ennoia';
+  bool get isRealEnnoia =>
+      sourceType == 'ennoia' ||
+      sourceType == 'kto_openapi_ennoia' ||
+      sourceType == 'kto_openapi_direct';
 
   factory RetripAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
@@ -141,8 +144,8 @@ class RetripAgentResult {
 
   static String _sourceType(Map<String, Object?> json) {
     final source = json['source'] ?? json['sourceType'] ?? json['source_type'];
-    if (source is String && source.trim().toLowerCase() == 'mock') {
-      return 'mock';
+    if (source is String && source.trim().isNotEmpty) {
+      return source.trim();
     }
     return 'ennoia';
   }
@@ -226,7 +229,12 @@ class RetripAlternativeResult {
         'imageAssetPath',
         'image_asset_path',
       ]),
-      contentId: _nullableString(json, const ['contentId', 'content_id']),
+      contentId: _nullableString(json, const [
+        'contentId',
+        'content_id',
+        'kto_content_id',
+        'contentid',
+      ]),
       mapX: _double(json, const ['mapX', 'mapx', 'x']),
       mapY: _double(json, const ['mapY', 'mapy', 'y']),
     );

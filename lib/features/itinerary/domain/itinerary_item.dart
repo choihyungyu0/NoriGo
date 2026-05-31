@@ -11,7 +11,10 @@ class ItineraryItem {
     required this.aiTip,
     this.extraBadge,
     this.imageAssetPath,
+    this.imageUrl,
     this.contentId,
+    this.address,
+    this.cultureTip,
     this.mapX,
     this.mapY,
   });
@@ -25,7 +28,10 @@ class ItineraryItem {
   final String aiTip;
   final String? extraBadge;
   final String? imageAssetPath;
+  final String? imageUrl;
   final String? contentId;
+  final String? address;
+  final String? cultureTip;
   final double? mapX;
   final double? mapY;
 

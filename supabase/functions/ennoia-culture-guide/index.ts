@@ -9,7 +9,7 @@ type CultureRequest = {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-ennoia-user-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -60,6 +60,9 @@ Deno.serve(async (request) => {
       },
     ],
   };
+  const ennoiaUserId = request.headers.get("x-ennoia-user-id")?.trim() ||
+    Deno.env.get("ENNOIA_USER_ID")?.trim() ||
+    "norigo-demo-user";
 
   try {
     const ennoiaResponse = await fetch(endpoint, {
@@ -67,6 +70,7 @@ Deno.serve(async (request) => {
       headers: {
         project,
         apiKey,
+        "X-ENNOIA-USER-ID": ennoiaUserId,
         "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify(ennoiaPayload),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
+import 'package:norigo/features/itinerary/data/itinerary_repository.dart';
+import 'package:norigo/features/itinerary/domain/itinerary_item.dart';
+import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
 
 void main() {
@@ -102,6 +105,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('renders KTO source badge and enriched item metadata', (
+    tester,
+  ) async {
+    await _pumpPlanner(
+      tester,
+      repository: const _StaticItineraryRepository(
+        ItineraryPlan(
+          id: 'kto-route',
+          dateLabel: 'May 18, Sun',
+          title: 'Palace + market route',
+          estimatedTimeSaved: '1h 10m',
+          sourceType: 'kto_openapi_ennoia',
+          sourceBadge: 'KTO OpenAPI + ennoia',
+          items: [
+            ItineraryItem(
+              id: 'gyeongbokgung-palace',
+              order: 1,
+              time: '09:00',
+              placeName: 'Gyeongbokgung Palace',
+              crowdLevel: ItineraryCrowdLevel.low,
+              stayTime: 'Stay 1h 30m',
+              aiTip: 'Strong palace match.',
+              contentId: '264337',
+              cultureTip: 'Keep voices low near ceremonial areas.',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('KTO OpenAPI + ennoia'), findsOneWidget);
+    expect(find.text('KTO 264337'), findsOneWidget);
+    expect(find.text('Keep voices low near ceremonial areas.'), findsOneWidget);
+  });
+
   test('mock repository returns five itinerary items', () async {
     final plan = await const MockItineraryRepository().fetchPlan();
 
@@ -114,6 +152,7 @@ void main() {
 Future<void> _pumpPlanner(
   WidgetTester tester, {
   String? headerAsset,
+  ItineraryRepository? repository,
   Map<String, WidgetBuilder>? routes,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 932));
@@ -124,9 +163,23 @@ Future<void> _pumpPlanner(
       home: AiItineraryPlannerScreen(
         headerAsset:
             headerAsset ?? 'assets/images/itinerary/itinerary_header_bg.png',
+        repository: repository ?? const MockItineraryRepository(),
+        autoGenerateOnOpen: false,
       ),
       routes: routes ?? const {},
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _StaticItineraryRepository implements ItineraryRepository {
+  const _StaticItineraryRepository(this.plan);
+
+  final ItineraryPlan plan;
+
+  @override
+  Future<ItineraryPlan> fetchPlan() async => plan;
+
+  @override
+  Future<void> savePlan(ItineraryPlan plan) async {}
 }

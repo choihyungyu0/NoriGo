@@ -33,7 +33,17 @@ class ItineraryController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   ItineraryPlan? get plan => _plan;
   String get sourceLabel {
-    return _plan?.sourceType == 'ennoia' ? 'ennoia + KTO MCP' : 'Mock ennoia';
+    final plan = _plan;
+    final badge = plan?.sourceBadge;
+    if (badge != null && badge.trim().isNotEmpty) return badge;
+
+    return switch (plan?.sourceType) {
+      'kto_openapi_ennoia' => 'KTO OpenAPI + ennoia',
+      'kto_openapi_direct' => 'KTO OpenAPI',
+      'kto_openapi_fallback' => 'Demo fallback',
+      'ennoia' => 'ennoia',
+      _ => 'Mock ennoia',
+    };
   }
 
   Future<void> loadPlan() async {

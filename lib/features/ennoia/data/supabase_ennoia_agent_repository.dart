@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:norigo/core/services/supabase_auth_session.dart';
 import 'package:norigo/core/services/supabase_config.dart';
 import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/domain/culture_guide_result.dart';
@@ -80,8 +81,10 @@ class SupabaseEnnoiaAgentRepository implements EnnoiaAgentRepository {
     final uri = Uri.parse(
       '${config.url.replaceAll(RegExp(r'/+$'), '')}/functions/v1/$functionName',
     );
+    final authorizationToken =
+        SupabaseAuthSession.accessToken ?? config.anonKey;
     final headers = {
-      'Authorization': 'Bearer ${config.anonKey}',
+      'Authorization': 'Bearer $authorizationToken',
       'apikey': config.anonKey,
       'Content-Type': 'application/json; charset=utf-8',
     };

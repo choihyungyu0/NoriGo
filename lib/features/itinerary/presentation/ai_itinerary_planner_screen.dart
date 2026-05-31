@@ -18,11 +18,13 @@ class AiItineraryPlannerScreen extends StatefulWidget {
     this.logoAsset = _logoAsset,
     this.headerAsset = _headerAsset,
     this.repository = const MockItineraryRepository(),
+    this.autoGenerateOnOpen = true,
   });
 
   final String logoAsset;
   final String headerAsset;
   final ItineraryRepository repository;
+  final bool autoGenerateOnOpen;
 
   @override
   State<AiItineraryPlannerScreen> createState() =>
@@ -37,7 +39,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
   void initState() {
     super.initState();
     _controller = ItineraryController(repository: widget.repository);
-    _controller.loadPlan();
+    _loadInitialPlan();
   }
 
   @override
@@ -68,6 +70,14 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     setState(() {
       _selectedTimeIndex = 0;
     });
+  }
+
+  void _loadInitialPlan() {
+    if (widget.autoGenerateOnOpen) {
+      _controller.generateWithEnnoia();
+      return;
+    }
+    _controller.loadPlan();
   }
 
   void _showRouteReason() {
@@ -181,7 +191,9 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                     builder: (context, _) {
                       final plan = _controller.plan;
 
-                      if (_controller.isLoading && plan == null) {
+                      if ((_controller.isLoading ||
+                              _controller.isGeneratingEnnoia) &&
+                          plan == null) {
                         return const Center(
                           child: CircularProgressIndicator(
                             color: _PlannerColors.purple,
@@ -194,7 +206,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                           message:
                               _controller.errorMessage ??
                               'Unable to load itinerary.',
-                          onRetry: _controller.loadPlan,
+                          onRetry: _loadInitialPlan,
                         );
                       }
 
@@ -546,10 +558,13 @@ class _AgentSourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReal = label == 'ennoia + KTO MCP';
+    final normalized = label.toLowerCase();
+    final isFallback =
+        normalized.contains('fallback') || normalized.contains('mock');
+    final isReal = normalized.contains('kto') && !isFallback;
     return Container(
       height: 32 * scale,
-      constraints: BoxConstraints(maxWidth: 136 * scale),
+      constraints: BoxConstraints(maxWidth: 158 * scale),
       padding: EdgeInsets.symmetric(horizontal: 10 * scale),
       alignment: Alignment.center,
       decoration: BoxDecoration(
@@ -947,19 +962,26 @@ class _PlaceThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final assetPath = item.imageAssetPath;
+    final imageUrl = item.imageUrl;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox(
         width: 82 * scale,
         height: 56 * scale,
-        child: assetPath == null
-            ? _PlaceImagePlaceholder(item: item)
-            : Image.asset(
+        child: assetPath != null
+            ? Image.asset(
                 assetPath,
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => _PlaceImagePlaceholder(item: item),
-              ),
+              )
+            : imageUrl != null
+            ? Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _PlaceImagePlaceholder(item: item),
+              )
+            : _PlaceImagePlaceholder(item: item),
       ),
     );
   }
@@ -1025,8 +1047,80 @@ class _ItineraryDetails extends StatelessWidget {
           children: [
             _CrowdBadge(level: item.crowdLevel, label: item.crowdLabel),
             _StayBadge(text: item.stayTime),
+            if (item.contentId != null)
+              _KtoContentBadge(contentId: item.contentId!),
             if (item.extraBadge != null) _ExtraBadge(text: item.extraBadge!),
           ],
+        ),
+        if (item.cultureTip != null) ...[
+          SizedBox(height: 7 * scale),
+          _CultureTipLine(text: item.cultureTip!, scale: scale),
+        ],
+      ],
+    );
+  }
+}
+
+class _KtoContentBadge extends StatelessWidget {
+  const _KtoContentBadge({required this.contentId});
+
+  final String contentId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _PlannerColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _PlannerColors.border),
+      ),
+      child: Text(
+        'KTO $contentId',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: _PlannerColors.textSub,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _CultureTipLine extends StatelessWidget {
+  const _CultureTipLine({required this.text, required this.scale});
+
+  final String text;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.tips_and_updates_outlined,
+          color: _PlannerColors.purple,
+          size: 13 * scale,
+        ),
+        SizedBox(width: 4 * scale),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _PlannerColors.textSub,
+              fontSize: 11 * scale,
+              fontWeight: FontWeight.w600,
+              height: 1.24,
+            ),
+          ),
         ),
       ],
     );
