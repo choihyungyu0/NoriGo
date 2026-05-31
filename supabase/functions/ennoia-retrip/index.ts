@@ -215,11 +215,13 @@ function buildSearchPlan(params: RetripRequest): string[] {
   const haystack = normalize(
     `${params.original_place_type} ${params.original_place_value} ${params.user_preference} ${params.trigger_type}`,
   );
+  const wantsCafe = hasCafeIntent(haystack);
   const keywords = new Set<string>();
 
-  if (haystack.includes("cafe") || haystack.includes("dessert") || haystack.includes("카페")) {
+  if (wantsCafe) {
     keywords.add(`${base} 카페`);
     keywords.add(`${base} 디저트`);
+    keywords.add(`${base} 베이커리`);
     keywords.add("익선동 카페");
     keywords.add("한옥 카페");
     keywords.add("종로 카페");
@@ -245,10 +247,14 @@ function buildSearchPlan(params: RetripRequest): string[] {
   }
   if (haystack.includes("shop") || haystack.includes("shopping")) {
     keywords.add(`${base} 쇼핑`);
-    keywords.add("시장");
+    if (!wantsCafe) {
+      keywords.add("시장");
+    }
   }
 
-  keywords.add("광장시장");
+  if (!wantsCafe) {
+    keywords.add("광장시장");
+  }
   keywords.add("인사동");
 
   return [...keywords].slice(0, 10);
@@ -284,13 +290,21 @@ function scoreAlternative(
   const preference = normalize(
     `${params.original_place_type} ${params.original_place_value} ${params.user_preference}`,
   );
+  const wantsCafe = hasCafeIntent(preference);
+  const candidateText = normalize(
+    `${candidate.title} ${candidate.addr1} ${candidate.matched_keyword}`,
+  );
+  const cafeSignal = hasCafeSignal(candidateText);
+  const marketSignal = hasMarketSignal(candidateText);
   let score = 40;
 
   if (candidate.firstimage) score += 8;
   if (candidate.addr1.includes("서울")) score += 8;
   if (candidate.contenttypeid === "39") score += 14;
   if (candidate.contenttypeid === "12") score += 7;
-  if (preference.includes("cafe") && candidate.title.includes("카페")) score += 16;
+  if (wantsCafe && cafeSignal) score += 18;
+  if (wantsCafe && marketSignal) score -= 26;
+  if (wantsCafe && !cafeSignal && candidate.contenttypeid !== "39") score -= 10;
   if (preference.includes("dessert") && candidate.matched_keyword.includes("디저트")) {
     score += 10;
   }
@@ -315,7 +329,13 @@ function scoreAlternative(
     if (distance <= 1.5) score += 12;
     else if (distance <= 3) score += 8;
     else if (distance <= 6) score += 4;
-    else score -= 4;
+    else if (distance <= 10) score += 1;
+    else if (distance <= 15) score -= 8;
+    else score -= 18;
+
+    if (wantsCafe && distance > 8) {
+      score -= 18;
+    }
   }
 
   return {
@@ -323,6 +343,34 @@ function scoreAlternative(
     score: Math.max(1, Math.round(score)),
     distance_km: distance,
   };
+}
+
+function hasCafeIntent(value: string): boolean {
+  return value.includes("cafe") ||
+    value.includes("dessert") ||
+    value.includes("bakery") ||
+    value.includes("coffee") ||
+    value.includes("카페") ||
+    value.includes("디저트") ||
+    value.includes("베이커리");
+}
+
+function hasCafeSignal(value: string): boolean {
+  return value.includes("cafe") ||
+    value.includes("coffee") ||
+    value.includes("dessert") ||
+    value.includes("bakery") ||
+    value.includes("카페") ||
+    value.includes("커피") ||
+    value.includes("디저트") ||
+    value.includes("베이커리") ||
+    value.includes("빵");
+}
+
+function hasMarketSignal(value: string): boolean {
+  return value.includes("market") ||
+    value.includes("시장") ||
+    value.includes("도매");
 }
 
 async function requestEnnoiaRetrip(
