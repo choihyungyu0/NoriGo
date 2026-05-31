@@ -178,6 +178,7 @@ class RetripAgentRequest {
     return {
       if (planId != null) 'plan_id': planId,
       if (originalItemId != null) 'original_item_id': originalItemId,
+      'original_place_name': originalPlace,
       'user_language': userLanguage,
       'current_location': currentLocation,
       'original_place': originalPlace,

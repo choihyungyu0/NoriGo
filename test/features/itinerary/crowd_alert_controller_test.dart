@@ -127,6 +127,14 @@ void main() {
       ),
       client: MockClient((request) async {
         requests.add(request);
+        if (request.method == 'GET') {
+          return http.Response(
+            jsonEncode([
+              {'sort_order': 1},
+            ]),
+            200,
+          );
+        }
         if (request.method == 'PATCH') return http.Response('', 204);
         if (request.method == 'POST') return http.Response('', 201);
         return http.Response('unexpected', 500);
@@ -150,15 +158,23 @@ void main() {
       _alternative(),
     );
 
-    expect(requests, hasLength(3));
-    expect(requests.first.method, 'PATCH');
+    expect(requests, hasLength(4));
+    expect(requests.first.method, 'GET');
+    expect(requests.first.url.query, contains('select=sort_order'));
+    expect(requests[1].method, 'PATCH');
     expect(
-      requests.first.url.query,
+      requests[1].url.query,
       contains('local_item_id=eq.deoksugung-daehanmun'),
     );
-    expect(jsonDecode(requests.first.body), {'status': 'replaced'});
-    expect(requests[1].method, 'POST');
-    expect(jsonDecode(requests[1].body)['place_name'], 'Seoul Museum of Art');
+    expect(jsonDecode(requests[1].body), {'status': 'replaced'});
+    expect(requests[2].method, 'POST');
+    expect(jsonDecode(requests[2].body)['place_name'], 'Seoul Museum of Art');
+    expect(jsonDecode(requests[2].body)['sort_order'], 1);
+    expect(requests[3].method, 'PATCH');
+    expect(
+      jsonDecode(requests[3].body)['selected_alternative_json']['place_name'],
+      'Seoul Museum of Art',
+    );
   });
 }
 

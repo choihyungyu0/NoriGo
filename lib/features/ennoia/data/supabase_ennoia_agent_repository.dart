@@ -62,16 +62,7 @@ class SupabaseEnnoiaAgentRepository implements EnnoiaAgentRepository {
       throw const EnnoiaAgentException('Supabase is not configured.');
     }
 
-    if (kDebugMode && functionName == 'ennoia-itinerary') {
-      final safeLog = {
-        'base_location': body['base_location'],
-        'interests': body['interests'],
-        'companion_type': body['companion_type'],
-        'crowd_preference': body['crowd_preference'],
-        'trip_days': body['trip_days'],
-      };
-      debugPrint('NoriGo itinerary request ${jsonEncode(safeLog)}');
-    }
+    _debugLogRequest(functionName, body);
 
     final response = await _post(functionName, body).timeout(
       const Duration(seconds: 24),
@@ -86,7 +77,49 @@ class SupabaseEnnoiaAgentRepository implements EnnoiaAgentRepository {
     }
 
     final decoded = jsonDecode(response.body);
-    return _extractAgentPayload(decoded, listKey: listKey);
+    final payload = _extractAgentPayload(decoded, listKey: listKey);
+    _debugLogResponse(functionName, payload, listKey: listKey);
+    return payload;
+  }
+
+  void _debugLogRequest(String functionName, Map<String, Object?> body) {
+    if (!kDebugMode) return;
+
+    if (functionName == 'ennoia-itinerary') {
+      final safeLog = {
+        'base_location': body['base_location'],
+        'interests': body['interests'],
+        'companion_type': body['companion_type'],
+        'crowd_preference': body['crowd_preference'],
+        'trip_days': body['trip_days'],
+      };
+      debugPrint('NoriGo itinerary request ${jsonEncode(safeLog)}');
+      return;
+    }
+
+    if (functionName == 'ennoia-retrip') {
+      final safeLog = {
+        'original_place_name':
+            body['original_place_name'] ?? body['original_place'],
+        'trigger_type': body['trigger_type'],
+      };
+      debugPrint('NoriGo retrip request ${jsonEncode(safeLog)}');
+    }
+  }
+
+  void _debugLogResponse(
+    String functionName,
+    Map<String, Object?> payload, {
+    required String listKey,
+  }) {
+    if (!kDebugMode || functionName != 'ennoia-retrip') return;
+
+    final alternatives = payload[listKey];
+    final safeLog = {
+      'source_type': payload['source_type'] ?? payload['sourceType'],
+      'alternative_count': alternatives is List ? alternatives.length : 0,
+    };
+    debugPrint('NoriGo retrip response ${jsonEncode(safeLog)}');
   }
 
   Future<http.Response> _post(String functionName, Map<String, Object?> body) {

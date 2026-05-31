@@ -185,6 +185,41 @@ void main() {
     expect(find.text('KTO 130856'), findsOneWidget);
   });
 
+  testWidgets('refresh load keeps selected Re-Trip replacement', (
+    tester,
+  ) async {
+    await _pumpPlanner(
+      tester,
+      repository: const _StaticItineraryRepository(
+        ItineraryPlan(
+          id: 'persisted-plan',
+          persistedPlanId: '00000000-0000-4000-8000-000000000001',
+          dateLabel: 'May 18, Sun',
+          title: 'Updated route',
+          estimatedTimeSaved: '1h',
+          sourceType: 'kto_openapi_ennoia',
+          sourceBadge: 'KTO OpenAPI + ennoia',
+          items: [
+            ItineraryItem(
+              id: 'seoul-museum-of-art',
+              order: 1,
+              time: '09:00',
+              placeName: 'Seoul Museum of Art',
+              crowdLevel: ItineraryCrowdLevel.low,
+              stayTime: 'Stay 1h',
+              aiTip: 'Quiet indoor art stop near the palace route.',
+              contentId: '130856',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('Seoul Museum of Art'), findsOneWidget);
+    expect(find.text('KTO 130856'), findsOneWidget);
+    expect(find.text('Deoksugung Daehanmun'), findsNothing);
+  });
+
   test('mock repository returns five itinerary items', () async {
     final plan = await const MockItineraryRepository().fetchPlan();
 

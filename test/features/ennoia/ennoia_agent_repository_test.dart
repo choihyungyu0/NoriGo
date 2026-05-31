@@ -68,6 +68,64 @@ void main() {
     },
   );
 
+  test('supabase retrip request sends original place name payload', () async {
+    Map<String, Object?>? capturedBody;
+    final repository = SupabaseEnnoiaAgentRepository(
+      config: const SupabaseConfig(
+        url: 'https://project.supabase.co',
+        anonKey: 'anon-key',
+      ),
+      client: MockClient((request) async {
+        capturedBody = Map<String, Object?>.from(
+          jsonDecode(request.body) as Map,
+        );
+        return http.Response(
+          jsonEncode({
+            'source_type': 'kto_openapi_ennoia',
+            'source_badge': 'KTO OpenAPI + ennoia',
+            'alternatives': [
+              {'place_name': 'A', 'kto_content_id': '1'},
+              {'place_name': 'B', 'kto_content_id': '2'},
+              {'place_name': 'C', 'kto_content_id': '3'},
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    await repository.fetchRetrip(
+      const RetripAgentRequest(
+        planId: '00000000-0000-4000-8000-000000000001',
+        originalItemId: 'deoksugung-daehanmun',
+        userLanguage: 'English',
+        currentLocation: 'Jung-gu, Seoul',
+        originalPlace: 'Deoksugung Daehanmun',
+        originalPlaceType: '12',
+        originalPlaceValue: 'palace etiquette',
+        scheduledTime: '09:00',
+        triggerType: 'crowd_spike',
+        crowdLevel: 'Very High',
+        estimatedWait: '40-60 min',
+        userPreference: 'Quiet cultural alternative',
+      ),
+    );
+
+    expect(capturedBody?['plan_id'], isNotNull);
+    expect(capturedBody?['original_item_id'], 'deoksugung-daehanmun');
+    expect(capturedBody?['original_place_name'], 'Deoksugung Daehanmun');
+    expect(capturedBody?['original_place'], 'Deoksugung Daehanmun');
+    expect(capturedBody?['original_place_type'], '12');
+    expect(capturedBody?['original_place_value'], 'palace etiquette');
+    expect(capturedBody?['scheduled_time'], '09:00');
+    expect(capturedBody?['trigger_type'], 'crowd_spike');
+    expect(capturedBody?['crowd_level'], 'Very High');
+    expect(capturedBody?['estimated_wait'], '40-60 min');
+    expect(capturedBody?['user_preference'], 'Quiet cultural alternative');
+    expect(capturedBody?['current_location'], 'Jung-gu, Seoul');
+    expect(capturedBody?['user_language'], 'English');
+  });
+
   test('itinerary parser keeps KTO OpenAPI enrichment fields', () {
     final result = ItineraryAgentResult.fromJson({
       'source_type': 'kto_openapi_ennoia',

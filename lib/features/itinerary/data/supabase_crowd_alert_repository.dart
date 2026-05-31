@@ -45,9 +45,45 @@ class SupabaseCrowdAlertRepository implements CrowdAlertRepository {
       return;
     }
 
+    final sortOrder = await _fetchOriginalSortOrder(planId, originalItemId);
     await _markOriginalItemReplaced(planId, originalItemId);
-    await _insertReplacementItem(planId, originalItemId, alert, alternative);
+    await _insertReplacementItem(
+      planId,
+      originalItemId,
+      alert,
+      alternative,
+      sortOrder,
+    );
     await _saveSelectedAlternative(alert.retripEventId, alternative);
+  }
+
+  Future<int?> _fetchOriginalSortOrder(
+    String planId,
+    String originalItemId,
+  ) async {
+    final response = await _get(
+      _restUri('itinerary_items', {
+        'plan_id': 'eq.$planId',
+        'local_item_id': 'eq.$originalItemId',
+        'select': 'sort_order',
+        'limit': '1',
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw CrowdAlertPersistenceException(
+        'Unable to read original item order (${response.statusCode}).',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is List && decoded.isNotEmpty && decoded.first is Map) {
+      final sortOrder = decoded.first['sort_order'];
+      if (sortOrder is int) return sortOrder;
+      if (sortOrder is num) return sortOrder.toInt();
+      if (sortOrder is String) return int.tryParse(sortOrder);
+    }
+    return null;
   }
 
   Future<void> _markOriginalItemReplaced(
@@ -73,11 +109,13 @@ class SupabaseCrowdAlertRepository implements CrowdAlertRepository {
     String originalItemId,
     CrowdAlert alert,
     AlternativePlace alternative,
+    int? sortOrder,
   ) async {
     final response = await _post(_restUri('itinerary_items'), {
       'plan_id': planId,
       'local_item_id': alternative.id,
       'time_label': alert.scheduledTime,
+      'sort_order': sortOrder,
       'place_name': alternative.name,
       'kto_content_id': alternative.contentId,
       'content_type_id': alternative.contentTypeId,
@@ -123,6 +161,14 @@ class SupabaseCrowdAlertRepository implements CrowdAlertRepository {
     ).replace(queryParameters: query);
   }
 
+  Future<http.Response> _get(Uri uri) {
+    final client = _client;
+    if (client != null) {
+      return client.get(uri, headers: _headers(''));
+    }
+    return http.get(uri, headers: _headers(''));
+  }
+
   Future<http.Response> _post(Uri uri, Object body) {
     final client = _client;
     final encoded = jsonEncode(body);
@@ -156,7 +202,7 @@ class SupabaseCrowdAlertRepository implements CrowdAlertRepository {
       'apikey': config.anonKey,
       'Authorization': 'Bearer $authorizationToken',
       'Content-Type': 'application/json; charset=utf-8',
-      'Prefer': prefer,
+      if (prefer.isNotEmpty) 'Prefer': prefer,
     };
   }
 

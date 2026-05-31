@@ -82,16 +82,20 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     });
   }
 
-  void _loadInitialPlan() {
+  Future<void> _loadInitialPlan() async {
     if (ItinerarySessionStore.currentPlan != null) {
-      _controller.loadPlan();
+      await _controller.loadPlan();
       return;
     }
     if (widget.autoGenerateOnOpen) {
-      _controller.generateWithEnnoia();
+      await _controller.loadPlan();
+      if (!mounted) return;
+      if (_controller.plan == null || _controller.plan?.sourceType == 'mock') {
+        await _controller.generateWithEnnoia();
+      }
       return;
     }
-    _controller.loadPlan();
+    await _controller.loadPlan();
   }
 
   void _showRouteReason() {

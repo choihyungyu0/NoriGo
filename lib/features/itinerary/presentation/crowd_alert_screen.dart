@@ -1140,6 +1140,21 @@ class _AlternativeText extends StatelessWidget {
             height: 1,
           ),
         ),
+        if (alternative.recommendationCopy != null &&
+            alternative.recommendationCopy != alternative.description) ...[
+          SizedBox(height: 5 * scale),
+          Text(
+            alternative.description,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _CrowdColors.textSub,
+              fontSize: 11.2 * scale,
+              fontWeight: FontWeight.w600,
+              height: 1,
+            ),
+          ),
+        ],
         SizedBox(height: 7 * scale),
         Row(
           children: [

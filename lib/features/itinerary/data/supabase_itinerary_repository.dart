@@ -20,8 +20,19 @@ class SupabaseItineraryRepository implements ItineraryRepository {
   final http.Client? _client;
 
   @override
-  Future<ItineraryPlan> fetchPlan() {
-    return fallbackRepository.fetchPlan();
+  Future<ItineraryPlan> fetchPlan() async {
+    if (!config.isConfigured) return fallbackRepository.fetchPlan();
+
+    final latestPlan = await _fetchLatestPlanRow();
+    if (latestPlan == null) return fallbackRepository.fetchPlan();
+
+    final planId = _string(latestPlan, 'id');
+    if (planId == null) return fallbackRepository.fetchPlan();
+
+    final itemRows = await _fetchPlannedItemRows(planId);
+    if (itemRows.isEmpty) return fallbackRepository.fetchPlan();
+
+    return _planFromRows(latestPlan, itemRows);
   }
 
   @override
@@ -83,6 +94,112 @@ class SupabaseItineraryRepository implements ItineraryRepository {
     );
   }
 
+  Uri _restUriWithQuery(String table, Map<String, String> query) {
+    return _restUri(table).replace(queryParameters: query);
+  }
+
+  Future<Map<String, Object?>?> _fetchLatestPlanRow() async {
+    final response = await _get(
+      _restUriWithQuery('itinerary_plans', {
+        'select': '*',
+        'order': 'created_at.desc',
+        'limit': '1',
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ItineraryPersistenceException(
+        'Unable to load latest itinerary plan (${response.statusCode}).',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is List && decoded.isNotEmpty && decoded.first is Map) {
+      return Map<String, Object?>.from(decoded.first as Map);
+    }
+    return null;
+  }
+
+  Future<List<Map<String, Object?>>> _fetchPlannedItemRows(
+    String planId,
+  ) async {
+    final response = await _get(
+      _restUriWithQuery('itinerary_items', {
+        'plan_id': 'eq.$planId',
+        'status': 'eq.planned',
+        'select': '*',
+        'order': 'sort_order.asc,created_at.asc',
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ItineraryPersistenceException(
+        'Unable to load itinerary items (${response.statusCode}).',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) return const [];
+    return decoded
+        .whereType<Map>()
+        .map((row) => Map<String, Object?>.from(row))
+        .toList(growable: false);
+  }
+
+  ItineraryPlan _planFromRows(
+    Map<String, Object?> planRow,
+    List<Map<String, Object?>> itemRows,
+  ) {
+    final rawJson = _map(planRow['raw_json']);
+    final planId = _string(planRow, 'id') ?? 'persisted-plan';
+
+    return ItineraryPlan(
+      id: _string(rawJson, 'id') ?? planId,
+      persistedPlanId: planId,
+      dateLabel:
+          _string(planRow, 'date_label') ??
+          _string(rawJson, 'date_label') ??
+          'Today',
+      title:
+          _string(planRow, 'title') ??
+          _string(rawJson, 'title') ??
+          'AI Itinerary Planner',
+      estimatedTimeSaved: _string(rawJson, 'estimated_time_saved') ?? '1h',
+      sourceType:
+          _string(planRow, 'source_type') ??
+          _string(rawJson, 'source_type') ??
+          'kto_openapi_ennoia',
+      sourceBadge:
+          _string(planRow, 'source_badge') ?? _string(rawJson, 'source_badge'),
+      sourceNote: _string(rawJson, 'source_note'),
+      summary: _string(rawJson, 'summary'),
+      items: itemRows.map(_itemFromRow).toList(growable: false),
+    );
+  }
+
+  ItineraryItem _itemFromRow(Map<String, Object?> row) {
+    final placeName = _string(row, 'place_name') ?? 'Recommended stop';
+    final sortOrder = _int(row, 'sort_order') ?? 1;
+
+    return ItineraryItem(
+      id: _string(row, 'local_item_id') ?? _slug(placeName),
+      order: sortOrder,
+      time: _string(row, 'time_label') ?? '09:00',
+      placeName: placeName,
+      crowdLevel: _crowdLevel(_string(row, 'crowd_level') ?? ''),
+      stayTime: _string(row, 'stay_time') ?? 'Stay 1h',
+      aiTip: _string(row, 'reason') ?? 'Recommended by ennoia.',
+      contentId: _string(row, 'kto_content_id'),
+      contentTypeId: _string(row, 'content_type_id'),
+      address: _string(row, 'address'),
+      imageUrl: _string(row, 'image_url'),
+      cultureTip: _string(row, 'culture_tip'),
+      mapX: _double(row, 'longitude'),
+      mapY: _double(row, 'latitude'),
+      status: _string(row, 'status') ?? 'planned',
+    );
+  }
+
   Future<http.Response> _post(Uri uri, Object body, {required String prefer}) {
     final encoded = jsonEncode(body);
     final client = _client;
@@ -91,6 +208,14 @@ class SupabaseItineraryRepository implements ItineraryRepository {
       return client.post(uri, headers: headers, body: encoded);
     }
     return http.post(uri, headers: headers, body: encoded);
+  }
+
+  Future<http.Response> _get(Uri uri) {
+    final client = _client;
+    if (client != null) {
+      return client.get(uri, headers: _headers());
+    }
+    return http.get(uri, headers: _headers());
   }
 
   Map<String, String> _headers() {
@@ -156,6 +281,49 @@ class SupabaseItineraryRepository implements ItineraryRepository {
       'latitude': item.mapY,
       'status': item.status,
     };
+  }
+
+  static Map<String, Object?> _map(Object? value) {
+    if (value is Map<String, Object?>) return value;
+    if (value is Map) return Map<String, Object?>.from(value);
+    return const {};
+  }
+
+  static String? _string(Map<String, Object?> row, String key) {
+    final value = row[key];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+    if (value is num) return value.toString();
+    return null;
+  }
+
+  static int? _int(Map<String, Object?> row, String key) {
+    final value = row[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static double? _double(Map<String, Object?> row, String key) {
+    final value = row[key];
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  static ItineraryCrowdLevel _crowdLevel(String value) {
+    final normalized = value.toLowerCase();
+    return normalized.contains('moderate') || normalized.contains('high')
+        ? ItineraryCrowdLevel.moderate
+        : ItineraryCrowdLevel.low;
+  }
+
+  static String _slug(String value) {
+    final slug = value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    return slug.isEmpty ? 'itinerary-item' : slug;
   }
 }
 
