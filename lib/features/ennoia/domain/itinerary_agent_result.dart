@@ -12,6 +12,7 @@ class ItineraryAgentResult {
     this.summary,
     this.sourceBadge,
     this.sourceNote,
+    this.persistedPlanId,
   });
 
   final String id;
@@ -23,9 +24,9 @@ class ItineraryAgentResult {
   final String? summary;
   final String? sourceBadge;
   final String? sourceNote;
+  final String? persistedPlanId;
 
-  bool get isRealEnnoia =>
-      sourceType == 'ennoia' || sourceType == 'kto_openapi_ennoia';
+  bool get isRealEnnoia => sourceType == 'kto_openapi_ennoia';
 
   factory ItineraryAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
@@ -70,6 +71,12 @@ class ItineraryAgentResult {
       sourceNote:
           _nullableString(data, const ['sourceNote', 'source_note']) ??
           _nullableString(json, const ['sourceNote', 'source_note']),
+      persistedPlanId:
+          _nullableString(data, const [
+            'persistedPlanId',
+            'persisted_plan_id',
+          ]) ??
+          _nullableString(json, const ['persistedPlanId', 'persisted_plan_id']),
     );
   }
 
@@ -83,6 +90,7 @@ class ItineraryAgentResult {
       summary: null,
       sourceBadge: null,
       sourceNote: null,
+      persistedPlanId: null,
       items: const [
         ItineraryAgentItemResult(
           id: 'gyeongbokgung-palace',
@@ -144,6 +152,7 @@ class ItineraryAgentResult {
       sourceBadge: sourceBadge,
       sourceNote: sourceNote,
       summary: summary,
+      persistedPlanId: persistedPlanId,
       items: items
           .map((item) => item.toItineraryItem())
           .toList(growable: false),

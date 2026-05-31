@@ -50,26 +50,34 @@ class CultureGuideAgentRequest {
 
 class ItineraryAgentRequest {
   const ItineraryAgentRequest({
+    required this.preferredLanguage,
     required this.userLanguage,
+    required this.destination,
     required this.tripDays,
     required this.baseLocation,
     required this.travelDate,
     required this.interests,
     required this.companionType,
     required this.crowdPreference,
+    required this.foodNeeds,
   });
 
+  final String preferredLanguage;
   final String userLanguage;
+  final String destination;
   final String tripDays;
   final String baseLocation;
   final String travelDate;
   final String interests;
   final String companionType;
   final String crowdPreference;
+  final String foodNeeds;
 
   factory ItineraryAgentRequest.defaults() {
     return const ItineraryAgentRequest(
+      preferredLanguage: 'English',
       userLanguage: 'English',
+      destination: 'South Korea',
       tripDays: '1',
       baseLocation: 'Myeongdong, Seoul',
       travelDate: 'May 18, Sun',
@@ -77,18 +85,22 @@ class ItineraryAgentRequest {
           'Palace, Hanok village, Traditional market, Dessert cafe, Photo spot, Night view',
       companionType: 'Solo',
       crowdPreference: 'Quiet to Moderate',
+      foodNeeds: 'None',
     );
   }
 
   Map<String, Object?> toJson() {
     return {
+      'preferred_language': preferredLanguage,
       'user_language': userLanguage,
+      'destination': destination,
       'trip_days': tripDays,
       'base_location': baseLocation,
       'travel_date': travelDate,
       'interests': interests,
       'companion_type': companionType,
       'crowd_preference': crowdPreference,
+      'food_needs': foodNeeds,
     };
   }
 }

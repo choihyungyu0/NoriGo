@@ -1,11 +1,14 @@
 export type ItineraryRequest = {
+  preferred_language?: string;
   user_language: string;
+  destination?: string;
   trip_days: string;
   base_location: string;
   travel_date: string;
   interests: string;
   companion_type: string;
   crowd_preference: string;
+  food_needs?: string;
 };
 
 export type KeywordSearch = {
@@ -32,6 +35,18 @@ export type KtoCandidate = {
 
 type JsonRecord = Record<string, unknown>;
 
+export type EnnoiaFailureDetails = {
+  ennoia_status?: number;
+  ennoia_status_text?: string;
+  ennoia_body_preview?: string;
+  ennoia_error_code?: string;
+  hasApiKey: boolean;
+  hasProject: boolean;
+  hasEndpoint: boolean;
+  hasItineraryApiHash: boolean;
+  hashSuffix: string;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -53,8 +68,8 @@ const ktoKeywordSearchUrl =
   "https://apis.data.go.kr/B551011/KorService2/searchKeyword2";
 const targetCandidateCount = 20;
 const routeItemCount = 5;
-const ennoiaCandidateCount = 8;
 const maxKeywordSearches = 24;
+const ennoiaBodyPreviewLength = 500;
 
 const interestKeywords: Record<string, string[]> = {
   "Palace": ["경복궁", "창덕궁", "덕수궁", "창경궁"],
@@ -193,26 +208,22 @@ export async function handleItineraryRequest(request: Request): Promise<Response
   }
 
   const route = selectRoute(candidates, params);
-  const ennoiaCandidates = buildEnnoiaCandidateSet(route, candidates);
 
   try {
     const ennoiaPayload = await requestEnnoiaItinerary(
       request,
       params,
       route,
-      ennoiaCandidates,
     );
     return jsonResponse(
       buildKtoEnnoiaItinerary(params, route, candidates.length, ennoiaPayload),
       200,
     );
   } catch (error) {
-    console.error(
-      "ennoia itinerary request failed",
-      error instanceof Error ? error.message : "unknown error",
-    );
+    const failureDetails = ennoiaFailureDetailsFromError(error);
+    logEnnoiaFailure(failureDetails);
     return jsonResponse(
-      buildKtoDirectItinerary(params, route, candidates.length),
+      buildKtoDirectItinerary(params, route, candidates.length, failureDetails),
       200,
     );
   }
@@ -539,45 +550,39 @@ function orderRoute(route: KtoCandidate[], params: ItineraryRequest): KtoCandida
   });
 }
 
-function buildEnnoiaCandidateSet(
-  route: KtoCandidate[],
-  candidates: KtoCandidate[],
-): KtoCandidate[] {
-  const selectedIds = new Set(route.map((candidate) => candidate.contentid));
-  const remaining = candidates
-    .filter((candidate) => !selectedIds.has(candidate.contentid))
-    .sort((a, b) => b.candidate_score - a.candidate_score);
-  return [...route, ...remaining].slice(0, ennoiaCandidateCount);
-}
-
 async function requestEnnoiaItinerary(
   request: Request,
   params: ItineraryRequest,
   route: KtoCandidate[],
-  candidates: KtoCandidate[],
 ): Promise<JsonRecord | null> {
   const endpoint = Deno.env.get("ENNOIA_API_ENDPOINT")?.trim();
   const project = Deno.env.get("ENNOIA_PROJECT")?.trim();
   const apiKey = Deno.env.get("ENNOIA_API_KEY")?.trim();
-  const hash = Deno.env.get("ENNOIA_ITINERARY_HASH")?.trim();
+  const hash = Deno.env.get("ENNOIA_ITINERARY_API_HASH")?.trim();
+  const failureContext = ennoiaFailureContext(endpoint, project, apiKey, hash);
 
   if (!endpoint || !project || !apiKey || !hash) {
-    throw new Error("ennoia Edge Function secrets are missing");
+    throw new EnnoiaItineraryError(
+      "ennoia_missing_config",
+      "ennoia Edge Function secrets are missing",
+      {
+        ...failureContext,
+        ennoia_error_code: "ennoia_missing_config",
+      },
+    );
   }
 
-  const ktoData = candidates.map(toEnnoiaCandidate);
-  const preselectedRoute = route.map(toEnnoiaCandidate);
+  const ktoData = route.map(toEnnoiaCandidate);
   const ennoiaPayload = {
     hash,
     params: {
       ...params,
       KTO_DATA: ktoData,
-      PRESELECTED_ROUTE: preselectedRoute,
     },
     messages: [
       {
         role: "user",
-        content: buildEnnoiaPrompt(params, ktoData, preselectedRoute),
+        content: buildEnnoiaPrompt(params, ktoData),
       },
     ],
   };
@@ -598,28 +603,54 @@ async function requestEnnoiaItinerary(
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`ennoia returned HTTP ${response.status}: ${text.slice(0, 240)}`);
+    throw new EnnoiaItineraryError(
+      `ennoia_http_${response.status}`,
+      `ennoia returned HTTP ${response.status}`,
+      {
+        ...failureContext,
+        ennoia_status: response.status,
+        ennoia_status_text: response.statusText,
+        ennoia_body_preview: safeBodyPreview(text),
+        ennoia_error_code: `ennoia_http_${response.status}`,
+      },
+    );
   }
 
-  return parseAgentPayload(text);
+  const payload = parseAgentPayload(text);
+  const itemCount = readPayloadItems(payload).length;
+  if (!payload || itemCount < routeItemCount) {
+    throw new EnnoiaItineraryError(
+      "ennoia_parse_error",
+      `ennoia response did not contain ${routeItemCount} itinerary items`,
+      {
+        ...failureContext,
+        ennoia_status: response.status,
+        ennoia_status_text: response.statusText,
+        ennoia_body_preview: safeBodyPreview(text),
+        ennoia_error_code: "ennoia_parse_error",
+      },
+    );
+  }
+
+  return payload;
 }
 
 function buildEnnoiaPrompt(
   params: ItineraryRequest,
   ktoData: JsonRecord[],
-  preselectedRoute: JsonRecord[],
 ): string {
   return [
-    "You are NoriGo's Korea itinerary copywriter.",
-    "Use only KTO_DATA. Do not invent or replace kto_content_id values.",
+    "Use only the provided KTO_DATA.",
+    "Do not call tools.",
+    "Do not invent place names.",
+    "Do not invent kto_content_id.",
     "Return valid JSON only.",
-    "Return exactly 5 items, preserving the PRESELECTED_ROUTE order and contentid as kto_content_id.",
-    "Each item must include place_name, kto_content_id, reason, culture_tip, stay_time, and crowd_level.",
-    "crowd_level must be low or moderate.",
+    "Return exactly 5 items.",
+    "Each item must preserve the selected KTO contentid as kto_content_id.",
+    'If a field is unknown, use an empty string.',
     JSON.stringify({
       user_request: params,
       KTO_DATA: ktoData,
-      PRESELECTED_ROUTE: preselectedRoute,
       response_shape: {
         source_type: "kto_openapi_ennoia",
         title: "personalized route title",
@@ -642,7 +673,70 @@ function buildEnnoiaPrompt(
   ].join("\n");
 }
 
-function buildKtoEnnoiaItinerary(
+class EnnoiaItineraryError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details: EnnoiaFailureDetails,
+  ) {
+    super(message);
+    this.name = "EnnoiaItineraryError";
+  }
+}
+
+function ennoiaFailureContext(
+  endpoint: string | undefined,
+  project: string | undefined,
+  apiKey: string | undefined,
+  hash: string | undefined,
+): EnnoiaFailureDetails {
+  return {
+    hasApiKey: Boolean(apiKey),
+    hasProject: Boolean(project),
+    hasEndpoint: Boolean(endpoint),
+    hasItineraryApiHash: Boolean(hash),
+    hashSuffix: hash ? hash.slice(-8) : "",
+  };
+}
+
+function ennoiaFailureDetailsFromError(error: unknown): EnnoiaFailureDetails {
+  if (error instanceof EnnoiaItineraryError) return error.details;
+  return {
+    hasApiKey: Boolean(Deno.env.get("ENNOIA_API_KEY")?.trim()),
+    hasProject: Boolean(Deno.env.get("ENNOIA_PROJECT")?.trim()),
+    hasEndpoint: Boolean(Deno.env.get("ENNOIA_API_ENDPOINT")?.trim()),
+    hasItineraryApiHash: Boolean(
+      Deno.env.get("ENNOIA_ITINERARY_API_HASH")?.trim(),
+    ),
+    hashSuffix:
+      Deno.env.get("ENNOIA_ITINERARY_API_HASH")?.trim().slice(-8) ?? "",
+    ennoia_error_code: "ennoia_generation_failed",
+    ennoia_body_preview: error instanceof Error ? error.message.slice(0, 160) : "",
+  };
+}
+
+function logEnnoiaFailure(details: EnnoiaFailureDetails): void {
+  console.error("ennoia itinerary request failed", {
+    ennoia_status: details.ennoia_status,
+    ennoia_status_text: details.ennoia_status_text,
+    ennoia_body_preview: details.ennoia_body_preview,
+    ennoia_error_code: details.ennoia_error_code,
+    hasApiKey: details.hasApiKey,
+    hasProject: details.hasProject,
+    hasEndpoint: details.hasEndpoint,
+    hasItineraryApiHash: details.hasItineraryApiHash,
+    hashSuffix: details.hashSuffix,
+  });
+}
+
+function safeBodyPreview(text: string): string {
+  return text
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]")
+    .replace(/("?(?:apiKey|apikey|authorization|token)"?\s*[:=]\s*")([^"]+)(")/gi, "$1[redacted]$3")
+    .slice(0, ennoiaBodyPreviewLength);
+}
+
+export function buildKtoEnnoiaItinerary(
   params: ItineraryRequest,
   route: KtoCandidate[],
   candidateCount: number,
@@ -685,17 +779,20 @@ function buildKtoEnnoiaItinerary(
   };
 }
 
-function buildKtoDirectItinerary(
+export function buildKtoDirectItinerary(
   params: ItineraryRequest,
   route: KtoCandidate[],
   candidateCount: number,
+  ennoiaFailure?: Partial<EnnoiaFailureDetails> | null,
 ): JsonRecord {
   return {
-    source: "kto_openapi_direct",
-    source_type: "kto_openapi_direct",
+    source: "kto_openapi_basic",
+    source_type: "kto_openapi_basic",
     source_badge: "KTO OpenAPI",
     source_note:
-      "Real KTO OpenAPI candidates were retrieved dynamically; ennoia was unavailable, so the Edge Function returned the scored KTO route with deterministic explanations.",
+      "KTO OpenAPI data succeeded; ennoia generation failed and basic descriptions were generated by the backend.",
+    ennoia_error_code:
+      ennoiaFailure?.ennoia_error_code ?? "ennoia_generation_failed",
     fallback: false,
     ennoia_fallback: true,
     id: `kto-direct-${shortHash(
@@ -713,7 +810,7 @@ function buildKtoDirectItinerary(
   };
 }
 
-function buildFallbackItinerary(params: ItineraryRequest, reason: string): JsonRecord {
+export function buildFallbackItinerary(params: ItineraryRequest, reason: string): JsonRecord {
   const route = selectRoute(fallbackCandidates, params);
   return {
     source: "kto_openapi_fallback",
@@ -784,51 +881,143 @@ function itineraryItemFromCandidate(
   };
 }
 
-function parseAgentPayload(text: string): JsonRecord | null {
+export function parseAgentPayload(text: string): JsonRecord | null {
   try {
     const decoded = JSON.parse(text);
-    const content = extractOpenAiContent(decoded);
-    if (typeof content === "string") {
-      return parseJsonLike(content);
-    }
-    if (isRecord(decoded)) return decoded;
+    return parseAgentValue(decoded);
   } catch (_) {
     return parseJsonLike(text);
   }
+}
+
+function parseAgentValue(value: unknown): JsonRecord | null {
+  if (!isRecord(value)) return null;
+  if (looksLikeItineraryPayload(value)) return value;
+
+  const content = extractAgentContent(value);
+  if (content !== null && content !== undefined) {
+    const parsed = parseAgentContent(content);
+    if (parsed) return parsed;
+  }
+
+  return value;
+}
+
+function extractAgentContent(decoded: unknown): unknown {
+  if (!isRecord(decoded)) return null;
+  if (isRecord(decoded.data)) {
+    const dataContent = extractAgentContent(decoded.data);
+    if (dataContent !== null && dataContent !== undefined) return dataContent;
+    if (looksLikeItineraryPayload(decoded.data)) return decoded.data;
+  }
+
+  const choices = decoded.choices;
+  if (Array.isArray(choices) && choices.length > 0) {
+    const first = choices[0];
+    if (isRecord(first)) {
+      if (typeof first.text === "string") return first.text;
+      if (isRecord(first.message) && first.message.content !== undefined) {
+        return first.message.content;
+      }
+    }
+  }
+  if (isRecord(decoded.message) && decoded.message.content !== undefined) {
+    return decoded.message.content;
+  }
+  if (decoded.output_text !== undefined) return decoded.output_text;
+  if (decoded.content !== undefined) return decoded.content;
+  if (decoded.data !== undefined) return decoded.data;
   return null;
 }
 
-function extractOpenAiContent(decoded: unknown): unknown {
-  if (!isRecord(decoded)) return null;
-  const choices = decoded.choices;
-  if (!Array.isArray(choices) || choices.length === 0) return null;
-  const first = choices[0];
-  if (!isRecord(first)) return null;
-  if (typeof first.text === "string") return first.text;
-  if (isRecord(first.message) && typeof first.message.content === "string") {
-    return first.message.content;
+function parseAgentContent(content: unknown): JsonRecord | null {
+  if (typeof content === "string") return parseJsonLike(content);
+  if (Array.isArray(content)) {
+    const text = content.map((part) => {
+      if (typeof part === "string") return part;
+      if (!isRecord(part)) return "";
+      if (typeof part.text === "string") return part.text;
+      if (typeof part.output_text === "string") return part.output_text;
+      if (typeof part.content === "string") return part.content;
+      return "";
+    }).join("");
+    return parseJsonLike(text);
   }
+  if (isRecord(content)) return parseAgentValue(content);
   return null;
 }
 
 function parseJsonLike(content: string): JsonRecord | null {
-  const trimmed = content.trim();
+  const trimmed = stripMarkdownJsonFence(content.trim());
   if (!trimmed) return null;
 
   try {
     const decoded = JSON.parse(trimmed);
     return isRecord(decoded) ? decoded : null;
   } catch (_) {
-    const objectStart = trimmed.indexOf("{");
-    const objectEnd = trimmed.lastIndexOf("}");
-    if (objectStart === -1 || objectEnd <= objectStart) return null;
+    const objectText = extractFirstJsonObject(trimmed);
+    if (!objectText) return null;
     try {
-      const decoded = JSON.parse(trimmed.slice(objectStart, objectEnd + 1));
+      const decoded = JSON.parse(objectText);
       return isRecord(decoded) ? decoded : null;
     } catch (_) {
       return null;
     }
   }
+}
+
+function stripMarkdownJsonFence(content: string): string {
+  return content
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+function extractFirstJsonObject(content: string): string | null {
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index];
+    if (start === -1) {
+      if (char === "{") {
+        start = index;
+        depth = 1;
+      }
+      continue;
+    }
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{") depth += 1;
+    if (char === "}") depth -= 1;
+    if (depth === 0) return content.slice(start, index + 1);
+  }
+
+  return null;
+}
+
+function looksLikeItineraryPayload(value: JsonRecord): boolean {
+  return Array.isArray(value.items) ||
+    Array.isArray(value.itinerary_items) ||
+    Array.isArray(value.itineraryItems) ||
+    Array.isArray(value.places) ||
+    typeof value.source_type === "string" ||
+    typeof value.route_title === "string" ||
+    typeof value.title === "string";
 }
 
 function readPayloadItems(payload: JsonRecord | null): JsonRecord[] {

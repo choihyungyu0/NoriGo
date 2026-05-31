@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:norigo/core/services/supabase_auth_session.dart';
 import 'package:norigo/core/services/supabase_config.dart';
@@ -59,6 +60,17 @@ class SupabaseEnnoiaAgentRepository implements EnnoiaAgentRepository {
   }) async {
     if (!config.isConfigured) {
       throw const EnnoiaAgentException('Supabase is not configured.');
+    }
+
+    if (kDebugMode && functionName == 'ennoia-itinerary') {
+      final safeLog = {
+        'base_location': body['base_location'],
+        'interests': body['interests'],
+        'companion_type': body['companion_type'],
+        'crowd_preference': body['crowd_preference'],
+        'trip_days': body['trip_days'],
+      };
+      debugPrint('NoriGo itinerary request ${jsonEncode(safeLog)}');
     }
 
     final response = await _post(functionName, body).timeout(

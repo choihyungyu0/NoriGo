@@ -118,6 +118,8 @@ void main() {
           estimatedTimeSaved: '1h 10m',
           sourceType: 'kto_openapi_ennoia',
           sourceBadge: 'KTO OpenAPI + ennoia',
+          sourceNote: 'Real KTO candidates were used.',
+          persistedPlanId: 'plan-123',
           items: [
             ItineraryItem(
               id: 'gyeongbokgung-palace',
@@ -138,6 +140,22 @@ void main() {
     expect(find.text('KTO OpenAPI + ennoia'), findsOneWidget);
     expect(find.text('KTO 264337'), findsOneWidget);
     expect(find.text('Keep voices low near ceremonial areas.'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const ValueKey('viewKtoDataButton')));
+    await tester.tap(find.byKey(const ValueKey('viewKtoDataButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('source_type'), findsOneWidget);
+    expect(find.text('kto_openapi_ennoia'), findsOneWidget);
+    expect(find.text('source_badge'), findsOneWidget);
+    expect(find.text('KTO OpenAPI + ennoia'), findsWidgets);
+    expect(find.text('ennoia generation'), findsOneWidget);
+    expect(find.text('succeeded'), findsOneWidget);
+    expect(find.text('persistedPlanId'), findsOneWidget);
+    expect(find.text('plan-123'), findsOneWidget);
+    expect(find.text('source_note'), findsOneWidget);
+    expect(find.text('Real KTO candidates were used.'), findsOneWidget);
+    expect(find.text('264337'), findsOneWidget);
   });
 
   test('mock repository returns five itinerary items', () async {

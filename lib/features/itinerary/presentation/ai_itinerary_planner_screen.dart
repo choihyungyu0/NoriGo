@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/features/itinerary/application/itinerary_controller.dart';
+import 'package:norigo/features/itinerary/application/itinerary_source_label.dart';
 import 'package:norigo/features/itinerary/data/itinerary_repository.dart';
 import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_item.dart';
@@ -526,7 +527,7 @@ class _EnnoiaPlannerActionRow extends StatelessWidget {
               label: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  isGenerating ? 'Generating...' : 'Generate with ennoia',
+                  isGenerating ? 'Generating...' : 'Generate AI Itinerary',
                   style: TextStyle(
                     fontSize: 16 * scale,
                     fontWeight: FontWeight.w900,
@@ -1340,6 +1341,19 @@ class _RouteSummaryCard extends StatelessWidget {
         );
 
         const map = _RouteOverviewMiniMap();
+        final sourceButton = Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const ValueKey('viewKtoDataButton'),
+            onPressed: () => _showKtoDataSheet(context, plan),
+            icon: const Icon(Icons.dataset_outlined, size: 18),
+            label: const Text('View KTO data'),
+            style: TextButton.styleFrom(
+              foregroundColor: _PlannerColors.purple,
+              textStyle: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        );
 
         return Container(
           padding: EdgeInsets.all(12 * scale),
@@ -1355,13 +1369,19 @@ class _RouteSummaryCard extends StatelessWidget {
               ? Column(
                   children: [
                     text,
+                    sourceButton,
                     SizedBox(height: 10 * scale),
                     SizedBox(height: 74 * scale, child: map),
                   ],
                 )
               : Row(
                   children: [
-                    Expanded(child: text),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [text, sourceButton],
+                      ),
+                    ),
                     SizedBox(width: 12 * scale),
                     SizedBox(
                       width: 170 * scale,
@@ -1372,6 +1392,103 @@ class _RouteSummaryCard extends StatelessWidget {
                 ),
         );
       },
+    );
+  }
+
+  void _showKtoDataSheet(BuildContext context, ItineraryPlan plan) {
+    final label = itinerarySourceLabel(
+      plan.sourceType,
+      sourceBadge: plan.sourceBadge,
+    );
+    final ennoiaSucceeded = itineraryEnnoiaSucceeded(plan.sourceType);
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'KTO data',
+                    style: TextStyle(
+                      color: _PlannerColors.deepPurple,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SourceDetailLine(
+                    label: 'source_type',
+                    value: plan.sourceType,
+                  ),
+                  _SourceDetailLine(label: 'source_badge', value: label),
+                  _SourceDetailLine(
+                    label: 'ennoia generation',
+                    value: ennoiaSucceeded ? 'succeeded' : 'not used',
+                  ),
+                  _SourceDetailLine(
+                    label: 'persistedPlanId',
+                    value: plan.persistedPlanId ?? 'Not persisted',
+                  ),
+                  _SourceDetailLine(
+                    label: 'source_note',
+                    value: plan.sourceNote ?? 'No source note provided.',
+                  ),
+                  const SizedBox(height: 10),
+                  for (final item in plan.items)
+                    _SourceDetailLine(
+                      label: item.placeName,
+                      value: item.contentId ?? 'No KTO content ID',
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SourceDetailLine extends StatelessWidget {
+  const _SourceDetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: _PlannerColors.textSub,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _PlannerColors.deepPurple,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

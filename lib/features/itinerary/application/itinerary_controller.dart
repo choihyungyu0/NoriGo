@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
+import 'package:norigo/features/itinerary/application/itinerary_source_label.dart';
 import 'package:norigo/features/itinerary/data/itinerary_repository.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
+import 'package:norigo/features/onboarding/application/onboarding_preferences_store.dart';
 
 class ItineraryController extends ChangeNotifier {
   ItineraryController({
@@ -34,16 +36,10 @@ class ItineraryController extends ChangeNotifier {
   ItineraryPlan? get plan => _plan;
   String get sourceLabel {
     final plan = _plan;
-    final badge = plan?.sourceBadge;
-    if (badge != null && badge.trim().isNotEmpty) return badge;
-
-    return switch (plan?.sourceType) {
-      'kto_openapi_ennoia' => 'KTO OpenAPI + ennoia',
-      'kto_openapi_direct' => 'KTO OpenAPI',
-      'kto_openapi_fallback' => 'Demo fallback',
-      'ennoia' => 'ennoia',
-      _ => 'Mock ennoia',
-    };
+    return itinerarySourceLabel(
+      plan?.sourceType,
+      sourceBadge: plan?.sourceBadge,
+    );
   }
 
   Future<void> loadPlan() async {
@@ -90,7 +86,7 @@ class ItineraryController extends ChangeNotifier {
     _errorMessage = null;
     _safeNotifyListeners();
 
-    final request = ItineraryAgentRequest.defaults();
+    final request = OnboardingPreferencesStore.itineraryRequest();
 
     try {
       final result = await _ennoiaRepository.fetchItinerary(request);

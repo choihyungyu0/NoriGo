@@ -374,8 +374,8 @@ function buildKtoRetrip(
   const usedEnnoia = payloadAlternatives.length > 0;
 
   return {
-    source: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_direct",
-    source_type: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_direct",
+    source: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_basic",
+    source_type: usedEnnoia ? "kto_openapi_ennoia" : "kto_openapi_basic",
     fallback: false,
     ennoia_fallback: !usedEnnoia,
     candidate_count: candidateCount,

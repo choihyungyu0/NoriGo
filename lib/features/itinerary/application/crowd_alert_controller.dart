@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
+import 'package:norigo/features/itinerary/application/itinerary_source_label.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
@@ -38,13 +39,7 @@ class CrowdAlertController extends ChangeNotifier {
   bool get isSwitching => _status == CrowdAlertStatus.switching;
   bool get isGeneratingRetrip => _isGeneratingRetrip;
   String get sourceLabel {
-    return switch (_alert?.sourceType) {
-      'kto_openapi_ennoia' => 'KTO OpenAPI + ennoia',
-      'kto_openapi_direct' => 'KTO OpenAPI',
-      'kto_openapi_fallback' => 'Demo fallback',
-      'ennoia' => 'ennoia',
-      _ => 'Mock ennoia',
-    };
+    return itinerarySourceLabel(_alert?.sourceType);
   }
 
   Future<void> loadAlert() async {

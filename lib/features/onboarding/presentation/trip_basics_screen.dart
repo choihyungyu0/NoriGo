@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/features/onboarding/application/onboarding_preferences_store.dart';
 import 'package:norigo/features/onboarding/domain/trip_basics.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
@@ -42,6 +43,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
   }
 
   void _continue() {
+    OnboardingPreferencesStore.saveTripBasics(_basics);
     if (AppRouter.routes.containsKey(AppRoutes.interests)) {
       Navigator.of(context).pushNamed(AppRoutes.interests);
       return;

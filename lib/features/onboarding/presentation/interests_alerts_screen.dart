@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/features/onboarding/application/onboarding_preferences_store.dart';
 import 'package:norigo/features/onboarding/domain/interests_alerts.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
@@ -87,6 +88,7 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
   }
 
   void _finishSetup() {
+    OnboardingPreferencesStore.saveInterestsAlerts(_settings);
     if (AppRouter.routes.containsKey(AppRoutes.itinerary)) {
       try {
         Navigator.of(

@@ -11,6 +11,7 @@ class ItineraryPlan {
     this.sourceBadge,
     this.sourceNote,
     this.summary,
+    this.persistedPlanId,
   });
 
   final String id;
@@ -22,4 +23,5 @@ class ItineraryPlan {
   final String? sourceBadge;
   final String? sourceNote;
   final String? summary;
+  final String? persistedPlanId;
 }

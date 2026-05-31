@@ -27,6 +27,7 @@ class RetripAgentResult {
   bool get isRealEnnoia =>
       sourceType == 'ennoia' ||
       sourceType == 'kto_openapi_ennoia' ||
+      sourceType == 'kto_openapi_basic' ||
       sourceType == 'kto_openapi_direct';
 
   factory RetripAgentResult.fromJson(Map<String, Object?> json) {
