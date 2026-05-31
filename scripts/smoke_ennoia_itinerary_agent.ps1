@@ -52,6 +52,7 @@ $ktoData = @(
     matched_interest = "Hanok village"
   }
 )
+$ktoDataJson = $ktoData | ConvertTo-Json -Depth 8 -Compress
 
 $prompt = @"
 Use only the provided KTO_DATA.
@@ -78,7 +79,7 @@ $body = @{
     companion_type = "Solo"
     crowd_preference = "Quiet to Moderate"
     food_needs = "None"
-    KTO_DATA = $ktoData
+    KTO_DATA = $ktoDataJson
   }
   messages = @(
     @{

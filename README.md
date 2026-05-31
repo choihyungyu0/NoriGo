@@ -37,7 +37,7 @@ Required Supabase Edge Function secrets:
 npx.cmd supabase secrets set ENNOIA_API_ENDPOINT="https://api.ennoia.so/api/preset/v2/chat/completions"
 npx.cmd supabase secrets set ENNOIA_PROJECT="KNTO-PROMPTON-2026-278"
 npx.cmd supabase secrets set ENNOIA_CULTURE_HASH="dc44d0299932b02678332570c300d55fbfb0ce66a17d99748b7d037af057c979"
-npx.cmd supabase secrets set ENNOIA_ITINERARY_HASH="9318087e471c153d5f82ba62f1cb3ca5a96a4890eb915c38184fcd8cb982092c"
+npx.cmd supabase secrets set ENNOIA_ITINERARY_API_HASH="your-mcp-free-itinerary-agent-hash"
 npx.cmd supabase secrets set ENNOIA_RETRIP_HASH="aca71cdc813b24da90d4b20b03e5bbd7c7ca7bf8aa60769a1ba7eebd934d5ac1"
 npx.cmd supabase secrets set ENNOIA_API_KEY="your-ennoia-api-key"
 npx.cmd supabase secrets set KTO_SERVICE_KEY="your-kto-openapi-service-key"

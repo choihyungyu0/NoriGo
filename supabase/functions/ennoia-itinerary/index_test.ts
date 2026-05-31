@@ -1,4 +1,5 @@
 import {
+  buildEnnoiaParams,
   buildFallbackItinerary,
   buildKeywordSearchPlan,
   buildKtoDirectItinerary,
@@ -95,6 +96,25 @@ Deno.test("extracts JSON object from minor surrounding prose", () => {
 
   assert(parsed);
   assertEquals(readItems(parsed)[0].place_name, "Deoksugung Daehanmun");
+});
+
+Deno.test("ennoia API params can be sent as compact JSON string", () => {
+  const params = buildEnnoiaParams(
+    request("Myeongdong, Seoul", "Palace, Hanok village, Traditional market"),
+    candidateRoute.map((item) => ({
+      title: item.title,
+      contentid: item.contentid,
+    })),
+  );
+
+  assertEquals(typeof params.KTO_DATA, "string");
+  const decoded = JSON.parse(params.KTO_DATA as string);
+  assertEquals(Array.isArray(decoded), true);
+  assertEquals(decoded[0].contentid, "1605981");
+
+  const bodyParams = JSON.stringify(params);
+  assertEquals(typeof bodyParams, "string");
+  assertEquals(JSON.parse(bodyParams).base_location, "Myeongdong, Seoul");
 });
 
 Deno.test("ennoia success sets source_type to kto_openapi_ennoia", () => {

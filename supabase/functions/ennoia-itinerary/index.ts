@@ -223,7 +223,12 @@ export async function handleItineraryRequest(request: Request): Promise<Response
     const failureDetails = ennoiaFailureDetailsFromError(error);
     logEnnoiaFailure(failureDetails);
     return jsonResponse(
-      buildKtoDirectItinerary(params, route, candidates.length, failureDetails),
+      buildKtoDirectItinerary(
+        params,
+        route,
+        candidates.length,
+        failureDetails,
+      ),
       200,
     );
   }
@@ -575,10 +580,7 @@ async function requestEnnoiaItinerary(
   const ktoData = route.map(toEnnoiaCandidate);
   const ennoiaPayload = {
     hash,
-    params: {
-      ...params,
-      KTO_DATA: ktoData,
-    },
+    params: buildEnnoiaParams(params, ktoData),
     messages: [
       {
         role: "user",
@@ -603,15 +605,17 @@ async function requestEnnoiaItinerary(
 
   const text = await response.text();
   if (!response.ok) {
+    const ennoiaErrorCode =
+      readEnnoiaErrorCode(text) ?? `ennoia_http_${response.status}`;
     throw new EnnoiaItineraryError(
-      `ennoia_http_${response.status}`,
+      ennoiaErrorCode,
       `ennoia returned HTTP ${response.status}`,
       {
         ...failureContext,
         ennoia_status: response.status,
         ennoia_status_text: response.statusText,
         ennoia_body_preview: safeBodyPreview(text),
-        ennoia_error_code: `ennoia_http_${response.status}`,
+        ennoia_error_code: ennoiaErrorCode,
       },
     );
   }
@@ -633,6 +637,16 @@ async function requestEnnoiaItinerary(
   }
 
   return payload;
+}
+
+export function buildEnnoiaParams(
+  params: ItineraryRequest,
+  ktoData: JsonRecord[],
+): JsonRecord {
+  return {
+    ...params,
+    KTO_DATA: JSON.stringify(ktoData),
+  };
 }
 
 function buildEnnoiaPrompt(
@@ -734,6 +748,36 @@ function safeBodyPreview(text: string): string {
     .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]")
     .replace(/("?(?:apiKey|apikey|authorization|token)"?\s*[:=]\s*")([^"]+)(")/gi, "$1[redacted]$3")
     .slice(0, ennoiaBodyPreviewLength);
+}
+
+function readEnnoiaErrorCode(text: string): string | null {
+  try {
+    const decoded = JSON.parse(text);
+    if (!isRecord(decoded)) return null;
+    const errorType = decoded.error_type;
+    if (typeof errorType === "string" && errorType.trim().isNotEmpty) {
+      return errorType.trim();
+    }
+    const errorCode = decoded.error_code;
+    if (typeof errorCode === "string" && errorCode.trim().isNotEmpty) {
+      if (errorCode.trim() === "40065") return "MCP_CONNECTION_REQUIRED";
+      return errorCode.trim();
+    }
+    if (typeof errorCode === "number") {
+      if (errorCode === 40065) return "MCP_CONNECTION_REQUIRED";
+      return String(errorCode);
+    }
+    const message = decoded.message;
+    if (
+      typeof message === "string" &&
+      message.toLowerCase().includes("mcp connection")
+    ) {
+      return "MCP_CONNECTION_REQUIRED";
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
 }
 
 export function buildKtoEnnoiaItinerary(
