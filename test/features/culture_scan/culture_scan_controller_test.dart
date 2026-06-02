@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
+import 'package:norigo/features/culture_scan/application/culture_vision_classifier.dart';
 import 'package:norigo/features/culture_scan/data/culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
@@ -175,6 +176,31 @@ void main() {
     controller.dispose();
   });
 
+  test(
+    'local ML Kit classifier result is used before server vision detect',
+    () async {
+      final repository = _RecordingCultureScanRepository(
+        uploadResult: 'user-1/scan.jpg',
+      );
+      final controller = CultureScanController(
+        cameraService: const _CapturingCameraService(),
+        repository: repository,
+        visionClassifier: const _FakeLocalVisionClassifier(),
+      );
+
+      await controller.initializeCamera();
+      final draft = await controller.prepareVisionScan(
+        controller.defaultRequest,
+      );
+
+      expect(draft.visionResult.detectedObject, 'kiosk_ordering');
+      expect(draft.visionResult.sourceType, 'vision_ai');
+      expect(repository.detectCount, 0);
+
+      controller.dispose();
+    },
+  );
+
   test('CultureScanController ignores scan completion after dispose', () async {
     final controller = CultureScanController(
       cameraService: const _UnavailableCameraService(),
@@ -299,5 +325,32 @@ class _RecordingCultureScanRepository extends CultureScanRepository {
   ) async {
     detectCount++;
     return visionResult ?? await super.detectCultureObject(request);
+  }
+}
+
+class _FakeLocalVisionClassifier extends CultureVisionClassifier {
+  const _FakeLocalVisionClassifier();
+
+  @override
+  Future<CultureVisionResult?> classify(
+    CultureImageCapture capture,
+    CultureVisionRequest request,
+  ) async {
+    return const CultureVisionResult(
+      detectedObject: 'kiosk_ordering',
+      placeType: 'restaurant',
+      confidence: 0.81,
+      alternatives: [
+        CultureVisionAlternative(
+          detectedObject: 'kiosk_ordering',
+          placeType: 'restaurant',
+          label: 'Kiosk ordering',
+          confidence: 0.81,
+        ),
+      ],
+      needsConfirmation: false,
+      sourceType: 'vision_ai',
+      sourceBadge: 'Vision AI',
+    );
   }
 }

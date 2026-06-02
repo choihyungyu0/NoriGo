@@ -45,6 +45,7 @@ class CultureCameraSession {
       bytes: bytes,
       contentType: 'image/jpeg',
       extension: 'jpg',
+      filePath: file.path,
     );
   }
 }

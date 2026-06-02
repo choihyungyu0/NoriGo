@@ -4,6 +4,9 @@ import 'package:camera/camera.dart';
 import 'package:flutter/widgets.dart';
 import 'package:norigo/ai/harness/culture_guide_harness.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
+import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
+import 'package:norigo/features/culture_scan/application/culture_mlkit_vision_classifier.dart';
+import 'package:norigo/features/culture_scan/application/culture_vision_classifier.dart';
 import 'package:norigo/features/culture_scan/data/culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/data/supabase_culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
@@ -27,16 +30,20 @@ class CultureScanController extends ChangeNotifier {
   CultureScanController({
     required CultureCameraService cameraService,
     CultureScanRepository repository = const SupabaseCultureScanRepository(),
+    CultureVisionClassifier visionClassifier =
+        const MlKitCultureVisionClassifier(),
     CultureGuideHarness? harness,
     CultureScanRequest? initialRequest,
   }) : _cameraService = cameraService,
        _repository = repository,
+       _visionClassifier = visionClassifier,
        _baseRequest = initialRequest ?? CultureScanRequest.defaultTemple() {
     _selectedLanguage = _baseRequest.userLanguage;
   }
 
   final CultureCameraService _cameraService;
   final CultureScanRepository _repository;
+  final CultureVisionClassifier _visionClassifier;
   final CultureScanRequest _baseRequest;
 
   CultureCameraSession? _cameraSession;
@@ -210,21 +217,18 @@ class CultureScanController extends ChangeNotifier {
     _safeNotifyListeners();
 
     String? imagePath;
+    CultureImageCapture? capture;
     CultureVisionResult visionResult;
     try {
-      imagePath = await _captureAndUploadScanImage();
+      capture = await _captureScanImage();
+      imagePath = await _uploadScanImage(capture);
       final visionRequest = CultureVisionRequest(
         imagePath: imagePath,
         currentLocation: effectiveRequest.currentLocation,
         userLanguage: effectiveRequest.userLanguage,
         hintPlaceType: effectiveRequest.placeType,
       );
-      visionResult = await _repository
-          .detectCultureObject(visionRequest)
-          .timeout(
-            const Duration(seconds: 20),
-            onTimeout: () => CultureVisionResult.heuristic(visionRequest),
-          );
+      visionResult = await _classifyCultureObject(capture, visionRequest);
     } catch (error) {
       developer.log(
         'Culture vision detection skipped.',
@@ -252,11 +256,7 @@ class CultureScanController extends ChangeNotifier {
 
   Future<String?> _captureAndUploadScanImage() async {
     try {
-      final capture = await _cameraSession?.captureStill();
-      if (capture == null || capture.isEmpty) return null;
-      return await _repository
-          .uploadScanImage(capture)
-          .timeout(const Duration(seconds: 12), onTimeout: () => null);
+      return await _uploadScanImage(await _captureScanImage());
     } catch (error) {
       developer.log(
         'Culture scan image capture/upload skipped.',
@@ -265,6 +265,43 @@ class CultureScanController extends ChangeNotifier {
       );
       return null;
     }
+  }
+
+  Future<CultureImageCapture?> _captureScanImage() async {
+    final capture = await _cameraSession?.captureStill();
+    if (capture == null || capture.isEmpty) return null;
+    return capture;
+  }
+
+  Future<String?> _uploadScanImage(CultureImageCapture? capture) async {
+    if (capture == null || capture.isEmpty) return null;
+    return _repository
+        .uploadScanImage(capture)
+        .timeout(const Duration(seconds: 12), onTimeout: () => null);
+  }
+
+  Future<CultureVisionResult> _classifyCultureObject(
+    CultureImageCapture? capture,
+    CultureVisionRequest request,
+  ) async {
+    if (capture != null && !capture.isEmpty) {
+      try {
+        final localResult = await _visionClassifier.classify(capture, request);
+        if (localResult != null) return localResult;
+      } catch (error) {
+        developer.log(
+          'Local ML Kit culture vision skipped.',
+          name: 'CultureScanController',
+          error: error.runtimeType,
+        );
+      }
+    }
+    return _repository
+        .detectCultureObject(request)
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => CultureVisionResult.heuristic(request),
+        );
   }
 
   @override
