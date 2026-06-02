@@ -10,7 +10,7 @@ import 'package:norigo/features/culture_scan/domain/culture_vision_result.dart';
 import 'package:norigo/features/culture_scan/presentation/culture_scan_screen.dart';
 
 void main() {
-  testWidgets('CultureScanScreen renders source badge and guide sections', (
+  testWidgets('CultureScanScreen keeps camera preview clear before scan', (
     tester,
   ) async {
     _setScanSurface(tester);
@@ -28,18 +28,17 @@ void main() {
 
     expect(find.text('Bulguksa'), findsOneWidget);
     expect(find.text('Guide'), findsOneWidget);
-    expect(find.text('소원 성취'), findsOneWidget);
-    expect(find.text('Useful phrase appears after scan.'), findsOneWidget);
-    expect(find.text('AI Culture Guide'), findsOneWidget);
-    expect(find.text('Why do Koreans stack stones here?'), findsOneWidget);
-    expect(find.text('Ready to scan'), findsOneWidget);
     expect(
       find.text('No camera detected. Showing guide preview.'),
       findsOneWidget,
     );
-    expect(find.text('Meaning'), findsOneWidget);
-    expect(find.text('Etiquette'), findsOneWidget);
-    expect(find.text('Story'), findsOneWidget);
+    expect(find.text('소원 성취'), findsNothing);
+    expect(find.text('AI Culture Guide'), findsNothing);
+    expect(find.text('Why do Koreans stack stones here?'), findsNothing);
+    expect(find.text('Ready to scan'), findsNothing);
+    expect(find.text('Meaning'), findsNothing);
+    expect(find.text('Etiquette'), findsNothing);
+    expect(find.text('Story'), findsNothing);
     expect(find.text('English'), findsOneWidget);
     expect(find.byKey(const ValueKey('flashToggleIconButton')), findsOneWidget);
     expect(find.text('Scan Culture'), findsOneWidget);
@@ -117,7 +116,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byKey(const ValueKey('runEnnoiaCultureGuideButton')));
+    await tester.tap(find.byKey(const ValueKey('guidePill')));
     await tester.pumpAndSettle();
 
     expect(find.text('Local guide'), findsOneWidget);
@@ -226,6 +225,9 @@ void main() {
         visionSourceBadge: 'Vision AI',
       ),
     );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('guidePill')));
     await tester.pumpAndSettle();
 
     expect(find.text('Vision AI · Culture DB + ennoia'), findsOneWidget);

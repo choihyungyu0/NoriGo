@@ -92,10 +92,49 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     }
     if (request == null) return;
     await _controller.runCultureGuide(request);
+    if (!mounted) return;
+    await _showGuideResultSheet();
   }
 
   Future<void> _runEnnoiaCultureGuide() async {
     await _controller.runCultureGuide(_controller.defaultRequest);
+    if (!mounted) return;
+    await _showGuideResultSheet();
+  }
+
+  Future<void> _handleGuideTap() async {
+    if (_controller.result != null) {
+      await _showGuideResultSheet();
+      return;
+    }
+    await _runEnnoiaCultureGuide();
+  }
+
+  Future<void> _showGuideResultSheet() async {
+    final guide = _controller.guide;
+    if (guide == null || !mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: _ScanColors.white,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 0.56,
+          alignment: Alignment.bottomCenter,
+          child: _GuideResultSheet(
+            guide: guide,
+            sourceLabel: _controller.ennoiaSourceLabel,
+            isEnnoiaLoading: _controller.isRunningEnnoia,
+            onRunEnnoia: () {
+              Navigator.of(sheetContext).pop();
+              _runEnnoiaCultureGuide();
+            },
+            onPhraseTap: () => _handlePhraseTap(guide),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _toggleFlash() async {
@@ -272,9 +311,9 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                   ),
                                   SizedBox(width: 10 * scale),
                                   _GuidePill(
+                                    key: const ValueKey('guidePill'),
                                     scale: scale,
-                                    onTap: () =>
-                                        _showSnack('Guide mode is active.'),
+                                    onTap: _handleGuideTap,
                                   ),
                                 ],
                               ),
@@ -290,29 +329,6 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                   scale: scale,
                                 ),
                               ),
-                            Positioned(
-                              top: 112 * scale,
-                              right: 18 * scale,
-                              child: _TranslationBubble(
-                                guide: guide,
-                                scale: scale,
-                                width: math.min(238 * scale, pageWidth * 0.47),
-                                onPhraseTap: () => _handlePhraseTap(guide),
-                              ),
-                            ),
-                            Positioned(
-                              top: 198 * scale,
-                              left: 18 * scale,
-                              width: math.min(282 * scale, pageWidth * 0.60),
-                              child: _CultureGuideCard(
-                                guide: guide,
-                                scanStatus: _controller.scanStatus,
-                                sourceLabel: _controller.ennoiaSourceLabel,
-                                isEnnoiaLoading: _controller.isRunningEnnoia,
-                                onRunEnnoia: _runEnnoiaCultureGuide,
-                                scale: scale,
-                              ),
-                            ),
                             Positioned(
                               left: 18 * scale,
                               right: 18 * scale,
@@ -636,7 +652,7 @@ class _LocationPill extends StatelessWidget {
 }
 
 class _GuidePill extends StatelessWidget {
-  const _GuidePill({required this.scale, required this.onTap});
+  const _GuidePill({required this.scale, required this.onTap, super.key});
 
   final double scale;
   final VoidCallback onTap;
@@ -718,116 +734,6 @@ class _FlashIconButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _TranslationBubble extends StatelessWidget {
-  const _TranslationBubble({
-    required this.guide,
-    required this.scale,
-    required this.width,
-    required this.onPhraseTap,
-  });
-
-  final CultureGuide guide;
-  final double scale;
-  final double width;
-  final VoidCallback onPhraseTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width + 18 * scale,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          _GlassBox(
-            width: width,
-            radius: 20 * scale,
-            padding: EdgeInsets.fromLTRB(
-              18 * scale,
-              16 * scale,
-              16 * scale,
-              17 * scale,
-            ),
-            child: Stack(
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(right: 30 * scale),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        guide.koreanSource,
-                        style: TextStyle(
-                          color: _ScanColors.deepText,
-                          fontSize: 26 * scale,
-                          height: 1.05,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      SizedBox(height: 10 * scale),
-                      Text(
-                        guide.translation,
-                        style: TextStyle(
-                          color: _ScanColors.bodyText,
-                          fontSize: 15 * scale,
-                          height: 1.35,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: IconButton(
-                    tooltip: 'Phrase',
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(
-                      minWidth: 28 * scale,
-                      minHeight: 28 * scale,
-                    ),
-                    onPressed: onPhraseTap,
-                    icon: Icon(
-                      Icons.volume_up_rounded,
-                      color: _ScanColors.purple,
-                      size: 22 * scale,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            right: 30 * scale,
-            bottom: -15 * scale,
-            child: CustomPaint(
-              size: Size(25 * scale, 22 * scale),
-              painter: _BubbleTailPainter(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BubbleTailPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = _ScanColors.white.withValues(alpha: 0.96);
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(size.width * 0.78, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _CultureGuideCard extends StatelessWidget {
@@ -1003,6 +909,147 @@ class _CultureGuideCard extends StatelessWidget {
             body: guide.story,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GuideResultSheet extends StatelessWidget {
+  const _GuideResultSheet({
+    required this.guide,
+    required this.sourceLabel,
+    required this.isEnnoiaLoading,
+    required this.onRunEnnoia,
+    required this.onPhraseTap,
+  });
+
+  final CultureGuide guide;
+  final String sourceLabel;
+  final bool isEnnoiaLoading;
+  final VoidCallback onRunEnnoia;
+  final VoidCallback onPhraseTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final sheetWidth = math.min(constraints.maxWidth, 560.0);
+        final scale = (sheetWidth / 430.0).clamp(0.88, 1.0).toDouble();
+
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: sheetWidth,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                18 * scale,
+                0,
+                18 * scale,
+                24 * scale,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _InlinePhraseButton(
+                    guide: guide,
+                    scale: scale,
+                    onTap: onPhraseTap,
+                  ),
+                  SizedBox(height: 12 * scale),
+                  _CultureGuideCard(
+                    guide: guide,
+                    scanStatus: CultureScanStatus.idle,
+                    sourceLabel: sourceLabel,
+                    isEnnoiaLoading: isEnnoiaLoading,
+                    onRunEnnoia: onRunEnnoia,
+                    scale: scale,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _InlinePhraseButton extends StatelessWidget {
+  const _InlinePhraseButton({
+    required this.guide,
+    required this.scale,
+    required this.onTap,
+  });
+
+  final CultureGuide guide;
+  final double scale;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final phrase = guide.koreanSource.trim();
+    final translation = guide.translation.trim();
+    if (phrase.isEmpty && translation.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16 * scale),
+        onTap: onTap,
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 14 * scale,
+            vertical: 12 * scale,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F3FF),
+            borderRadius: BorderRadius.circular(16 * scale),
+            border: Border.all(color: const Color(0xFFE2D9FF)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.volume_up_rounded,
+                color: _ScanColors.purple,
+                size: 22 * scale,
+              ),
+              SizedBox(width: 10 * scale),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (phrase.isNotEmpty)
+                      Text(
+                        phrase,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _ScanColors.deepText,
+                          fontSize: 16 * scale,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    if (translation.isNotEmpty) ...[
+                      SizedBox(height: 2 * scale),
+                      Text(
+                        translation,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _ScanColors.bodyText,
+                          fontSize: 12.5 * scale,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
