@@ -7,7 +7,7 @@ This prototype includes:
 - English-first onboarding for trip basics, interests, alerts, queue help, and food needs.
 - Bottom-tab travel experience: Home, Itinerary, Scan, Discover, and My.
 - Crowd alert flow that explains hidden app-based queue risk.
-- Camera-style culture scan mock with Korean context and etiquette guidance.
+- Camera-style Culture Scan Guide with curated Korean context and etiquette guidance.
 - Hidden spot discovery with low-crowd, local-ratio, and diversity-score signals.
 - Public organization dashboard placeholder using aggregate-only metrics.
 - Mock-first repository boundaries for future Supabase tables and public data APIs.
@@ -83,3 +83,60 @@ dart format .
 flutter analyze
 flutter test
 ```
+
+## Culture Scan Guide
+
+Culture Scan Guide is not a general Korean culture chatbot. It uses place,
+situation, and immediate travel-behavior context to explain what a foreign
+tourist should do in a real moment.
+
+The service uses curated `culture_guide_entries` for scoped situations such as
+restaurant call bells, cafe quiet culture, kiosk ordering, priority seats,
+market queues, palace photo etiquette, hanok resident etiquette, and temple
+stone stacks. The Flutter app sends the selected place/situation to the
+`ennoia-culture-guide` Supabase Edge Function; secrets such as
+`ENNOIA_API_KEY`, `KTO_SERVICE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` stay only in
+the Edge Function environment.
+
+The Edge Function blocks broad politics, social controversy, stereotypes,
+memes, and other non-travel-behavior topics. When a curated entry matches, it
+builds a compact `CULTURE_CONTEXT` and asks ennoia for a practical localized
+JSON explanation. Scan records are saved to `culture_scan_records` and appear on
+My Page under Saved culture guides.
+
+`source_type` and `source_badge` describe what powered the result:
+
+- `culture_db_ennoia` / `Culture DB + ennoia`: curated DB context plus ennoia
+  wording succeeded.
+- `culture_db_basic` / `Culture DB`: curated DB matched, but ennoia was
+  unavailable, so the backend returned a basic DB response.
+- `culture_scope_limited` / `Travel behavior only`: the question was outside
+  Culture Scan scope.
+- `culture_fallback` / `Demo fallback`: Supabase is unavailable or no curated
+  entry matched.
+
+Camera preview is supported where the platform and permissions allow it. Web
+and camera-failure paths keep the fallback scan background and do not crash.
+Detection is context-guided for now; future work is real vision
+classification/OCR for detected signs and objects.
+
+Run the deployed function smoke test:
+
+```powershell
+$env:SUPABASE_URL="https://your-project.supabase.co"
+$env:SUPABASE_ANON_KEY="your-supabase-anon-key"
+# Optional signed-in token if you want records tied to a user:
+$env:SUPABASE_ACCESS_TOKEN="user-access-token"
+.\scripts\smoke_culture_guide.ps1
+```
+
+## My Page
+
+The My Page shows saved itinerary, saved places, culture scan, and Re-Trip
+history behind the My bottom tab. Stats load from Supabase REST tables when
+public Supabase config and a signed-in user session are available.
+
+Static local images for the profile header and Local Explorer progress card are
+stored under `assets/images/my/`. If Supabase is unavailable, table permissions
+fail, or optional history tables are missing, the page falls back to polished
+local mode instead of crashing.

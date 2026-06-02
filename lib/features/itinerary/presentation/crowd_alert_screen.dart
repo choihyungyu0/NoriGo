@@ -80,6 +80,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
     final route = switch (index) {
       0 => AppRoutes.home,
       2 => AppRoutes.scan,
+      4 => AppRoutes.my,
       _ => null,
     };
 

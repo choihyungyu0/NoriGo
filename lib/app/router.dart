@@ -5,6 +5,7 @@ import 'package:norigo/features/dashboard/public_dashboard_screen.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
 import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
 import 'package:norigo/features/itinerary/presentation/step3_mobile_mockups_screen.dart';
+import 'package:norigo/features/my/presentation/my_page_screen.dart';
 import 'package:norigo/features/onboarding/presentation/interests_alerts_screen.dart';
 import 'package:norigo/features/onboarding/presentation/trip_basics_screen.dart';
 import 'package:norigo/features/splash/presentation/splash_screen.dart';
@@ -29,6 +30,7 @@ class AppRoutes {
   static const cultureScan = '/culture-scan';
   static const crowdAlert = '/crowd-alert';
   static const dashboard = '/dashboard';
+  static const my = '/my';
 }
 
 class AppRouter {
@@ -54,6 +56,7 @@ class AppRouter {
       AppRoutes.cultureScan: (_) => const CultureScanScreen(),
       AppRoutes.crowdAlert: (_) => const CrowdAlertScreen(),
       AppRoutes.dashboard: (_) => const PublicDashboardScreen(),
+      AppRoutes.my: (_) => const MyPageScreen(),
     };
   }
 }

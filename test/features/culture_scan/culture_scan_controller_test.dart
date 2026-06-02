@@ -1,6 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:norigo/ai/clients/mock_ai_client.dart';
-import 'package:norigo/ai/harness/culture_guide_harness.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
 
@@ -10,15 +8,15 @@ void main() {
     () async {
       final controller = CultureScanController(
         cameraService: const _UnavailableCameraService(),
-        harness: const CultureGuideHarness(client: MockAiClient()),
       );
 
       expect(controller.cameraStatus, CultureCameraStatus.initial);
-      expect(controller.scanStatus, CultureScanStatus.initial);
+      expect(controller.scanStatus, CultureScanStatus.idle);
 
       await controller.initializeCamera();
 
       expect(controller.cameraStatus, CultureCameraStatus.unavailable);
+      expect(controller.scanStatus, CultureScanStatus.ready);
       expect(controller.hasCameraPreview, isFalse);
       expect(controller.friendlyMessage, contains('unavailable'));
 
@@ -26,9 +24,10 @@ void main() {
       expect(controller.scanStatus, CultureScanStatus.scanning);
       await scanFuture;
 
-      expect(controller.scanStatus, CultureScanStatus.result);
+      expect(controller.scanStatus, CultureScanStatus.localOnly);
       expect(controller.guide?.title, 'AI Culture Guide');
-      expect(controller.guide?.meaning, 'Each stone carries a wish.');
+      expect(controller.guide?.meaning, contains('Stone stacks'));
+      expect(controller.sourceBadge, 'Demo fallback');
 
       controller.dispose();
     },
@@ -39,7 +38,6 @@ void main() {
     () async {
       final controller = CultureScanController(
         cameraService: const _DelayedUnavailableCameraService(),
-        harness: const CultureGuideHarness(client: MockAiClient()),
       );
       var notifications = 0;
       controller.addListener(() => notifications++);
@@ -58,7 +56,6 @@ void main() {
   test('CultureScanController ignores scan completion after dispose', () async {
     final controller = CultureScanController(
       cameraService: const _UnavailableCameraService(),
-      harness: const CultureGuideHarness(client: MockAiClient()),
     );
     var notifications = 0;
     controller.addListener(() => notifications++);

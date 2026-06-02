@@ -1,15 +1,15 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:norigo/ai/clients/mock_ai_client.dart';
-import 'package:norigo/ai/harness/culture_guide_harness.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
-import 'package:norigo/features/culture_scan/data/culture_guide_mock_data.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
+import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
+import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
 
 const _scanBackgroundAsset = 'assets/images/scan/bulguksa_stone_stack_bg.png';
 
@@ -34,9 +34,9 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
         widget.controller ??
         CultureScanController(
           cameraService: const DeviceCultureCameraService(),
-          harness: const CultureGuideHarness(client: MockAiClient()),
         );
     _controller.addListener(_onControllerChanged);
+    _controller.initializeCamera();
   }
 
   @override
@@ -60,15 +60,68 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
 
   Future<void> _scanCulture() async {
     if (_controller.scanStatus == CultureScanStatus.scanning) return;
-    await _controller.scanCulture();
+    final selection = await _showCultureScanSheet();
+    if (!mounted) return;
+    final request =
+        selection?.toRequest(_controller.selectedLanguage) ??
+        _controller.defaultRequest;
+    await _controller.runCultureGuide(request);
   }
 
   Future<void> _runEnnoiaCultureGuide() async {
-    await _controller.runEnnoiaCultureGuide();
+    await _controller.runCultureGuide(_controller.defaultRequest);
   }
 
   Future<void> _toggleFlash() async {
     await _controller.toggleFlash();
+  }
+
+  Future<void> _selectLanguage() async {
+    final language = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: _ScanColors.white,
+      builder: (context) {
+        const languages = ['English', '한국어', '日本語', '中文'];
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Language',
+                  style: TextStyle(
+                    color: _ScanColors.deepText,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...languages.map(
+                  (item) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      item == _controller.selectedLanguage
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
+                      color: _ScanColors.purple,
+                    ),
+                    title: Text(
+                      item,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    onTap: () => Navigator.of(context).pop(item),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (language != null) _controller.updateLanguage(language);
   }
 
   void _handleBottomNavigation(int index) {
@@ -76,6 +129,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
       0 => AppRoutes.home,
       1 => AppRoutes.itinerary,
       2 => null,
+      4 => AppRoutes.my,
       _ => null,
     };
 
@@ -89,9 +143,34 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     _showSnack('This section will be connected later.');
   }
 
+  Future<_CultureScanSheetSelection?> _showCultureScanSheet() {
+    return showModalBottomSheet<_CultureScanSheetSelection>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: _ScanColors.white,
+      builder: (context) => const _CultureScanContextSheet(),
+    );
+  }
+
+  Future<void> _handlePhraseTap(CultureGuide guide) async {
+    final phrase = guide.koreanSource.trim();
+    if (phrase.isEmpty) {
+      _showSnack('No phrase is available yet.');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: phrase));
+    if (!mounted) return;
+    _showSnack('Phrase ready: $phrase');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final guide = _controller.guide ?? CultureGuideMockData.fallbackGuide;
+    final guide =
+        _controller.guide ??
+        CultureGuideResult.localDemo(
+          _controller.defaultRequest,
+        ).toCultureGuide();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -110,7 +189,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            const Positioned.fill(child: _ScanBackground()),
+            Positioned.fill(child: _ScanBackground(controller: _controller)),
             const Positioned.fill(child: _ReadabilityOverlay()),
             Positioned.fill(
               child: SafeArea(
@@ -136,7 +215,10 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                             Positioned(
                               top: 14 * scale,
                               left: 18 * scale,
-                              child: _LocationPill(scale: scale),
+                              child: _LocationPill(
+                                scale: scale,
+                                locationName: guide.locationName,
+                              ),
                             ),
                             Positioned(
                               top: 14 * scale,
@@ -154,6 +236,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                 guide: guide,
                                 scale: scale,
                                 width: math.min(238 * scale, pageWidth * 0.47),
+                                onPhraseTap: () => _handlePhraseTap(guide),
                               ),
                             ),
                             Positioned(
@@ -186,10 +269,9 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                               child: _BottomScanControls(
                                 scale: scale,
                                 flashEnabled: _controller.flashEnabled,
+                                selectedLanguage: _controller.selectedLanguage,
                                 scanStatus: _controller.scanStatus,
-                                onLanguageTap: () => _showSnack(
-                                  'Language settings will be connected later.',
-                                ),
+                                onLanguageTap: _selectLanguage,
                                 onScanCulture: _scanCulture,
                                 onToggleFlash: _toggleFlash,
                               ),
@@ -210,10 +292,17 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
 }
 
 class _ScanBackground extends StatelessWidget {
-  const _ScanBackground();
+  const _ScanBackground({required this.controller});
+
+  final CultureScanController controller;
 
   @override
   Widget build(BuildContext context) {
+    final cameraController = controller.cameraController;
+    if (controller.hasCameraPreview && cameraController != null) {
+      return CameraPreview(cameraController);
+    }
+
     return Image.asset(
       _scanBackgroundAsset,
       fit: BoxFit.cover,
@@ -404,9 +493,10 @@ class _GlassBox extends StatelessWidget {
 }
 
 class _LocationPill extends StatelessWidget {
-  const _LocationPill({required this.scale});
+  const _LocationPill({required this.scale, required this.locationName});
 
   final double scale;
+  final String locationName;
 
   @override
   Widget build(BuildContext context) {
@@ -425,12 +515,17 @@ class _LocationPill extends StatelessWidget {
             size: 29 * scale,
           ),
           SizedBox(width: 10 * scale),
-          Text(
-            'Bulguksa',
-            style: TextStyle(
-              color: _ScanColors.deepText,
-              fontSize: 17 * scale,
-              fontWeight: FontWeight.w900,
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 150 * scale),
+            child: Text(
+              locationName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _ScanColors.deepText,
+                fontSize: 17 * scale,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           SizedBox(width: 10 * scale),
@@ -497,11 +592,13 @@ class _TranslationBubble extends StatelessWidget {
     required this.guide,
     required this.scale,
     required this.width,
+    required this.onPhraseTap,
   });
 
   final CultureGuide guide;
   final double scale;
   final double width;
+  final VoidCallback onPhraseTap;
 
   @override
   Widget build(BuildContext context) {
@@ -551,10 +648,20 @@ class _TranslationBubble extends StatelessWidget {
                 Positioned(
                   top: 0,
                   right: 0,
-                  child: Icon(
-                    Icons.volume_up_rounded,
-                    color: _ScanColors.purple,
-                    size: 22 * scale,
+                  child: IconButton(
+                    tooltip: 'Phrase',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(
+                      minWidth: 28 * scale,
+                      minHeight: 28 * scale,
+                    ),
+                    onPressed: onPhraseTap,
+                    icon: Icon(
+                      Icons.volume_up_rounded,
+                      color: _ScanColors.purple,
+                      size: 22 * scale,
+                    ),
                   ),
                 ),
               ],
@@ -716,7 +823,7 @@ class _CultureGuideCard extends StatelessWidget {
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Run ennoia Culture Guide',
+                        'Refresh Guide',
                         style: TextStyle(
                           fontSize: 11.8 * scale,
                           fontWeight: FontWeight.w900,
@@ -764,7 +871,7 @@ class _CultureGuideCard extends StatelessWidget {
                       SizedBox(width: 10 * scale),
                       Expanded(
                         child: Text(
-                          'Refreshing the local culture guide...',
+                          'Understanding the local context...',
                           style: TextStyle(
                             color: _ScanColors.bodyText,
                             fontSize: 13.5 * scale,
@@ -827,17 +934,26 @@ class _AgentSourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReal = label == 'ennoia + KTO MCP';
+    final isReal = label == 'Culture DB + ennoia' || label == 'Culture DB';
+    final isLimited = label == 'Travel behavior only';
     return Container(
       height: 26 * scale,
       constraints: BoxConstraints(maxWidth: 116 * scale),
       padding: EdgeInsets.symmetric(horizontal: 8 * scale),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isReal ? const Color(0xFFEAF8DE) : const Color(0xFFF0E9FF),
+        color: isReal
+            ? const Color(0xFFEAF8DE)
+            : isLimited
+            ? const Color(0xFFE8F1FF)
+            : const Color(0xFFFFF2D7),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isReal ? const Color(0xFFD3E9C6) : const Color(0xFFE0D3FF),
+          color: isReal
+              ? const Color(0xFFD3E9C6)
+              : isLimited
+              ? const Color(0xFFCFE0FF)
+              : const Color(0xFFFFD998),
         ),
       ),
       child: FittedBox(
@@ -846,7 +962,11 @@ class _AgentSourceBadge extends StatelessWidget {
           label,
           maxLines: 1,
           style: TextStyle(
-            color: isReal ? const Color(0xFF258616) : _ScanColors.purple,
+            color: isReal
+                ? const Color(0xFF258616)
+                : isLimited
+                ? _ScanColors.blue
+                : const Color(0xFF985900),
             fontSize: 10.8 * scale,
             fontWeight: FontWeight.w900,
             height: 1,
@@ -938,6 +1058,7 @@ class _BottomScanControls extends StatelessWidget {
   const _BottomScanControls({
     required this.scale,
     required this.flashEnabled,
+    required this.selectedLanguage,
     required this.scanStatus,
     required this.onLanguageTap,
     required this.onScanCulture,
@@ -946,6 +1067,7 @@ class _BottomScanControls extends StatelessWidget {
 
   final double scale;
   final bool flashEnabled;
+  final String selectedLanguage;
   final CultureScanStatus scanStatus;
   final VoidCallback onLanguageTap;
   final VoidCallback onScanCulture;
@@ -972,7 +1094,7 @@ class _BottomScanControls extends StatelessWidget {
               child: _SmallControlPill(
                 key: const ValueKey('languageSelectorPill'),
                 icon: Icons.language_rounded,
-                text: 'English',
+                text: selectedLanguage,
                 trailing: Icons.keyboard_arrow_down_rounded,
                 scale: scale,
                 onTap: onLanguageTap,
@@ -1103,6 +1225,7 @@ class _ScanButton extends StatelessWidget {
                 child: Padding(
                   padding: EdgeInsets.all(6 * scale),
                   child: FilledButton(
+                    key: const ValueKey('scanCultureButton'),
                     onPressed: onPressed,
                     style: FilledButton.styleFrom(
                       backgroundColor: _ScanColors.white,
@@ -1148,6 +1271,327 @@ class _ScanButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CultureScanContextSheet extends StatefulWidget {
+  const _CultureScanContextSheet();
+
+  @override
+  State<_CultureScanContextSheet> createState() =>
+      _CultureScanContextSheetState();
+}
+
+class _CultureScanContextSheetState extends State<_CultureScanContextSheet> {
+  final _questionController = TextEditingController();
+  _PlaceOption _selectedPlace = _placeOptions.first;
+  late _SituationOption _selectedSituation = _situationsFor(
+    _selectedPlace.key,
+  ).first;
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final situations = _situationsFor(_selectedPlace.key);
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(22, 2, 22, 22 + bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Scan context',
+              style: TextStyle(
+                color: _ScanColors.deepText,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const _SheetLabel(text: 'Place type'),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _placeOptions
+                  .map(
+                    (place) => ChoiceChip(
+                      label: Text(place.label),
+                      selected: _selectedPlace == place,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedPlace = place;
+                          _selectedSituation = _situationsFor(
+                            _selectedPlace.key,
+                          ).first;
+                        });
+                      },
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+            const SizedBox(height: 18),
+            const _SheetLabel(text: 'Situation'),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: situations
+                  .map(
+                    (situation) => ChoiceChip(
+                      label: Text(situation.label),
+                      selected: _selectedSituation == situation,
+                      onSelected: (_) {
+                        setState(() => _selectedSituation = situation);
+                      },
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _questionController,
+              minLines: 1,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Optional question',
+                hintText: _selectedSituation.defaultQuestion,
+                filled: true,
+                fillColor: const Color(0xFFF7F4FF),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE0D7FF)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE0D7FF)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: _ScanColors.purple),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton.icon(
+                key: const ValueKey('runCultureGuideFromSheetButton'),
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    _CultureScanSheetSelection(
+                      place: _selectedPlace,
+                      situation: _selectedSituation,
+                      userQuestion: _questionController.text,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.travel_explore_rounded),
+                label: const Text('Scan Culture'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _ScanColors.purple,
+                  foregroundColor: _ScanColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetLabel extends StatelessWidget {
+  const _SheetLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: _ScanColors.bodyText,
+        fontSize: 14,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+}
+
+class _CultureScanSheetSelection {
+  const _CultureScanSheetSelection({
+    required this.place,
+    required this.situation,
+    required this.userQuestion,
+  });
+
+  final _PlaceOption place;
+  final _SituationOption situation;
+  final String userQuestion;
+
+  CultureScanRequest toRequest(String userLanguage) {
+    final trimmedQuestion = userQuestion.trim();
+    return CultureScanRequest(
+      userLanguage: userLanguage,
+      currentLocation: place.defaultLocation,
+      placeType: place.key,
+      detectedObject: situation.objectKey,
+      koreanKeyword: situation.koreanKeyword,
+      userIntent: 'Understand local culture and etiquette',
+      userQuestion: trimmedQuestion.isEmpty
+          ? situation.defaultQuestion
+          : trimmedQuestion,
+    );
+  }
+}
+
+class _PlaceOption {
+  const _PlaceOption(this.label, this.key, this.defaultLocation);
+
+  final String label;
+  final String key;
+  final String defaultLocation;
+}
+
+class _SituationOption {
+  const _SituationOption({
+    required this.label,
+    required this.objectKey,
+    required this.koreanKeyword,
+    required this.defaultQuestion,
+  });
+
+  final String label;
+  final String objectKey;
+  final String koreanKeyword;
+  final String defaultQuestion;
+}
+
+const _placeOptions = [
+  _PlaceOption('Temple', 'temple', 'Bulguksa'),
+  _PlaceOption('Palace', 'palace', 'Gyeongbokgung Palace'),
+  _PlaceOption('Restaurant', 'restaurant', 'Korean restaurant'),
+  _PlaceOption('Cafe', 'cafe', 'Seoul cafe'),
+  _PlaceOption('Subway', 'subway', 'Seoul subway'),
+  _PlaceOption('Market', 'market', 'Gwangjang Market'),
+  _PlaceOption('Hanok Village', 'hanok_village', 'Bukchon Hanok Village'),
+];
+
+List<_SituationOption> _situationsFor(String placeType) {
+  return switch (placeType) {
+    'temple' => const [
+      _SituationOption(
+        label: 'Stone stack',
+        objectKey: 'temple_stone_stack',
+        koreanKeyword: '소원 성취',
+        defaultQuestion: 'Why do Koreans stack stones here?',
+      ),
+      _SituationOption(
+        label: 'Photo etiquette',
+        objectKey: 'palace_photo_etiquette',
+        koreanKeyword: '사진 찍어도 되나요?',
+        defaultQuestion: 'Can I take photos here?',
+      ),
+    ],
+    'palace' => const [
+      _SituationOption(
+        label: 'Photo etiquette',
+        objectKey: 'palace_photo_etiquette',
+        koreanKeyword: '사진 찍어도 되나요?',
+        defaultQuestion: 'Can I take photos here?',
+      ),
+    ],
+    'restaurant' => const [
+      _SituationOption(
+        label: 'Call bell',
+        objectKey: 'restaurant_call_bell',
+        koreanKeyword: '여기요',
+        defaultQuestion: 'Is it polite to press the call bell?',
+      ),
+      _SituationOption(
+        label: 'Kiosk',
+        objectKey: 'kiosk_ordering',
+        koreanKeyword: '도와주실 수 있나요?',
+        defaultQuestion: 'Should I order at the kiosk?',
+      ),
+      _SituationOption(
+        label: 'Queue ticket',
+        objectKey: 'waiting_number_ticket',
+        koreanKeyword: '대기번호',
+        defaultQuestion: 'How do waiting numbers work?',
+      ),
+    ],
+    'cafe' => const [
+      _SituationOption(
+        label: 'Quiet cafe',
+        objectKey: 'cafe_quiet_work',
+        koreanKeyword: '조용히 할게요',
+        defaultQuestion: 'Why is everyone so quiet in this cafe?',
+      ),
+      _SituationOption(
+        label: 'Kiosk',
+        objectKey: 'kiosk_ordering',
+        koreanKeyword: '도와주실 수 있나요?',
+        defaultQuestion: 'Should I order at the kiosk?',
+      ),
+    ],
+    'subway' => const [
+      _SituationOption(
+        label: 'Pregnant priority seat',
+        objectKey: 'subway_pregnant_seat',
+        koreanKeyword: '임산부 배려석',
+        defaultQuestion: 'Can I sit in the pink subway seat?',
+      ),
+    ],
+    'market' => const [
+      _SituationOption(
+        label: 'Queue ticket',
+        objectKey: 'market_queue_ticket',
+        koreanKeyword: '대기표',
+        defaultQuestion: 'Why are people taking number tickets?',
+      ),
+      _SituationOption(
+        label: 'Cash and food',
+        objectKey: 'market_cash_food',
+        koreanKeyword: '카드 돼요?',
+        defaultQuestion: 'Can I pay by card and eat while walking?',
+      ),
+    ],
+    'hanok_village' => const [
+      _SituationOption(
+        label: 'Resident etiquette',
+        objectKey: 'hanok_resident_etiquette',
+        koreanKeyword: '조용히 지나갈게요',
+        defaultQuestion: 'Why are there quiet signs in the village?',
+      ),
+      _SituationOption(
+        label: 'Photo etiquette',
+        objectKey: 'palace_photo_etiquette',
+        koreanKeyword: '사진 찍어도 되나요?',
+        defaultQuestion: 'Can I take photos here?',
+      ),
+    ],
+    _ => const [
+      _SituationOption(
+        label: 'Stone stack',
+        objectKey: 'temple_stone_stack',
+        koreanKeyword: '소원 성취',
+        defaultQuestion: 'Why do Koreans stack stones here?',
+      ),
+    ],
+  };
 }
 
 class _ScanBottomNavigation extends StatelessWidget {

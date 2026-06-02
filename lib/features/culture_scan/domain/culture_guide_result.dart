@@ -1,0 +1,242 @@
+import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
+import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
+
+class CultureGuideResult {
+  const CultureGuideResult({
+    required this.question,
+    required this.description,
+    required this.meaning,
+    required this.etiquette,
+    required this.story,
+    required this.koreanPhrase,
+    required this.pronunciation,
+    required this.phraseMeaning,
+    required this.confidence,
+    required this.sourceType,
+    required this.sourceBadge,
+    required this.ennoiaSucceeded,
+    required this.persisted,
+    required this.cultureScanRecordId,
+    required this.scopeLimited,
+    required this.locationName,
+    required this.placeType,
+    required this.detectedObject,
+    required this.koreanKeyword,
+  });
+
+  final String question;
+  final String description;
+  final String meaning;
+  final String etiquette;
+  final String story;
+  final String koreanPhrase;
+  final String pronunciation;
+  final String phraseMeaning;
+  final double confidence;
+  final String sourceType;
+  final String sourceBadge;
+  final bool ennoiaSucceeded;
+  final bool persisted;
+  final String cultureScanRecordId;
+  final bool scopeLimited;
+  final String locationName;
+  final String placeType;
+  final String detectedObject;
+  final String koreanKeyword;
+
+  bool get isLocalFallback => sourceType == 'culture_fallback';
+
+  factory CultureGuideResult.fromJson(Map<String, Object?> json) {
+    final data = _nestedMap(json) ?? json;
+    return CultureGuideResult(
+      question: _string(data, const ['question'], 'What should I do here?'),
+      description: _string(data, const [
+        'description',
+        'summary',
+        'overview',
+      ], 'NoriGo is showing a practical culture guide for this situation.'),
+      meaning: _string(data, const ['meaning'], ''),
+      etiquette: _string(data, const ['etiquette', 'manners'], ''),
+      story: _string(data, const ['story', 'background'], ''),
+      koreanPhrase: _string(data, const [
+        'korean_phrase',
+        'koreanPhrase',
+        'koreanSource',
+      ], ''),
+      pronunciation: _string(data, const ['pronunciation'], ''),
+      phraseMeaning: _string(data, const [
+        'phrase_meaning',
+        'phraseMeaning',
+        'translation',
+      ], ''),
+      confidence: _double(data, const ['confidence'], 0),
+      sourceType: _string(data, const [
+        'source_type',
+        'sourceType',
+        'source',
+      ], 'culture_fallback'),
+      sourceBadge: _string(data, const [
+        'source_badge',
+        'sourceBadge',
+      ], 'Demo fallback'),
+      ennoiaSucceeded: _bool(data, const [
+        'ennoia_succeeded',
+        'ennoiaSucceeded',
+      ]),
+      persisted: _bool(data, const ['persisted']),
+      cultureScanRecordId: _string(data, const [
+        'cultureScanRecordId',
+        'culture_scan_record_id',
+        'id',
+      ], ''),
+      scopeLimited: _bool(data, const ['scope_limited', 'scopeLimited']),
+      locationName: _string(data, const [
+        'location_name',
+        'locationName',
+        'current_location',
+      ], 'Bulguksa'),
+      placeType: _string(data, const ['place_type', 'placeType'], 'temple'),
+      detectedObject: _string(data, const [
+        'detected_object',
+        'detectedObject',
+      ], 'temple_stone_stack'),
+      koreanKeyword: _string(data, const [
+        'korean_keyword',
+        'koreanKeyword',
+      ], ''),
+    );
+  }
+
+  factory CultureGuideResult.localDemo(CultureScanRequest request) {
+    return CultureGuideResult(
+      question: request.userQuestion ?? 'Why do Koreans stack stones here?',
+      description:
+          'NoriGo is in local mode, so this is a safe demo guide for the selected travel situation.',
+      meaning:
+          'Stone stacks at temples often represent a quiet wish for peace, health, or good fortune.',
+      etiquette:
+          'Do not touch existing stacks. If signs allow it, add one small stone gently and keep the area tidy.',
+      story:
+          'At Korean temples, these stacks are usually treated as personal wishes rather than props.',
+      koreanPhrase: request.koreanKeyword.trim().isEmpty
+          ? '소원 성취하세요'
+          : request.koreanKeyword,
+      pronunciation: 'so-won seong-chwi-ha-se-yo',
+      phraseMeaning: 'May your wish come true.',
+      confidence: 0.35,
+      sourceType: 'culture_fallback',
+      sourceBadge: 'Demo fallback',
+      ennoiaSucceeded: false,
+      persisted: false,
+      cultureScanRecordId: '',
+      scopeLimited: false,
+      locationName: request.currentLocation,
+      placeType: request.placeType,
+      detectedObject: request.detectedObject,
+      koreanKeyword: request.koreanKeyword,
+    );
+  }
+
+  CultureGuide toCultureGuide() {
+    return CultureGuide(
+      locationName: locationName,
+      detectedObject: detectedObjectLabel,
+      koreanSource: koreanPhrase.isNotEmpty ? koreanPhrase : koreanKeyword,
+      translation: phraseMeaning,
+      title: 'AI Culture Guide',
+      question: question,
+      description: description,
+      meaning: meaning,
+      etiquette: etiquette,
+      story: story,
+    );
+  }
+
+  String get detectedObjectLabel {
+    return detectedObject
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'question': question,
+      'description': description,
+      'meaning': meaning,
+      'etiquette': etiquette,
+      'story': story,
+      'korean_phrase': koreanPhrase,
+      'pronunciation': pronunciation,
+      'phrase_meaning': phraseMeaning,
+      'confidence': confidence,
+      'source_type': sourceType,
+      'source_badge': sourceBadge,
+      'ennoia_succeeded': ennoiaSucceeded,
+      'persisted': persisted,
+      'cultureScanRecordId': cultureScanRecordId,
+      'scope_limited': scopeLimited,
+      'location_name': locationName,
+      'place_type': placeType,
+      'detected_object': detectedObject,
+      'korean_keyword': koreanKeyword,
+    };
+  }
+
+  static Map<String, Object?>? _nestedMap(Map<String, Object?> json) {
+    for (final key in const [
+      'cultureGuide',
+      'culture_guide',
+      'guide',
+      'result',
+      'data',
+    ]) {
+      final value = json[key];
+      if (value is Map<String, Object?>) return value;
+      if (value is Map) return Map<String, Object?>.from(value);
+    }
+    return null;
+  }
+
+  static String _string(
+    Map<String, Object?> json,
+    List<String> keys,
+    String fallback,
+  ) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+      if (value is num) return value.toString();
+    }
+    return fallback;
+  }
+
+  static bool _bool(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is bool) return value;
+      if (value is String) return value.toLowerCase() == 'true';
+    }
+    return false;
+  }
+
+  static double _double(
+    Map<String, Object?> json,
+    List<String> keys,
+    double fallback,
+  ) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return fallback;
+  }
+}
