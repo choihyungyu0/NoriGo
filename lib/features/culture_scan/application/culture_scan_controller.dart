@@ -1,7 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:norigo/ai/harness/culture_guide_harness.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/data/culture_scan_repository.dart';
@@ -70,6 +70,8 @@ class CultureScanController extends ChangeNotifier {
   CultureGuide? get guide => _result?.toCultureGuide();
 
   CameraController? get cameraController => _cameraSession?.controller;
+
+  Widget? get cameraPreview => _cameraSession?.preview;
 
   bool get hasCameraPreview => _cameraSession?.hasPreview ?? false;
 

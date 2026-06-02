@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
@@ -53,6 +54,23 @@ void main() {
     },
   );
 
+  test(
+    'CultureScanController accepts browser video preview fallback',
+    () async {
+      final controller = CultureScanController(
+        cameraService: const _BrowserPreviewCameraService(),
+      );
+
+      await controller.initializeCamera();
+
+      expect(controller.cameraStatus, CultureCameraStatus.ready);
+      expect(controller.hasCameraPreview, isTrue);
+      expect(controller.cameraPreview, isA<Widget>());
+
+      controller.dispose();
+    },
+  );
+
   test('CultureScanController ignores scan completion after dispose', () async {
     final controller = CultureScanController(
       cameraService: const _UnavailableCameraService(),
@@ -69,6 +87,15 @@ void main() {
 
     expect(notifications, 1);
   });
+}
+
+class _BrowserPreviewCameraService implements CultureCameraService {
+  const _BrowserPreviewCameraService();
+
+  @override
+  Future<CultureCameraSession> initialize() async {
+    return const CultureCameraSession(preview: SizedBox.shrink());
+  }
 }
 
 class _UnavailableCameraService implements CultureCameraService {

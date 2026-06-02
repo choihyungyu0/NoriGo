@@ -298,6 +298,11 @@ class _ScanBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final webPreview = controller.cameraPreview;
+    if (webPreview != null) {
+      return webPreview;
+    }
+
     final cameraController = controller.cameraController;
     if (controller.hasCameraPreview && cameraController != null) {
       return CameraPreview(cameraController);
