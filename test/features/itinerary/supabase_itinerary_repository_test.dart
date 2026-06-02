@@ -210,6 +210,35 @@ void main() {
     final item = Map<String, Object?>.from(itemRows!.single as Map);
     expect(item.containsKey('user_id'), isFalse);
   });
+
+  test(
+    'savePlan falls back safely when unauthenticated insert is blocked',
+    () async {
+      var requestCount = 0;
+      final repository = SupabaseItineraryRepository(
+        config: const SupabaseConfig(
+          url: 'https://project.supabase.co',
+          anonKey: 'anon-key',
+        ),
+        client: MockClient((request) async {
+          requestCount += 1;
+          return http.Response(
+            jsonEncode({
+              'message': 'new row violates row-level security policy',
+            }),
+            403,
+          );
+        }),
+      );
+
+      final plan = _plan();
+      final saved = await repository.savePlan(plan);
+
+      expect(saved.id, plan.id);
+      expect(saved.persistedPlanId, isNull);
+      expect(requestCount, 1);
+    },
+  );
 }
 
 ItineraryPlan _plan() {

@@ -41,9 +41,16 @@ class SupabaseItineraryRepository implements ItineraryRepository {
     if (!config.isConfigured) return fallbackRepository.savePlan(plan);
 
     final userId = SupabaseAuthSession.userId;
-    final planId = await _insertPlan(plan, userId);
-    await _insertItems(plan.copyWith(persistedPlanId: planId), userId);
-    return plan.copyWith(persistedPlanId: planId);
+    try {
+      final planId = await _insertPlan(plan, userId);
+      await _insertItems(plan.copyWith(persistedPlanId: planId), userId);
+      return plan.copyWith(persistedPlanId: planId);
+    } on ItineraryPersistenceException catch (error) {
+      if (userId == null && _isAuthBlocked(error)) {
+        return fallbackRepository.savePlan(plan);
+      }
+      rethrow;
+    }
   }
 
   Future<String> _insertPlan(ItineraryPlan plan, String? userId) async {
@@ -375,6 +382,10 @@ class SupabaseItineraryRepository implements ItineraryRepository {
     final column = columnName.toLowerCase();
     return body.contains(column) &&
         (body.contains('column') || body.contains('schema cache'));
+  }
+
+  static bool _isAuthBlocked(ItineraryPersistenceException error) {
+    return error.message.contains('(401)') || error.message.contains('(403)');
   }
 }
 
