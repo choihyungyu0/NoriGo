@@ -112,8 +112,14 @@ My Page under Saved culture guides.
   unavailable, so the backend returned a basic DB response.
 - `culture_scope_limited` / `Travel behavior only`: the question was outside
   Culture Scan scope.
-- `culture_fallback` / `Demo fallback`: Supabase is unavailable or no curated
-  entry matched.
+- `culture_fallback` / `Context guide`: the Edge Function ran, but no curated
+  entry matched or the guide table was unavailable.
+- `ennoia_direct` / `ennoia`: compatibility path for an older deployed function
+  that returns ennoia/OpenAI-style content directly.
+- `culture_local` / `Local guide`: Flutter could not reach a configured
+  Culture Guide service and used an offline guide.
+- `culture_ready` / `Ready to scan`: the scan screen is waiting for the first
+  user-selected place/situation.
 
 Camera preview is supported where the platform and permissions allow it. Web
 and camera-failure paths keep the fallback scan background and do not crash.

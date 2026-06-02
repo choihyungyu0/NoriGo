@@ -1,7 +1,8 @@
 param(
   [string]$SupabaseUrl = $env:SUPABASE_URL,
   [string]$SupabaseAnonKey = $env:SUPABASE_ANON_KEY,
-  [string]$AccessToken = $env:SUPABASE_ACCESS_TOKEN
+  [string]$AccessToken = $env:SUPABASE_ACCESS_TOKEN,
+  [switch]$DebugDiagnostics
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +22,9 @@ $headers = @{
   apikey = $SupabaseAnonKey
   Authorization = "Bearer $authorizationToken"
   "Content-Type" = "application/json"
+}
+if ($DebugDiagnostics) {
+  $headers["x-culture-debug"] = "true"
 }
 $endpoint = $SupabaseUrl.TrimEnd("/") + "/functions/v1/ennoia-culture-guide"
 
@@ -92,6 +96,80 @@ $cases = @(
   }
 )
 
+function Get-TextFromContentParts($parts) {
+  $texts = @()
+  foreach ($part in $parts) {
+    if ($part -is [string]) {
+      $texts += $part
+    } elseif ($null -ne $part.text) {
+      $texts += [string]$part.text
+    } elseif ($null -ne $part.content) {
+      $texts += [string]$part.content
+    }
+  }
+  return ($texts -join "`n")
+}
+
+function ConvertFrom-CultureContent($content) {
+  if ($null -eq $content) {
+    return $null
+  }
+  if ($content -isnot [string]) {
+    return $content
+  }
+
+  $trimmed = $content.Trim()
+  $trimmed = $trimmed -replace "^```(?:json)?\s*", ""
+  $trimmed = $trimmed -replace "\s*```$", ""
+
+  try {
+    return $trimmed | ConvertFrom-Json
+  } catch {
+    $start = $trimmed.IndexOf("{")
+    $end = $trimmed.LastIndexOf("}")
+    if ($start -ge 0 -and $end -gt $start) {
+      return $trimmed.Substring($start, $end - $start + 1) | ConvertFrom-Json
+    }
+  }
+  return $null
+}
+
+function Get-CulturePayload($response) {
+  if ($null -eq $response) {
+    return $null
+  }
+  if ($response.source_type -or $response.source_badge -or $response.question) {
+    return $response
+  }
+  if ($response.output_text) {
+    return ConvertFrom-CultureContent $response.output_text
+  }
+  if ($response.content) {
+    return ConvertFrom-CultureContent $response.content
+  }
+  if ($response.message -and $response.message.content) {
+    $content = $response.message.content
+    if ($content -is [array]) {
+      $content = Get-TextFromContentParts $content
+    }
+    return ConvertFrom-CultureContent $content
+  }
+  if ($response.choices -and $response.choices.Count -gt 0) {
+    $choice = $response.choices[0]
+    if ($choice.message -and $choice.message.content) {
+      $content = $choice.message.content
+      if ($content -is [array]) {
+        $content = Get-TextFromContentParts $content
+      }
+      return ConvertFrom-CultureContent $content
+    }
+    if ($choice.text) {
+      return ConvertFrom-CultureContent $choice.text
+    }
+  }
+  return $response
+}
+
 foreach ($case in $cases) {
   $body = $case.body | ConvertTo-Json -Depth 8
   $status = 0
@@ -115,15 +193,33 @@ foreach ($case in $cases) {
   if (-not [string]::IsNullOrWhiteSpace($responseText)) {
     $response = $responseText | ConvertFrom-Json
   }
+  $payload = Get-CulturePayload $response
+  $sourceType = if ($payload.source_type) {
+    $payload.source_type
+  } elseif ($response.choices) {
+    "ennoia_direct"
+  } else {
+    ""
+  }
+  $sourceBadge = if ($payload.source_badge) {
+    $payload.source_badge
+  } elseif ($response.choices) {
+    "ennoia"
+  } else {
+    ""
+  }
 
   Write-Host ""
   Write-Host $case.name
   Write-Host "status: $status"
-  Write-Host "source_type: $($response.source_type)"
-  Write-Host "source_badge: $($response.source_badge)"
-  Write-Host "question: $($response.question)"
-  Write-Host "korean_phrase: $($response.korean_phrase)"
-  Write-Host "persisted: $($response.persisted)"
-  Write-Host "cultureScanRecordId: $($response.cultureScanRecordId)"
-  Write-Host "scope_limited: $($response.scope_limited)"
+  Write-Host "source_type: $sourceType"
+  Write-Host "source_badge: $sourceBadge"
+  Write-Host "question: $($payload.question)"
+  Write-Host "korean_phrase: $($payload.korean_phrase)"
+  Write-Host "persisted: $($payload.persisted)"
+  Write-Host "cultureScanRecordId: $($payload.cultureScanRecordId)"
+  Write-Host "scope_limited: $($payload.scope_limited)"
+  if ($DebugDiagnostics -and $payload.diagnostics) {
+    Write-Host "diagnostics: $(($payload.diagnostics | ConvertTo-Json -Compress))"
+  }
 }

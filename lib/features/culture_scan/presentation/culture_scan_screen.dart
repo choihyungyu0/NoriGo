@@ -168,7 +168,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
   Widget build(BuildContext context) {
     final guide =
         _controller.guide ??
-        CultureGuideResult.localDemo(
+        CultureGuideResult.readyPreview(
           _controller.defaultRequest,
         ).toCultureGuide();
 
@@ -229,6 +229,17 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                     _showSnack('Guide mode is active.'),
                               ),
                             ),
+                            if (_controller.friendlyMessage != null &&
+                                !_controller.hasCameraPreview)
+                              Positioned(
+                                top: 70 * scale,
+                                left: 18 * scale,
+                                right: 18 * scale,
+                                child: _CameraFallbackNotice(
+                                  message: _controller.friendlyMessage!,
+                                  scale: scale,
+                                ),
+                              ),
                             Positioned(
                               top: 112 * scale,
                               right: 18 * scale,
@@ -286,6 +297,47 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CameraFallbackNotice extends StatelessWidget {
+  const _CameraFallbackNotice({required this.message, required this.scale});
+
+  final String message;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassBox(
+      radius: 16 * scale,
+      padding: EdgeInsets.symmetric(
+        horizontal: 13 * scale,
+        vertical: 10 * scale,
+      ),
+      opacity: 0.90,
+      child: Row(
+        children: [
+          Icon(
+            Icons.videocam_off_outlined,
+            color: _ScanColors.muted,
+            size: 18 * scale,
+          ),
+          SizedBox(width: 8 * scale),
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _ScanColors.bodyText,
+                fontSize: 12.4 * scale,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -774,6 +826,7 @@ class _CultureGuideCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isScanning = scanStatus == CultureScanStatus.scanning;
+    final isReady = sourceLabel == 'Ready to scan';
 
     return _GlassBox(
       radius: 24 * scale,
@@ -828,7 +881,7 @@ class _CultureGuideCard extends StatelessWidget {
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Refresh Guide',
+                        isReady ? 'Run Guide' : 'Refresh Guide',
                         style: TextStyle(
                           fontSize: 11.8 * scale,
                           fontWeight: FontWeight.w900,
@@ -941,6 +994,9 @@ class _AgentSourceBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final isReal = label == 'Culture DB + ennoia' || label == 'Culture DB';
     final isLimited = label == 'Travel behavior only';
+    final isReady = label == 'Ready to scan';
+    final isLocal = label == 'Local guide';
+    final isEnnoia = label == 'ennoia';
     return Container(
       height: 26 * scale,
       constraints: BoxConstraints(maxWidth: 116 * scale),
@@ -951,6 +1007,12 @@ class _AgentSourceBadge extends StatelessWidget {
             ? const Color(0xFFEAF8DE)
             : isLimited
             ? const Color(0xFFE8F1FF)
+            : isReady
+            ? const Color(0xFFF0EAFF)
+            : isEnnoia
+            ? const Color(0xFFF0EAFF)
+            : isLocal
+            ? const Color(0xFFF4F4F6)
             : const Color(0xFFFFF2D7),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
@@ -958,6 +1020,12 @@ class _AgentSourceBadge extends StatelessWidget {
               ? const Color(0xFFD3E9C6)
               : isLimited
               ? const Color(0xFFCFE0FF)
+              : isReady
+              ? const Color(0xFFDDD0FF)
+              : isEnnoia
+              ? const Color(0xFFDDD0FF)
+              : isLocal
+              ? const Color(0xFFE1E2EA)
               : const Color(0xFFFFD998),
         ),
       ),
@@ -971,6 +1039,12 @@ class _AgentSourceBadge extends StatelessWidget {
                 ? const Color(0xFF258616)
                 : isLimited
                 ? _ScanColors.blue
+                : isReady
+                ? _ScanColors.purple
+                : isEnnoia
+                ? _ScanColors.purple
+                : isLocal
+                ? _ScanColors.muted
                 : const Color(0xFF985900),
             fontSize: 10.8 * scale,
             fontWeight: FontWeight.w900,

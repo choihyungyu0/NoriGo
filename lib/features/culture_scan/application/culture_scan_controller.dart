@@ -57,9 +57,9 @@ class CultureScanController extends ChangeNotifier {
 
   String get ennoiaSourceLabel => sourceBadge;
 
-  String get sourceBadge => _result?.sourceBadge ?? 'Demo fallback';
+  String get sourceBadge => _result?.sourceBadge ?? 'Ready to scan';
 
-  String get sourceType => _result?.sourceType ?? 'culture_fallback';
+  String get sourceType => _result?.sourceType ?? 'culture_ready';
 
   bool get isRunningEnnoia => _scanStatus == CultureScanStatus.scanning;
 
@@ -162,12 +162,16 @@ class CultureScanController extends ChangeNotifier {
   Future<void> runCultureGuide(CultureScanRequest request) async {
     if (_disposed) return;
 
-    final effectiveRequest = request.copyWith(userLanguage: _selectedLanguage);
+    var effectiveRequest = request.copyWith(userLanguage: _selectedLanguage);
     _scanStatus = CultureScanStatus.scanning;
     _friendlyMessage = null;
     _safeNotifyListeners();
 
     try {
+      final imagePath = await _captureAndUploadScanImage();
+      if (imagePath != null && imagePath.trim().isNotEmpty) {
+        effectiveRequest = effectiveRequest.copyWith(imagePath: imagePath);
+      }
       final result = await _repository.runCultureGuide(effectiveRequest);
       if (_disposed) return;
       _result = result;
@@ -176,7 +180,7 @@ class CultureScanController extends ChangeNotifier {
           : CultureScanStatus.success;
       if (result.isLocalFallback) {
         _friendlyMessage =
-            'Supabase is not configured, so NoriGo is showing a local demo guide.';
+            'Culture Guide is not connected yet, so NoriGo is showing a local guide.';
       }
     } catch (error) {
       if (_disposed) return;
@@ -188,10 +192,27 @@ class CultureScanController extends ChangeNotifier {
       _result = CultureGuideResult.localDemo(effectiveRequest);
       _scanStatus = CultureScanStatus.error;
       _friendlyMessage =
-          'NoriGo could not reach Culture Guide, so it is showing a safe demo guide.';
+          'NoriGo could not reach Culture Guide, so it is showing a local guide.';
     }
 
     _safeNotifyListeners();
+  }
+
+  Future<String?> _captureAndUploadScanImage() async {
+    try {
+      final capture = await _cameraSession?.captureStill();
+      if (capture == null || capture.isEmpty) return null;
+      return await _repository
+          .uploadScanImage(capture)
+          .timeout(const Duration(seconds: 12), onTimeout: () => null);
+    } catch (error) {
+      developer.log(
+        'Culture scan image capture/upload skipped.',
+        name: 'CultureScanController',
+        error: error.runtimeType,
+      );
+      return null;
+    }
   }
 
   @override

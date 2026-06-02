@@ -25,10 +25,14 @@ void main() {
     expect(find.text('Bulguksa'), findsOneWidget);
     expect(find.text('Guide'), findsOneWidget);
     expect(find.text('소원 성취'), findsOneWidget);
-    expect(find.text('May your wish come true.'), findsOneWidget);
+    expect(find.text('Useful phrase appears after scan.'), findsOneWidget);
     expect(find.text('AI Culture Guide'), findsOneWidget);
     expect(find.text('Why do Koreans stack stones here?'), findsOneWidget);
-    expect(find.text('Demo fallback'), findsOneWidget);
+    expect(find.text('Ready to scan'), findsOneWidget);
+    expect(
+      find.text('No camera detected. Showing guide preview.'),
+      findsOneWidget,
+    );
     expect(find.text('Meaning'), findsOneWidget);
     expect(find.text('Etiquette'), findsOneWidget);
     expect(find.text('Story'), findsOneWidget);
@@ -37,6 +41,32 @@ void main() {
     expect(find.text('Scan Culture'), findsOneWidget);
     expect(find.byKey(const ValueKey('active-nav-Scan')), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
+
+  testWidgets('real camera preview does not show fallback camera message', (
+    tester,
+  ) async {
+    _setScanSurface(tester);
+    final controller = CultureScanController(
+      cameraService: const _PreviewCameraService(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NoriGoTheme.light(),
+        home: CultureScanScreen(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('camera-preview')), findsOneWidget);
+    expect(
+      find.text('No camera detected. Showing guide preview.'),
+      findsNothing,
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
@@ -86,7 +116,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('runEnnoiaCultureGuideButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Demo fallback'), findsOneWidget);
+    expect(find.text('Local guide'), findsOneWidget);
     expect(find.text('AI Culture Guide'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -122,7 +152,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Demo fallback'), findsOneWidget);
+    expect(find.text('Local guide'), findsOneWidget);
     expect(find.text('Meaning'), findsOneWidget);
     expect(find.text('Etiquette'), findsOneWidget);
     expect(find.text('Story'), findsOneWidget);
@@ -146,7 +176,18 @@ class _UnavailableCameraService implements CultureCameraService {
   @override
   Future<CultureCameraSession> initialize() async {
     return const CultureCameraSession(
-      unavailableMessage: 'Camera preview is unavailable in tests.',
+      unavailableMessage: 'No camera detected. Showing guide preview.',
+    );
+  }
+}
+
+class _PreviewCameraService implements CultureCameraService {
+  const _PreviewCameraService();
+
+  @override
+  Future<CultureCameraSession> initialize() async {
+    return const CultureCameraSession(
+      preview: SizedBox(key: ValueKey('camera-preview')),
     );
   }
 }

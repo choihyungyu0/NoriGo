@@ -1,18 +1,21 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/widgets.dart';
 import 'package:norigo/features/culture_scan/application/browser_camera_preview.dart';
+import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
 
 class CultureCameraSession {
   const CultureCameraSession({
     this.controller,
     this.preview,
     this.disposePreview,
+    this.capturePreview,
     this.unavailableMessage,
   });
 
   final CameraController? controller;
   final Widget? preview;
   final Future<void> Function()? disposePreview;
+  final Future<CultureImageCapture?> Function()? capturePreview;
   final String? unavailableMessage;
 
   bool get hasPreview =>
@@ -21,6 +24,28 @@ class CultureCameraSession {
   Future<void> dispose() async {
     await disposePreview?.call();
     await controller?.dispose();
+  }
+
+  Future<CultureImageCapture?> captureStill() async {
+    final previewCapture = capturePreview;
+    if (previewCapture != null) {
+      final captured = await previewCapture();
+      if (captured != null && !captured.isEmpty) return captured;
+    }
+
+    final cameraController = controller;
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return null;
+    }
+
+    final file = await cameraController.takePicture();
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) return null;
+    return CultureImageCapture(
+      bytes: bytes,
+      contentType: 'image/jpeg',
+      extension: 'jpg',
+    );
   }
 }
 
@@ -39,8 +64,7 @@ class DeviceCultureCameraService implements CultureCameraService {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
         return _browserCameraFallback(
-          unavailableMessage:
-              'Camera preview is unavailable on this device. You can still test the guide.',
+          unavailableMessage: 'No camera detected. Showing guide preview.',
         );
       }
 
@@ -64,8 +88,7 @@ class DeviceCultureCameraService implements CultureCameraService {
     } catch (_) {
       await controller?.dispose();
       return _browserCameraFallback(
-        unavailableMessage:
-            'Camera preview is unavailable here. NoriGo is showing a safe preview background.',
+        unavailableMessage: 'No camera detected. Showing guide preview.',
       );
     }
   }
@@ -79,6 +102,7 @@ class DeviceCultureCameraService implements CultureCameraService {
         return CultureCameraSession(
           preview: browserPreview.widget,
           disposePreview: browserPreview.dispose,
+          capturePreview: browserPreview.captureStill,
         );
       }
     } catch (_) {
@@ -95,6 +119,6 @@ class DeviceCultureCameraService implements CultureCameraService {
         normalizedCode.contains('denied')) {
       return 'Camera permission was not granted. Allow camera access in your browser to see the preview.';
     }
-    return 'Camera preview is unavailable here. NoriGo is showing a safe preview background.';
+    return 'No camera detected. Showing guide preview.';
   }
 }

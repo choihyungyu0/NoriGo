@@ -44,7 +44,7 @@ class CultureGuideResult {
   final String detectedObject;
   final String koreanKeyword;
 
-  bool get isLocalFallback => sourceType == 'culture_fallback';
+  bool get isLocalFallback => sourceType == 'culture_local';
 
   factory CultureGuideResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
@@ -78,7 +78,7 @@ class CultureGuideResult {
       sourceBadge: _string(data, const [
         'source_badge',
         'sourceBadge',
-      ], 'Demo fallback'),
+      ], 'Culture Guide'),
       ennoiaSucceeded: _bool(data, const [
         'ennoia_succeeded',
         'ennoiaSucceeded',
@@ -107,11 +107,39 @@ class CultureGuideResult {
     );
   }
 
+  factory CultureGuideResult.readyPreview(CultureScanRequest request) {
+    return CultureGuideResult(
+      question: request.userQuestion ?? 'What should I do here?',
+      description:
+          'Scan the current place or choose the visible situation. NoriGo will check Culture DB, ask ennoia when configured, and save the result.',
+      meaning:
+          'Culture Scan answers the immediate travel context in front of you.',
+      etiquette:
+          'Pick the closest place and visible object before scanning for a more useful guide.',
+      story:
+          'Saved scan records appear under My Page after Supabase stores the result.',
+      koreanPhrase: request.koreanKeyword,
+      pronunciation: '',
+      phraseMeaning: 'Useful phrase appears after scan.',
+      confidence: 0,
+      sourceType: 'culture_ready',
+      sourceBadge: 'Ready to scan',
+      ennoiaSucceeded: false,
+      persisted: false,
+      cultureScanRecordId: '',
+      scopeLimited: false,
+      locationName: request.currentLocation,
+      placeType: request.placeType,
+      detectedObject: request.detectedObject,
+      koreanKeyword: request.koreanKeyword,
+    );
+  }
+
   factory CultureGuideResult.localDemo(CultureScanRequest request) {
     return CultureGuideResult(
       question: request.userQuestion ?? 'Why do Koreans stack stones here?',
       description:
-          'NoriGo is in local mode, so this is a safe demo guide for the selected travel situation.',
+          'NoriGo is using an offline local guide for the selected travel situation.',
       meaning:
           'Stone stacks at temples often represent a quiet wish for peace, health, or good fortune.',
       etiquette:
@@ -124,8 +152,8 @@ class CultureGuideResult {
       pronunciation: 'so-won seong-chwi-ha-se-yo',
       phraseMeaning: 'May your wish come true.',
       confidence: 0.35,
-      sourceType: 'culture_fallback',
-      sourceBadge: 'Demo fallback',
+      sourceType: 'culture_local',
+      sourceBadge: 'Local guide',
       ennoiaSucceeded: false,
       persisted: false,
       cultureScanRecordId: '',

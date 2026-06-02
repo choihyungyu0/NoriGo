@@ -1,17 +1,22 @@
+import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:typed_data';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/widgets.dart';
+import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
 import 'package:web/web.dart' as web;
 
 class BrowserCameraPreviewSession {
   const BrowserCameraPreviewSession({
     required this.widget,
     required this.dispose,
+    this.captureStill,
   });
 
   final Widget widget;
   final Future<void> Function() dispose;
+  final Future<CultureImageCapture?> Function()? captureStill;
 }
 
 int _nextViewId = 0;
@@ -55,11 +60,41 @@ Future<BrowserCameraPreviewSession?> createBrowserCameraPreview() async {
 
   return BrowserCameraPreviewSession(
     widget: HtmlElementView(viewType: viewType),
+    captureStill: () async => _captureVideoFrame(video),
     dispose: () async {
       for (final track in stream.getTracks().toDart) {
         track.stop();
       }
       video.srcObject = null;
     },
+  );
+}
+
+Future<CultureImageCapture?> _captureVideoFrame(
+  web.HTMLVideoElement video,
+) async {
+  final width = video.videoWidth;
+  final height = video.videoHeight;
+  if (width <= 0 || height <= 0) return null;
+
+  final canvas = web.HTMLCanvasElement()
+    ..width = width
+    ..height = height;
+  final context = canvas.getContext('2d') as web.CanvasRenderingContext2D?;
+  if (context == null) return null;
+
+  context.drawImage(video, 0, 0, width, height);
+  final dataUrl = canvas.toDataURL('image/jpeg', 0.88.toJS);
+  final commaIndex = dataUrl.indexOf(',');
+  if (commaIndex < 0) return null;
+
+  final bytes = Uint8List.fromList(
+    base64Decode(dataUrl.substring(commaIndex + 1)),
+  );
+  if (bytes.isEmpty) return null;
+  return CultureImageCapture(
+    bytes: bytes,
+    contentType: 'image/jpeg',
+    extension: 'jpg',
   );
 }

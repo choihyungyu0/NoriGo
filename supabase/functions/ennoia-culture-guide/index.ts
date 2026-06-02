@@ -31,6 +31,14 @@ export type CultureGuideEntry = {
   is_active?: boolean;
 };
 
+export type EnnoiaCultureConfig = {
+  endpoint: string;
+  project: string;
+  apiKey: string;
+  hash: string;
+  missing: string[];
+};
+
 type CultureGuideResponse = {
   question: string;
   description: string;
@@ -94,20 +102,24 @@ export async function handleCultureGuideRequest(
   }
 
   const params = normalizeRequest(bodyResult.body as CultureRequest);
-  const hasEnnoiaHash = Boolean(Deno.env.get("ENNOIA_CULTURE_HASH")?.trim());
+  const ennoiaConfig = readEnnoiaCultureConfig();
   const hasKtoKey = Boolean(Deno.env.get("KTO_SERVICE_KEY")?.trim());
 
   if (isOutOfScope(params)) {
     const response = buildScopeLimitedResponse(params);
-    logSafe({
+    const diagnostics = buildDiagnostics({
       source_type: response.source_type,
-      place_type: params.place_type,
-      detected_object: params.detected_object,
-      hasEnnoiaHash,
+      params,
+      config: ennoiaConfig,
       hasKtoKey,
       ennoia_status: "skipped_scope_limited",
     });
-    return jsonResponse(await withPersistence(request, params, response), 200);
+    logSafe(diagnostics);
+    const persistedResponse = await withPersistence(request, params, response);
+    return jsonResponse(
+      withOptionalDiagnostics(request, persistedResponse, diagnostics),
+      200,
+    );
   }
 
   const guideEntries = await loadGuideEntries();
@@ -118,47 +130,76 @@ export async function handleCultureGuideRequest(
 
   if (!entry || !guideEntries.fromDatabase) {
     const fallback = buildFallbackResponse(params);
-    logSafe({
+    const diagnostics = buildDiagnostics({
       source_type: fallback.source_type,
-      place_type: params.place_type,
-      detected_object: params.detected_object,
-      hasEnnoiaHash,
+      params,
+      config: ennoiaConfig,
       hasKtoKey,
       ennoia_status: guideEntries.fromDatabase
         ? "skipped_no_db_match"
         : "skipped_db_unavailable",
     });
-    return jsonResponse(await withPersistence(request, params, fallback), 200);
+    logSafe(diagnostics);
+    const persistedResponse = await withPersistence(request, params, fallback);
+    return jsonResponse(
+      withOptionalDiagnostics(request, persistedResponse, diagnostics),
+      200,
+    );
   }
+
+  if (ennoiaConfig.missing.includes("ENNOIA_CULTURE_HASH")) {
+    return jsonResponse({
+      error: "MISSING_CULTURE_GUIDE_CONFIG",
+      missing: ["ENNOIA_CULTURE_HASH"],
+    }, 500);
+  }
+
+  const cultureContext = buildCultureContext(params, entry, ktoContext);
 
   try {
     const ennoiaPayload = await requestEnnoiaCultureGuide(
       request,
       params,
       entry,
-      ktoContext,
+      cultureContext,
+      ennoiaConfig,
     );
     const response = buildEnnoiaResponse(params, entry, ennoiaPayload);
-    logSafe({
+    const diagnostics = buildDiagnostics({
       source_type: response.source_type,
-      place_type: params.place_type,
-      detected_object: params.detected_object,
-      hasEnnoiaHash,
+      params,
+      config: ennoiaConfig,
+      cultureContext,
       hasKtoKey,
-      ennoia_status: "success",
+      ennoia_status: 200,
+      ennoia_status_text: "OK",
     });
-    return jsonResponse(await withPersistence(request, params, response), 200);
-  } catch (_) {
+    logSafe(diagnostics);
+    const persistedResponse = await withPersistence(request, params, response);
+    return jsonResponse(
+      withOptionalDiagnostics(request, persistedResponse, diagnostics),
+      200,
+    );
+  } catch (error) {
     const response = buildBasicResponse(params, entry);
-    logSafe({
+    const failure = ennoiaFailureDetails(error);
+    const diagnostics = buildDiagnostics({
       source_type: response.source_type,
-      place_type: params.place_type,
-      detected_object: params.detected_object,
-      hasEnnoiaHash,
+      params,
+      config: ennoiaConfig,
+      cultureContext,
       hasKtoKey,
-      ennoia_status: "failed_basic_fallback",
+      ennoia_status: failure.ennoia_status ?? "failed_basic_fallback",
+      ennoia_status_text: failure.ennoia_status_text,
+      ennoia_body_preview: failure.ennoia_body_preview,
+      ennoia_error_code: failure.ennoia_error_code,
     });
-    return jsonResponse(await withPersistence(request, params, response), 200);
+    logSafe(diagnostics);
+    const persistedResponse = await withPersistence(request, params, response);
+    return jsonResponse(
+      withOptionalDiagnostics(request, persistedResponse, diagnostics),
+      200,
+    );
   }
 }
 
@@ -421,44 +462,30 @@ async function requestEnnoiaCultureGuide(
   request: Request,
   params: CultureRequest,
   entry: CultureGuideEntry,
-  ktoContext: JsonRecord | null,
+  cultureContext: JsonRecord,
+  config: EnnoiaCultureConfig,
 ): Promise<JsonRecord> {
-  const endpoint = Deno.env.get("ENNOIA_API_ENDPOINT")?.trim();
-  const project = Deno.env.get("ENNOIA_PROJECT")?.trim();
-  const apiKey = Deno.env.get("ENNOIA_API_KEY")?.trim();
-  const hash = Deno.env.get("ENNOIA_CULTURE_HASH")?.trim();
-  if (!endpoint || !project || !apiKey || !hash) {
-    throw new Error("ennoia culture configuration missing");
+  if (config.missing.length > 0) {
+    throw new EnnoiaRequestError("ennoia_config_missing", {
+      bodyPreview: `missing:${config.missing.join(",")}`,
+    });
   }
 
-  const cultureContext = buildCultureContext(params, entry, ktoContext);
-  const ennoiaPayload = {
-    hash,
-    params: {
-      user_language: params.user_language,
-      current_location: params.current_location,
-      place_type: params.place_type,
-      detected_object: params.detected_object,
-      user_intent: params.user_intent,
-      user_question: params.user_question ?? "",
-      CULTURE_CONTEXT: JSON.stringify(cultureContext),
-    },
-    messages: [
-      {
-        role: "user",
-        content: buildEnnoiaPrompt(cultureContext),
-      },
-    ],
-  };
+  const ennoiaPayload = buildEnnoiaCulturePayload(
+    params,
+    entry,
+    cultureContext,
+    config.hash,
+  );
   const ennoiaUserId = request.headers.get("x-ennoia-user-id")?.trim() ||
     Deno.env.get("ENNOIA_USER_ID")?.trim() ||
     "norigo-culture-guide";
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(config.endpoint, {
     method: "POST",
     headers: {
-      project,
-      apiKey,
+      project: config.project,
+      apiKey: config.apiKey,
       "X-ENNOIA-USER-ID": ennoiaUserId,
       "Content-Type": "application/json; charset=utf-8",
     },
@@ -466,12 +493,73 @@ async function requestEnnoiaCultureGuide(
   });
 
   if (!response.ok) {
-    throw new Error(`ennoia returned HTTP ${response.status}`);
+    const errorText = await response.text().catch(() => "");
+    throw new EnnoiaRequestError(`ennoia_http_${response.status}`, {
+      status: response.status,
+      statusText: response.statusText,
+      bodyPreview: safeBodyPreview(errorText),
+    });
   }
 
-  const parsed = parseAgentPayload(await response.text());
-  if (!parsed) throw new Error("ennoia returned invalid JSON");
+  const responseText = await response.text();
+  const parsed = parseAgentPayload(responseText);
+  if (!parsed) {
+    throw new EnnoiaRequestError("ennoia_invalid_json", {
+      status: response.status,
+      statusText: response.statusText,
+      bodyPreview: safeBodyPreview(responseText),
+    });
+  }
   return parsed;
+}
+
+export function readEnnoiaCultureConfig(
+  getEnv: (key: string) => string | undefined | null = (key) =>
+    Deno.env.get(key),
+): EnnoiaCultureConfig {
+  const endpoint = cleanOptional(getEnv("ENNOIA_API_ENDPOINT")) ?? "";
+  const project = cleanOptional(getEnv("ENNOIA_PROJECT")) ?? "";
+  const apiKey = cleanOptional(getEnv("ENNOIA_API_KEY")) ?? "";
+  const hash = cleanOptional(getEnv("ENNOIA_CULTURE_HASH")) ?? "";
+  const missing = [
+    ["ENNOIA_API_ENDPOINT", endpoint],
+    ["ENNOIA_PROJECT", project],
+    ["ENNOIA_API_KEY", apiKey],
+    ["ENNOIA_CULTURE_HASH", hash],
+  ].filter(([, value]) => !value).map(([key]) => key);
+  return { endpoint, project, apiKey, hash, missing };
+}
+
+export function buildEnnoiaCulturePayload(
+  params: CultureRequest,
+  entry: CultureGuideEntry,
+  cultureContext: JsonRecord,
+  hash: string,
+): JsonRecord {
+  return {
+    hash,
+    params: {
+      user_language: params.user_language,
+      current_location: params.current_location,
+      place_type: params.place_type,
+      detected_object: entry.object_key || params.detected_object,
+      korean_keyword: params.korean_keyword,
+      user_intent: params.user_intent,
+      user_question: params.user_question ?? "",
+      culture_context: JSON.stringify(cultureContext),
+    },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: buildEnnoiaPrompt(),
+          },
+        ],
+      },
+    ],
+  };
 }
 
 export function buildCultureContext(
@@ -480,13 +568,27 @@ export function buildCultureContext(
   ktoContext: JsonRecord | null,
 ): JsonRecord {
   return {
+    location_name: params.current_location,
     user_language: params.user_language,
     current_location: params.current_location,
     place_type: params.place_type,
-    detected_object: params.detected_object,
+    detected_object: entry.object_key || params.detected_object,
     korean_keyword: params.korean_keyword,
     user_intent: params.user_intent,
     user_question: params.user_question ?? "",
+    title_ko: entry.title_ko,
+    title_en: entry.title_en,
+    category: entry.category,
+    short_question: entry.short_question ?? "",
+    meaning: entry.meaning,
+    etiquette: entry.etiquette,
+    story: entry.story ?? "",
+    korean_phrase: entry.korean_phrase ?? params.korean_keyword,
+    pronunciation: entry.pronunciation ?? "",
+    phrase_meaning: entry.phrase_meaning ?? "",
+    allowed_intents: entry.allowed_intents ?? [],
+    blocked_topics: entry.blocked_topics ?? [],
+    tags: entry.tags ?? [],
     guide_entry: {
       object_key: entry.object_key,
       category: entry.category,
@@ -506,27 +608,15 @@ export function buildCultureContext(
   };
 }
 
-function buildEnnoiaPrompt(cultureContext: JsonRecord): string {
+function buildEnnoiaPrompt(): string {
   return [
-    "Use only CULTURE_CONTEXT.",
-    "Do not answer broad culture, politics, dating, stereotypes, memes, or social controversy.",
-    "Return valid JSON only.",
-    "Keep answers practical and action-oriented.",
-    "If a field is unknown, use an empty string.",
-    JSON.stringify({
-      CULTURE_CONTEXT: cultureContext,
-      response_shape: {
-        question: "short traveler question",
-        description: "one practical overview",
-        meaning: "what this means here",
-        etiquette: "what the traveler should do",
-        story: "brief context without controversy",
-        korean_phrase: "useful Korean phrase",
-        pronunciation: "simple romanization",
-        phrase_meaning: "phrase meaning",
-        confidence: 0.86,
-      },
-    }),
+    "Use only the provided CULTURE_CONTEXT.",
+    "Do not call tools.",
+    "Do not invent cultural facts.",
+    "Do not answer broad politics, social controversy, stereotypes, or general Korean society questions.",
+    "Focus only on immediate travel behavior.",
+    "Return valid JSON only with:",
+    "question, description, meaning, etiquette, story, korean_phrase, pronunciation, phrase_meaning, confidence.",
   ].join("\n");
 }
 
@@ -638,7 +728,7 @@ function buildFallbackResponse(params: CultureRequest): CultureGuideResponse {
     phrase_meaning: "Could you help me?",
     confidence: 0.35,
     source_type: "culture_fallback",
-    source_badge: "Demo fallback",
+    source_badge: "Context guide",
     ennoia_succeeded: false,
     persisted: false,
     cultureScanRecordId: "",
@@ -752,14 +842,19 @@ export function parseAgentPayload(body: string): JsonRecord | null {
 }
 
 function extractAgentContent(decoded: unknown): unknown {
+  if (typeof decoded === "string") return decoded;
+  if (Array.isArray(decoded)) return textFromContentParts(decoded);
   if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
     return null;
   }
   const record = decoded as JsonRecord;
   if (typeof record.output_text === "string") return record.output_text;
+  if (typeof record.text === "string") return record.text;
   if (typeof record.content === "string") return record.content;
+  if (Array.isArray(record.content)) return textFromContentParts(record.content);
   if (record.content && typeof record.content === "object") {
-    return record.content;
+    const nestedContent = extractAgentContent(record.content);
+    return nestedContent ?? record.content;
   }
   if (record.data) return extractAgentContent(record.data);
 
@@ -776,6 +871,7 @@ function extractAgentContent(decoded: unknown): unknown {
     if (firstChoice && typeof firstChoice === "object") {
       const choice = firstChoice as JsonRecord;
       if (typeof choice.text === "string") return choice.text;
+      if (choice.delta) return extractAgentContent(choice.delta);
       return extractAgentContent(choice.message);
     }
   }
@@ -847,6 +943,39 @@ function nestedPayload(payload: JsonRecord): JsonRecord | null {
   return null;
 }
 
+type DiagnosticsInput = {
+  source_type: string;
+  params: CultureRequest;
+  config: EnnoiaCultureConfig;
+  hasKtoKey: boolean;
+  cultureContext?: JsonRecord | null;
+  ennoia_status: string | number;
+  ennoia_status_text?: string;
+  ennoia_body_preview?: string;
+  ennoia_error_code?: string;
+};
+
+function buildDiagnostics(input: DiagnosticsInput): JsonRecord {
+  return {
+    source_type: input.source_type,
+    place_type: input.params.place_type,
+    detected_object: input.params.detected_object,
+    hasEndpoint: Boolean(input.config.endpoint),
+    hasProject: Boolean(input.config.project),
+    hasCultureHash: Boolean(input.config.hash),
+    hashSuffix: suffix(input.config.hash),
+    hasApiKey: Boolean(input.config.apiKey),
+    hasKtoKey: input.hasKtoKey,
+    context_keys: input.cultureContext
+      ? Object.keys(input.cultureContext).sort()
+      : [],
+    ennoia_status: input.ennoia_status,
+    ennoia_status_text: input.ennoia_status_text ?? "",
+    ennoia_body_preview: input.ennoia_body_preview ?? "",
+    ennoia_error_code: input.ennoia_error_code ?? "",
+  };
+}
+
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -857,8 +986,72 @@ function jsonResponse(body: unknown, status: number): Response {
   });
 }
 
+function withOptionalDiagnostics(
+  request: Request,
+  response: CultureGuideResponse,
+  diagnostics: JsonRecord,
+): CultureGuideResponse | JsonRecord {
+  const value = request.headers.get("x-culture-debug")?.trim().toLowerCase();
+  if (!value || !["1", "true", "yes"].includes(value)) return response;
+  return { ...response, diagnostics };
+}
+
 function logSafe(payload: JsonRecord): void {
   console.log("culture-guide", JSON.stringify(payload));
+}
+
+class EnnoiaRequestError extends Error {
+  constructor(
+    readonly code: string,
+    readonly details: {
+      status?: number;
+      statusText?: string;
+      bodyPreview?: string;
+    } = {},
+  ) {
+    super(code);
+  }
+}
+
+function ennoiaFailureDetails(error: unknown): {
+  ennoia_status?: string | number;
+  ennoia_status_text: string;
+  ennoia_body_preview: string;
+  ennoia_error_code: string;
+} {
+  if (error instanceof EnnoiaRequestError) {
+    return {
+      ennoia_status: error.details.status,
+      ennoia_status_text: error.details.statusText ?? "",
+      ennoia_body_preview: error.details.bodyPreview ?? "",
+      ennoia_error_code: error.code,
+    };
+  }
+  if (error instanceof Error) {
+    return {
+      ennoia_status_text: "",
+      ennoia_body_preview: safeBodyPreview(error.message),
+      ennoia_error_code: "ennoia_generation_failed",
+    };
+  }
+  return {
+    ennoia_status_text: "",
+    ennoia_body_preview: "",
+    ennoia_error_code: "ennoia_generation_failed",
+  };
+}
+
+function safeBodyPreview(value: string): string {
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "empty_body";
+  return cleaned
+    .replace(/[A-Za-z0-9_-]{24,}/g, "[redacted]")
+    .slice(0, 1000);
+}
+
+function suffix(value: string, length = 8): string {
+  if (!value) return "";
+  return value.slice(-length);
 }
 
 function slug(value: string): string {
