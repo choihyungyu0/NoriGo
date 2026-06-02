@@ -10,7 +10,6 @@ class CultureBottomControls extends StatelessWidget {
     required this.onLanguageChanged,
     required this.onScanCulture,
     required this.onToggleFlash,
-    required this.onArView,
     super.key,
   });
 
@@ -20,7 +19,6 @@ class CultureBottomControls extends StatelessWidget {
   final ValueChanged<String> onLanguageChanged;
   final VoidCallback onScanCulture;
   final VoidCallback onToggleFlash;
-  final VoidCallback onArView;
 
   bool get _isScanning => scanStatus == CultureScanStatus.scanning;
 
@@ -57,24 +55,10 @@ class CultureBottomControls extends StatelessWidget {
                 onPressed: _isScanning ? null : onScanCulture,
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: _ControlButton(
-                  icon: flashEnabled ? Icons.flash_on : Icons.flash_off,
-                  label: flashEnabled ? 'Flash On' : 'Flash Off',
-                  onTap: onToggleFlash,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _ControlButton(
-                  icon: Icons.view_in_ar,
-                  label: 'AR View',
-                  onTap: onArView,
-                ),
+              _IconControlButton(
+                icon: flashEnabled ? Icons.flash_on : Icons.flash_off,
+                label: flashEnabled ? 'Flash on' : 'Flash off',
+                onTap: onToggleFlash,
               ),
             ],
           ),
@@ -168,8 +152,8 @@ class _ScanButton extends StatelessWidget {
   }
 }
 
-class _ControlButton extends StatelessWidget {
-  const _ControlButton({
+class _IconControlButton extends StatelessWidget {
+  const _IconControlButton({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -181,21 +165,10 @@ class _ControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(
-        label,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-      ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: NoriGoColors.ink,
-        minimumSize: const Size.fromHeight(48),
-        side: const BorderSide(color: NoriGoColors.line),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
+    return Semantics(
+      button: true,
+      label: label,
+      child: IconButton.outlined(onPressed: onTap, icon: Icon(icon, size: 20)),
     );
   }
 }

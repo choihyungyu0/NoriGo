@@ -87,13 +87,13 @@ class CultureVisionResult {
     return CultureVisionResult(
       detectedObject: detectedObject,
       placeType: placeType,
-      confidence: 0.55,
+      confidence: 0.42,
       alternatives: [
         CultureVisionAlternative(
           detectedObject: detectedObject,
           placeType: placeType,
           label: cultureObjectLabel(detectedObject),
-          confidence: 0.55,
+          confidence: 0.42,
         ),
       ],
       needsConfirmation: true,

@@ -46,20 +46,25 @@ CultureVisionResult? _resultFromLabels(
   final scored =
       _allowedObjects
           .map((object) {
-            final labelScore = object.labelKeywords.fold<double>(
+            final visualScore = object.labelKeywords.fold<double>(
               0,
               (score, keyword) => labelText.contains(keyword)
                   ? score + _bestConfidenceForKeyword(labels, keyword)
                   : score,
             );
+            if (visualScore == 0) return _ScoredObject(object, 0, 0);
             final contextScore = object.contextKeywords.fold<double>(
               0,
               (score, keyword) =>
-                  contextText.contains(keyword) ? score + 0.16 : score,
+                  contextText.contains(keyword) ? score + 0.10 : score,
             );
-            return _ScoredObject(object, labelScore + contextScore);
+            return _ScoredObject(
+              object,
+              visualScore + contextScore.clamp(0, 0.18).toDouble(),
+              visualScore,
+            );
           })
-          .where((item) => item.score > 0)
+          .where((item) => item.visualScore > 0)
           .toList(growable: false)
         ..sort((a, b) => b.score.compareTo(a.score));
 
@@ -115,10 +120,11 @@ class _AllowedObject {
 }
 
 class _ScoredObject {
-  const _ScoredObject(this.object, this.score);
+  const _ScoredObject(this.object, this.score, this.visualScore);
 
   final _AllowedObject object;
   final double score;
+  final double visualScore;
 }
 
 const _allowedObjects = [
@@ -161,7 +167,7 @@ const _allowedObjects = [
   _AllowedObject(
     key: 'market_queue_ticket',
     placeType: 'market',
-    labelKeywords: ['ticket', 'paper', 'queue', 'number', 'market'],
+    labelKeywords: ['ticket', 'receipt', 'queue', 'number', 'market'],
     contextKeywords: ['market', 'queue', 'ticket', 'number', 'waiting'],
   ),
   _AllowedObject(
@@ -179,7 +185,7 @@ const _allowedObjects = [
   _AllowedObject(
     key: 'waiting_number_ticket',
     placeType: 'restaurant',
-    labelKeywords: ['ticket', 'paper', 'number', 'queue', 'restaurant'],
+    labelKeywords: ['ticket', 'receipt', 'number', 'queue', 'restaurant'],
     contextKeywords: ['waiting', 'number', 'ticket', 'queue', 'restaurant'],
   ),
 ];

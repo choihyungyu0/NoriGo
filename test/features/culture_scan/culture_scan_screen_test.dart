@@ -41,7 +41,7 @@ void main() {
     expect(find.text('Etiquette'), findsOneWidget);
     expect(find.text('Story'), findsOneWidget);
     expect(find.text('English'), findsOneWidget);
-    expect(find.text('Flash Off'), findsOneWidget);
+    expect(find.byKey(const ValueKey('flashToggleIconButton')), findsOneWidget);
     expect(find.text('Scan Culture'), findsOneWidget);
     expect(find.byKey(const ValueKey('active-nav-Scan')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -90,12 +90,12 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Flash Off'), findsOneWidget);
+    expect(find.byIcon(Icons.flash_off_rounded), findsOneWidget);
 
-    await tester.tapAt(const Offset(350, 790));
+    await tester.tap(find.byKey(const ValueKey('flashToggleIconButton')));
     await tester.pump();
 
-    expect(find.text('Flash On'), findsOneWidget);
+    expect(find.byIcon(Icons.flash_on_rounded), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
@@ -134,6 +134,7 @@ void main() {
     _setScanSurface(tester);
     final controller = CultureScanController(
       cameraService: const _UnavailableCameraService(),
+      repository: const _ConfirmationVisionRepository(),
     );
 
     await tester.pumpWidget(
@@ -287,6 +288,30 @@ class _VisionBadgeRepository extends CultureScanRepository {
       'vision_source_type': request.visionSourceType,
       'vision_source_badge': request.visionSourceBadge,
     });
+  }
+}
+
+class _ConfirmationVisionRepository extends CultureScanRepository {
+  const _ConfirmationVisionRepository();
+
+  @override
+  Future<CultureGuideResult> runCultureGuide(CultureScanRequest request) async {
+    return CultureGuideResult.localDemo(request);
+  }
+
+  @override
+  Future<CultureVisionResult> detectCultureObject(
+    CultureVisionRequest request,
+  ) async {
+    return const CultureVisionResult(
+      detectedObject: 'temple_stone_stack',
+      placeType: 'temple',
+      confidence: 0.64,
+      alternatives: [],
+      needsConfirmation: true,
+      sourceType: 'vision_heuristic',
+      sourceBadge: 'Context hint',
+    );
   }
 }
 

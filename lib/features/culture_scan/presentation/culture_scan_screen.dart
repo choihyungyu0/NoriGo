@@ -259,10 +259,24 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                             Positioned(
                               top: 14 * scale,
                               right: 18 * scale,
-                              child: _GuidePill(
-                                scale: scale,
-                                onTap: () =>
-                                    _showSnack('Guide mode is active.'),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _FlashIconButton(
+                                    key: const ValueKey(
+                                      'flashToggleIconButton',
+                                    ),
+                                    scale: scale,
+                                    flashEnabled: _controller.flashEnabled,
+                                    onTap: _toggleFlash,
+                                  ),
+                                  SizedBox(width: 10 * scale),
+                                  _GuidePill(
+                                    scale: scale,
+                                    onTap: () =>
+                                        _showSnack('Guide mode is active.'),
+                                  ),
+                                ],
                               ),
                             ),
                             if (_controller.friendlyMessage != null &&
@@ -300,27 +314,15 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                               ),
                             ),
                             Positioned(
-                              top: 312 * scale,
-                              right: 22 * scale,
-                              child: _ArViewPill(
-                                scale: scale,
-                                onTap: () => _showSnack(
-                                  'AR view will be connected later.',
-                                ),
-                              ),
-                            ),
-                            Positioned(
                               left: 18 * scale,
                               right: 18 * scale,
                               bottom: 24 * scale,
                               child: _BottomScanControls(
                                 scale: scale,
-                                flashEnabled: _controller.flashEnabled,
                                 selectedLanguage: _controller.selectedLanguage,
                                 scanStatus: _controller.scanStatus,
                                 onLanguageTap: _selectLanguage,
                                 onScanCulture: _scanCulture,
-                                onToggleFlash: _toggleFlash,
                               ),
                             ),
                           ],
@@ -680,6 +682,44 @@ class _GuidePill extends StatelessWidget {
   }
 }
 
+class _FlashIconButton extends StatelessWidget {
+  const _FlashIconButton({
+    required this.scale,
+    required this.flashEnabled,
+    required this.onTap,
+    super.key,
+  });
+
+  final double scale;
+  final bool flashEnabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = flashEnabled
+        ? Icons.flash_on_rounded
+        : Icons.flash_off_rounded;
+    return Semantics(
+      button: true,
+      label: flashEnabled ? 'Flash on' : 'Flash off',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24 * scale),
+          onTap: onTap,
+          child: _GlassBox(
+            width: 48 * scale,
+            height: 48 * scale,
+            radius: 24 * scale,
+            padding: EdgeInsets.zero,
+            child: Icon(icon, color: _ScanColors.deepText, size: 23 * scale),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TranslationBubble extends StatelessWidget {
   const _TranslationBubble({
     required this.guide,
@@ -788,58 +828,6 @@ class _BubbleTailPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _ArViewPill extends StatelessWidget {
-  const _ArViewPill({required this.scale, required this.onTap});
-
-  final double scale;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'AR View',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22 * scale),
-          onTap: onTap,
-          child: _GlassBox(
-            width: 68 * scale,
-            height: 104 * scale,
-            radius: 22 * scale,
-            padding: EdgeInsets.symmetric(
-              horizontal: 8 * scale,
-              vertical: 8 * scale,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.view_in_ar_outlined,
-                  color: _ScanColors.deepText,
-                  size: 26 * scale,
-                ),
-                SizedBox(height: 5 * scale),
-                Text(
-                  'AR\nView',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _ScanColors.bodyText,
-                    fontSize: 11.5 * scale,
-                    height: 1.12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _CultureGuideCard extends StatelessWidget {
@@ -1173,21 +1161,17 @@ class _CultureInfoRow extends StatelessWidget {
 class _BottomScanControls extends StatelessWidget {
   const _BottomScanControls({
     required this.scale,
-    required this.flashEnabled,
     required this.selectedLanguage,
     required this.scanStatus,
     required this.onLanguageTap,
     required this.onScanCulture,
-    required this.onToggleFlash,
   });
 
   final double scale;
-  final bool flashEnabled;
   final String selectedLanguage;
   final CultureScanStatus scanStatus;
   final VoidCallback onLanguageTap;
   final VoidCallback onScanCulture;
-  final VoidCallback onToggleFlash;
 
   @override
   Widget build(BuildContext context) {
@@ -1221,16 +1205,7 @@ class _BottomScanControls extends StatelessWidget {
               isScanning: isScanning,
               onPressed: isScanning ? null : onScanCulture,
             ),
-            SizedBox(
-              width: sideWidth,
-              child: _SmallControlPill(
-                key: const ValueKey('flashTogglePill'),
-                icon: Icons.flash_on_rounded,
-                text: flashEnabled ? 'Flash On' : 'Flash Off',
-                scale: scale,
-                onTap: onToggleFlash,
-              ),
-            ),
+            SizedBox(width: sideWidth),
           ],
         );
       },

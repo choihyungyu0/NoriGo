@@ -184,7 +184,9 @@ async function downloadCultureScanImage(
 
   const encodedPath = imagePath.split("/").map(encodeURIComponent).join("/");
   const response = await fetch(
-    `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/culture-scans/${encodedPath}`,
+    `${
+      supabaseUrl.replace(/\/+$/, "")
+    }/storage/v1/object/culture-scans/${encodedPath}`,
     {
       headers: {
         apikey: serviceRoleKey,
@@ -232,7 +234,9 @@ export async function classifyWithConfiguredVisionProvider(
   return result;
 }
 
-function visionResultFromProvider(payload: JsonRecord): CultureVisionResult | null {
+function visionResultFromProvider(
+  payload: JsonRecord,
+): CultureVisionResult | null {
   const detectedObject = optionalString(payload.detected_object) ??
     optionalString(payload.object_key);
   if (!detectedObject || !allowedByKey.has(detectedObject)) return null;
@@ -273,13 +277,16 @@ export function classifyWithHeuristics(
     .filter((item) => item.score > 0 || item.item.key === best.key)
     .slice(0, 3)
     .map((item, index) =>
-      alternativeFor(item.item, index === 0 ? 0.55 : Math.max(0.35, 0.5 - index * 0.08))
+      alternativeFor(
+        item.item,
+        index === 0 ? 0.42 : Math.max(0.28, 0.38 - index * 0.06),
+      )
     );
 
   return {
     detected_object: best.key,
     place_type: best.placeType,
-    confidence: 0.55,
+    confidence: 0.42,
     alternatives,
     needs_confirmation: true,
     source_type: "vision_heuristic",
