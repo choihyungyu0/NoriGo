@@ -178,7 +178,10 @@ export async function handleItineraryRequest(request: Request): Promise<Response
 
   if (!ktoServiceKey) {
     return jsonResponse(
-      buildFallbackItinerary(params, "KTO_SERVICE_KEY is missing"),
+      withItineraryUserContext(
+        request,
+        buildFallbackItinerary(params, "KTO_SERVICE_KEY is missing"),
+      ),
       200,
     );
   }
@@ -192,16 +195,22 @@ export async function handleItineraryRequest(request: Request): Promise<Response
       error instanceof Error ? error.message : "unknown error",
     );
     return jsonResponse(
-      buildFallbackItinerary(params, "KTO OpenAPI request failed"),
+      withItineraryUserContext(
+        request,
+        buildFallbackItinerary(params, "KTO OpenAPI request failed"),
+      ),
       200,
     );
   }
 
   if (candidates.length < routeItemCount) {
     return jsonResponse(
-      buildFallbackItinerary(
-        params,
-        `KTO OpenAPI returned fewer than ${routeItemCount} usable candidates`,
+      withItineraryUserContext(
+        request,
+        buildFallbackItinerary(
+          params,
+          `KTO OpenAPI returned fewer than ${routeItemCount} usable candidates`,
+        ),
       ),
       200,
     );
@@ -216,18 +225,24 @@ export async function handleItineraryRequest(request: Request): Promise<Response
       route,
     );
     return jsonResponse(
-      buildKtoEnnoiaItinerary(params, route, candidates.length, ennoiaPayload),
+      withItineraryUserContext(
+        request,
+        buildKtoEnnoiaItinerary(params, route, candidates.length, ennoiaPayload),
+      ),
       200,
     );
   } catch (error) {
     const failureDetails = ennoiaFailureDetailsFromError(error);
     logEnnoiaFailure(failureDetails);
     return jsonResponse(
-      buildKtoDirectItinerary(
-        params,
-        route,
-        candidates.length,
-        failureDetails,
+      withItineraryUserContext(
+        request,
+        buildKtoDirectItinerary(
+          params,
+          route,
+          candidates.length,
+          failureDetails,
+        ),
       ),
       200,
     );
@@ -755,11 +770,11 @@ function readEnnoiaErrorCode(text: string): string | null {
     const decoded = JSON.parse(text);
     if (!isRecord(decoded)) return null;
     const errorType = decoded.error_type;
-    if (typeof errorType === "string" && errorType.trim().isNotEmpty) {
+    if (typeof errorType === "string" && errorType.trim().length > 0) {
       return errorType.trim();
     }
     const errorCode = decoded.error_code;
-    if (typeof errorCode === "string" && errorCode.trim().isNotEmpty) {
+    if (typeof errorCode === "string" && errorCode.trim().length > 0) {
       if (errorCode.trim() === "40065") return "MCP_CONNECTION_REQUIRED";
       return errorCode.trim();
     }
@@ -1116,6 +1131,50 @@ function jsonResponse(body: unknown, status: number): Response {
       "Content-Type": "application/json; charset=utf-8",
     },
   });
+}
+
+function withItineraryUserContext(
+  request: Request,
+  itinerary: JsonRecord,
+): JsonRecord {
+  const userId = readJwtSub(request);
+  if (userId) {
+    return {
+      ...itinerary,
+      user_id: userId,
+      authenticated: true,
+    };
+  }
+
+  const sourceNote = readPayloadString(itinerary, ["source_note"]) ?? "";
+  const smokeNote = "Unauthenticated smoke: user_id may be null.";
+  return {
+    ...itinerary,
+    user_id: null,
+    authenticated: false,
+    source_note: sourceNote.includes(smokeNote)
+      ? sourceNote
+      : [sourceNote, smokeNote].filter((part) => part.length > 0).join(" "),
+  };
+}
+
+function readJwtSub(request: Request): string | null {
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+
+  try {
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + (4 - base64.length % 4) % 4,
+      "=",
+    );
+    const decoded = JSON.parse(atob(padded));
+    return typeof decoded.sub === "string" && decoded.sub ? decoded.sub : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 function toEnnoiaCandidate(candidate: KtoCandidate): JsonRecord {

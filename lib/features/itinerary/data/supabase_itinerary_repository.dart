@@ -23,13 +23,14 @@ class SupabaseItineraryRepository implements ItineraryRepository {
   Future<ItineraryPlan> fetchPlan() async {
     if (!config.isConfigured) return fallbackRepository.fetchPlan();
 
-    final latestPlan = await _fetchLatestPlanRow();
+    final userId = SupabaseAuthSession.userId;
+    final latestPlan = await _fetchLatestPlanRow(userId);
     if (latestPlan == null) return fallbackRepository.fetchPlan();
 
     final planId = _string(latestPlan, 'id');
     if (planId == null) return fallbackRepository.fetchPlan();
 
-    final itemRows = await _fetchPlannedItemRows(planId);
+    final itemRows = await _fetchPlannedItemRows(planId, userId);
     if (itemRows.isEmpty) return fallbackRepository.fetchPlan();
 
     return _planFromRows(latestPlan, itemRows);
@@ -39,20 +40,31 @@ class SupabaseItineraryRepository implements ItineraryRepository {
   Future<ItineraryPlan> savePlan(ItineraryPlan plan) async {
     if (!config.isConfigured) return fallbackRepository.savePlan(plan);
 
-    final planId = await _insertPlan(plan);
-    await _insertItems(plan.copyWith(persistedPlanId: planId));
+    final userId = SupabaseAuthSession.userId;
+    final planId = await _insertPlan(plan, userId);
+    await _insertItems(plan.copyWith(persistedPlanId: planId), userId);
     return plan.copyWith(persistedPlanId: planId);
   }
 
-  Future<String> _insertPlan(ItineraryPlan plan) async {
+  Future<String> _insertPlan(ItineraryPlan plan, String? userId) async {
     final uri = _restUri('itinerary_plans');
-    final response = await _post(uri, {
+    final row = {
       'title': plan.title,
       'date_label': plan.dateLabel,
       'source_type': plan.sourceType,
       'source_badge': plan.sourceBadge,
       'raw_json': _planJson(plan),
-    }, prefer: 'return=representation');
+      'user_id': ?userId,
+    };
+    var response = await _post(uri, row, prefer: 'return=representation');
+
+    if (userId != null && _isMissingColumn(response, 'user_id')) {
+      response = await _post(
+        uri,
+        Map<String, Object?>.from(row)..remove('user_id'),
+        prefer: 'return=representation',
+      );
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ItineraryPersistenceException(
@@ -71,15 +83,28 @@ class SupabaseItineraryRepository implements ItineraryRepository {
     );
   }
 
-  Future<void> _insertItems(ItineraryPlan plan) async {
+  Future<void> _insertItems(ItineraryPlan plan, String? userId) async {
     final planId = plan.persistedPlanId;
     if (planId == null || planId.isEmpty || plan.items.isEmpty) return;
 
-    final response = await _post(
+    final rows = plan.items
+        .map((item) => _itemRow(planId, item, userId))
+        .toList(growable: false);
+    var response = await _post(
       _restUri('itinerary_items'),
-      plan.items.map((item) => _itemRow(planId, item)).toList(growable: false),
+      rows,
       prefer: 'return=minimal',
     );
+
+    if (userId != null && _isMissingColumn(response, 'user_id')) {
+      response = await _post(
+        _restUri('itinerary_items'),
+        rows
+            .map((row) => Map<String, Object?>.from(row)..remove('user_id'))
+            .toList(growable: false),
+        prefer: 'return=minimal',
+      );
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ItineraryPersistenceException(
@@ -98,14 +123,11 @@ class SupabaseItineraryRepository implements ItineraryRepository {
     return _restUri(table).replace(queryParameters: query);
   }
 
-  Future<Map<String, Object?>?> _fetchLatestPlanRow() async {
-    final response = await _get(
-      _restUriWithQuery('itinerary_plans', {
-        'select': '*',
-        'order': 'created_at.desc',
-        'limit': '1',
-      }),
-    );
+  Future<Map<String, Object?>?> _fetchLatestPlanRow(String? userId) async {
+    var response = await _get(_latestPlanUri(userId));
+    if (userId != null && _isMissingColumn(response, 'user_id')) {
+      response = await _get(_latestPlanUri(null));
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ItineraryPersistenceException(
@@ -122,15 +144,12 @@ class SupabaseItineraryRepository implements ItineraryRepository {
 
   Future<List<Map<String, Object?>>> _fetchPlannedItemRows(
     String planId,
+    String? userId,
   ) async {
-    final response = await _get(
-      _restUriWithQuery('itinerary_items', {
-        'plan_id': 'eq.$planId',
-        'status': 'eq.planned',
-        'select': '*',
-        'order': 'sort_order.asc,created_at.asc',
-      }),
-    );
+    var response = await _get(_plannedItemsUri(planId, userId));
+    if (userId != null && _isMissingColumn(response, 'user_id')) {
+      response = await _get(_plannedItemsUri(planId, null));
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ItineraryPersistenceException(
@@ -262,9 +281,33 @@ class SupabaseItineraryRepository implements ItineraryRepository {
     };
   }
 
-  Map<String, Object?> _itemRow(String planId, ItineraryItem item) {
+  Uri _latestPlanUri(String? userId) {
+    return _restUriWithQuery('itinerary_plans', {
+      'select': '*',
+      if (userId != null) 'user_id': 'eq.$userId',
+      'order': 'created_at.desc',
+      'limit': '1',
+    });
+  }
+
+  Uri _plannedItemsUri(String planId, String? userId) {
+    return _restUriWithQuery('itinerary_items', {
+      'plan_id': 'eq.$planId',
+      'user_id': ?(userId == null ? null : 'eq.$userId'),
+      'status': 'eq.planned',
+      'select': '*',
+      'order': 'sort_order.asc,created_at.asc',
+    });
+  }
+
+  Map<String, Object?> _itemRow(
+    String planId,
+    ItineraryItem item,
+    String? userId,
+  ) {
     return {
       'plan_id': planId,
+      'user_id': ?userId,
       'local_item_id': item.id,
       'sort_order': item.order,
       'time_label': item.time,
@@ -324,6 +367,14 @@ class SupabaseItineraryRepository implements ItineraryRepository {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
     return slug.isEmpty ? 'itinerary-item' : slug;
+  }
+
+  static bool _isMissingColumn(http.Response response, String columnName) {
+    if (response.statusCode < 400) return false;
+    final body = response.body.toLowerCase();
+    final column = columnName.toLowerCase();
+    return body.contains(column) &&
+        (body.contains('column') || body.contains('schema cache'));
   }
 }
 

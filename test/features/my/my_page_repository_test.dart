@@ -12,7 +12,9 @@ void main() {
 
   test('SupabaseMyPageRepository maps REST data into a summary', () async {
     SupabaseAuthSession.updateAccessToken('user-token');
+    final requests = <http.Request>[];
     final client = MockClient((request) async {
+      requests.add(request);
       if (request.url.path.endsWith('/auth/v1/user')) {
         return _json({
           'id': 'user-1',
@@ -53,6 +55,7 @@ void main() {
             'title': 'Busan low-crowd route',
             'source_badge': 'KTO OpenAPI + ennoia',
             'summary': 'Quiet route with markets and culture.',
+            'user_id': null,
             'raw_json': {'time_saved': '2h'},
             'created_at': '2026-06-02T00:00:00Z',
           },
@@ -112,7 +115,70 @@ void main() {
     expect(summary.cultureGuides.single.sourceBadge, 'Culture DB');
     expect(summary.cultureGuides.single.koreanPhrase, 'Make a quiet wish');
     expect(summary.retripEvents.single.originalPlaceName, 'Cafe Myeong');
+
+    final planRequests = requests
+        .where((request) => request.url.path.endsWith('/itinerary_plans'))
+        .toList(growable: false);
+    expect(planRequests, isNotEmpty);
+    for (final request in planRequests) {
+      expect(request.url.query, contains('user_id=eq.user-1'));
+    }
   });
+
+  test(
+    'SupabaseMyPageRepository handles missing itinerary user_id column',
+    () async {
+      SupabaseAuthSession.updateAccessToken('user-token');
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/auth/v1/user')) {
+          return _json({
+            'id': 'user-1',
+            'email': 'ari@example.com',
+            'user_metadata': const <String, Object?>{},
+          });
+        }
+
+        final table = request.url.pathSegments.last;
+        if (table == 'itinerary_plans' &&
+            request.url.query.contains('user_id=eq.user-1')) {
+          return http.Response(
+            jsonEncode({
+              'message':
+                  'column itinerary_plans.user_id does not exist in schema cache',
+            }),
+            400,
+          );
+        }
+        if (request.headers['Range'] == '0-0') {
+          return _count(0);
+        }
+
+        return switch (table) {
+          'profiles' => _json([]),
+          'trip_preferences' => _json([]),
+          'saved_places' => _json([]),
+          'culture_scan_records' => _json([]),
+          'retrip_events' => _json([]),
+          _ => _json([]),
+        };
+      });
+
+      final repository = SupabaseMyPageRepository(
+        config: const SupabaseConfig(
+          url: 'https://project.supabase.co',
+          anonKey: 'anon-key',
+        ),
+        client: client,
+      );
+
+      final summary = await repository.fetchSummary();
+
+      expect(summary.localOnly, isFalse);
+      expect(summary.savedPlansCount, 0);
+      expect(summary.itineraries, isEmpty);
+      expect(summary.errorMessage, 'Some My Page data could not be loaded.');
+    },
+  );
 
   test(
     'SupabaseMyPageRepository returns local mode when not configured',

@@ -56,7 +56,13 @@ class SupabaseMyPageRepository extends MyPageRepository {
         _fetchLatestPreferences,
         const <String, Object?>{},
       );
-      final planCount = await safe(() => _countRows('itinerary_plans'), 0);
+      final planOwnershipFilter = userId.isEmpty
+          ? const <String, String>{}
+          : {'user_id': 'eq.$userId'};
+      final planCount = await safe(
+        () => _countRows('itinerary_plans', planOwnershipFilter),
+        0,
+      );
       final savedPlacesCount = await safe(() => _countRows('saved_places'), 0);
       final cultureScansCount = await safe(
         () => _countRows('culture_scan_records'),
@@ -64,7 +70,7 @@ class SupabaseMyPageRepository extends MyPageRepository {
       );
       final retripCount = await safe(() => _countRows('retrip_events'), 0);
       final itineraries = await safe(
-        _fetchItineraryPreviews,
+        () => _fetchItineraryPreviews(userId),
         const <MyItineraryPlanPreview>[],
       );
       final savedPlaces = await safe(
@@ -103,7 +109,8 @@ class SupabaseMyPageRepository extends MyPageRepository {
       final level = _levelForXp(xp);
       final xpTarget = _targetForLevel(level);
       final minutesSaved =
-          await safe(_fetchTimeSavedMinutes, 0) ?? (effectivePlanCount * 35);
+          await safe(() => _fetchTimeSavedMinutes(userId), 0) ??
+          (effectivePlanCount * 35);
 
       return MyPageSummary(
         displayName:
@@ -191,9 +198,12 @@ class SupabaseMyPageRepository extends MyPageRepository {
     });
   }
 
-  Future<List<MyItineraryPlanPreview>> _fetchItineraryPreviews() async {
+  Future<List<MyItineraryPlanPreview>> _fetchItineraryPreviews(
+    String userId,
+  ) async {
     final rows = await _fetchRows('itinerary_plans', {
       'select': '*',
+      if (userId.isNotEmpty) 'user_id': 'eq.$userId',
       'order': 'created_at.desc',
       'limit': '8',
     });
@@ -206,7 +216,7 @@ class SupabaseMyPageRepository extends MyPageRepository {
     var itemsByPlan = const <String, List<String>>{};
     if (planIds.isNotEmpty) {
       try {
-        itemsByPlan = await _fetchItineraryItemNames(planIds);
+        itemsByPlan = await _fetchItineraryItemNames(planIds, userId);
       } catch (_) {
         itemsByPlan = const <String, List<String>>{};
       }
@@ -245,12 +255,9 @@ class SupabaseMyPageRepository extends MyPageRepository {
 
   Future<Map<String, List<String>>> _fetchItineraryItemNames(
     List<String> planIds,
+    String userId,
   ) async {
-    final rows = await _fetchRows('itinerary_items', {
-      'select': '*',
-      'plan_id': 'in.(${planIds.join(',')})',
-      'order': 'sort_order.asc,created_at.asc',
-    });
+    final rows = await _fetchItineraryItemRows(planIds, userId);
 
     final result = <String, List<String>>{};
     for (final row in rows) {
@@ -260,6 +267,31 @@ class SupabaseMyPageRepository extends MyPageRepository {
       result.putIfAbsent(planId, () => []).add(placeName);
     }
     return result;
+  }
+
+  Future<List<Map<String, Object?>>> _fetchItineraryItemRows(
+    List<String> planIds,
+    String userId,
+  ) async {
+    final query = {
+      'select': '*',
+      'plan_id': 'in.(${planIds.join(',')})',
+      if (userId.isNotEmpty) 'user_id': 'eq.$userId',
+      'order': 'sort_order.asc,created_at.asc',
+    };
+
+    try {
+      return await _fetchRows('itinerary_items', query);
+    } catch (error) {
+      if (userId.isNotEmpty && _looksLikeMissingColumn(error, 'user_id')) {
+        return _fetchRows('itinerary_items', {
+          'select': '*',
+          'plan_id': 'in.(${planIds.join(',')})',
+          'order': 'sort_order.asc,created_at.asc',
+        });
+      }
+      rethrow;
+    }
   }
 
   Future<List<MySavedPlacePreview>> _fetchSavedPlacePreviews() async {
@@ -348,9 +380,10 @@ class SupabaseMyPageRepository extends MyPageRepository {
         .toList(growable: false);
   }
 
-  Future<int?> _fetchTimeSavedMinutes() async {
+  Future<int?> _fetchTimeSavedMinutes(String userId) async {
     final rows = await _fetchRows('itinerary_plans', {
       'select': '*',
+      if (userId.isNotEmpty) 'user_id': 'eq.$userId',
       'order': 'created_at.desc',
       'limit': '25',
     });
@@ -360,13 +393,18 @@ class SupabaseMyPageRepository extends MyPageRepository {
     return minutes == 0 ? null : minutes;
   }
 
-  Future<int> _countRows(String table) async {
+  Future<int> _countRows(
+    String table, [
+    Map<String, String> filters = const {},
+  ]) async {
     final response = await _get(
-      _restUri(table, {'select': '*'}),
+      _restUri(table, {'select': '*', ...filters}),
       extraHeaders: const {'Prefer': 'count=exact', 'Range': '0-0'},
     );
     if (!_isSuccess(response.statusCode)) {
-      throw MyPageRepositoryException('Unable to count $table.');
+      throw MyPageRepositoryException(
+        'Unable to count $table: ${response.body}',
+      );
     }
     return _countFromContentRange(response.headers['content-range']) ??
         _decodeList(response.body).length;
@@ -386,7 +424,9 @@ class SupabaseMyPageRepository extends MyPageRepository {
   ) async {
     final response = await _get(_restUri(table, query));
     if (!_isSuccess(response.statusCode)) {
-      throw MyPageRepositoryException('Unable to load $table.');
+      throw MyPageRepositoryException(
+        'Unable to load $table: ${response.body}',
+      );
     }
     return _decodeList(response.body)
         .whereType<Map>()
@@ -556,6 +596,13 @@ class SupabaseMyPageRepository extends MyPageRepository {
   static int _levelForXp(int xp) => (xp ~/ 1500 + 1).clamp(1, 9);
 
   static int _targetForLevel(int level) => (level * 1500).clamp(1000, 12000);
+
+  static bool _looksLikeMissingColumn(Object error, String columnName) {
+    final text = error.toString().toLowerCase();
+    final column = columnName.toLowerCase();
+    return text.contains(column) &&
+        (text.contains('column') || text.contains('schema cache'));
+  }
 }
 
 class MyPageRepositoryException implements Exception {

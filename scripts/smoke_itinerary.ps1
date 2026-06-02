@@ -1,6 +1,7 @@
 param(
   [string]$SupabaseUrl = $env:SUPABASE_URL,
-  [string]$SupabaseAnonKey = $env:SUPABASE_ANON_KEY
+  [string]$SupabaseAnonKey = $env:SUPABASE_ANON_KEY,
+  [string]$AccessToken = $env:SUPABASE_ACCESS_TOKEN
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,13 +59,26 @@ $profiles = @(
   }
 )
 
+$authorizationToken = if ([string]::IsNullOrWhiteSpace($AccessToken)) {
+  $SupabaseAnonKey
+} else {
+  $AccessToken
+}
+
 $headers = @{
   apikey = $SupabaseAnonKey
-  Authorization = "Bearer $SupabaseAnonKey"
+  Authorization = "Bearer $authorizationToken"
   "Content-Type" = "application/json"
 }
 $endpoint = $SupabaseUrl.TrimEnd("/") + "/functions/v1/ennoia-itinerary"
 $routeSignatures = @()
+$shouldPersistUserId = -not [string]::IsNullOrWhiteSpace($AccessToken)
+
+if ($shouldPersistUserId) {
+  Write-Host "Authenticated smoke: itinerary user_id should be persisted."
+} else {
+  Write-Host "Unauthenticated smoke: user_id may be null."
+}
 
 function First-TextValue {
   param(
@@ -84,10 +98,12 @@ function First-TextValue {
 foreach ($profile in $profiles) {
   $env:NORIGO_SMOKE_ENDPOINT = $endpoint
   $env:NORIGO_SMOKE_ANON_KEY = $SupabaseAnonKey
+  $env:NORIGO_SMOKE_AUTH_TOKEN = $authorizationToken
   $env:NORIGO_SMOKE_BODY = $profile.body | ConvertTo-Json -Depth 8 -Compress
   $responseText = & node -e @"
 const endpoint = process.env.NORIGO_SMOKE_ENDPOINT;
 const anonKey = process.env.NORIGO_SMOKE_ANON_KEY;
+const authToken = process.env.NORIGO_SMOKE_AUTH_TOKEN || anonKey;
 const body = process.env.NORIGO_SMOKE_BODY;
 
 (async () => {
@@ -95,7 +111,7 @@ const body = process.env.NORIGO_SMOKE_BODY;
     method: 'POST',
     headers: {
       apikey: anonKey,
-      authorization: 'Bearer ' + anonKey,
+      authorization: 'Bearer ' + authToken,
       'content-type': 'application/json',
     },
     body,
@@ -134,6 +150,8 @@ const body = process.env.NORIGO_SMOKE_BODY;
   Write-Host "source_badge: $($response.source_badge)"
   Write-Host "itemCount: $($items.Count)"
   Write-Host "ktoContentIdCount: $($contentIds.Count)"
+  Write-Host "authenticated: $($response.authenticated)"
+  Write-Host "userIdReturned: $(-not [string]::IsNullOrWhiteSpace([string]$response.user_id))"
   Write-Host "place names: $($names -join ', ')"
   Write-Host "content IDs: $($contentIds -join ', ')"
 }
