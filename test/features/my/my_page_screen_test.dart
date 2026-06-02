@@ -145,8 +145,10 @@ void main() {
 
     expect(find.text('Bulguksa'), findsOneWidget);
     expect(find.textContaining('temple stone stack'), findsOneWidget);
+    expect(find.textContaining('vision_confirmed'), findsOneWidget);
     expect(find.textContaining('Culture DB'), findsOneWidget);
     expect(find.textContaining('소원 성취하세요'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 
@@ -189,8 +191,12 @@ const _summary = MyPageSummary(
       createdAtLabel: '2026-06-01',
       locationName: 'Bulguksa',
       detectedObject: 'temple_stone_stack',
+      detectedObjectSource: 'vision_confirmed',
       sourceBadge: 'Culture DB',
       koreanPhrase: '소원 성취하세요',
+      imagePath: 'user-1/scan.jpg',
+      imageUrl:
+          'https://project.supabase.co/storage/v1/object/authenticated/culture-scans/user-1/scan.jpg',
     ),
   ],
   retripEvents: [

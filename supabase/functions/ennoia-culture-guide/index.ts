@@ -7,6 +7,11 @@ export type CultureRequest = {
   user_intent: string;
   user_question?: string | null;
   image_path?: string | null;
+  detected_object_source?: string | null;
+  vision_confidence?: number | string | null;
+  vision_alternatives?: unknown;
+  vision_source_type?: string | null;
+  vision_source_badge?: string | null;
 };
 
 export type JsonRecord = Record<string, unknown>;
@@ -59,6 +64,12 @@ type CultureGuideResponse = {
   place_type: string;
   detected_object: string;
   korean_keyword: string;
+  image_path?: string | null;
+  detected_object_source?: string;
+  vision_confidence?: number | null;
+  vision_alternatives?: unknown[] | null;
+  vision_source_type?: string | null;
+  vision_source_badge?: string | null;
 };
 
 const corsHeaders = {
@@ -244,6 +255,13 @@ function normalizeRequest(params: CultureRequest): CultureRequest {
     ),
     user_question: cleanOptional(params.user_question),
     image_path: cleanOptional(params.image_path),
+    detected_object_source: normalizeDetectedObjectSource(
+      params.detected_object_source,
+    ),
+    vision_confidence: normalizeNullableConfidence(params.vision_confidence),
+    vision_alternatives: normalizeVisionAlternatives(params.vision_alternatives),
+    vision_source_type: cleanOptional(params.vision_source_type),
+    vision_source_badge: cleanOptional(params.vision_source_badge),
   };
 }
 
@@ -745,13 +763,31 @@ async function withPersistence(
   params: CultureRequest,
   response: CultureGuideResponse,
 ): Promise<CultureGuideResponse> {
-  const recordId = await saveScanRecord(request, params, response).catch(
+  const enrichedResponse = withVisionMetadata(params, response);
+  const recordId = await saveScanRecord(request, params, enrichedResponse).catch(
     () => "",
   );
   return {
-    ...response,
+    ...enrichedResponse,
     persisted: recordId.length > 0,
     cultureScanRecordId: recordId,
+  };
+}
+
+function withVisionMetadata(
+  params: CultureRequest,
+  response: CultureGuideResponse,
+): CultureGuideResponse {
+  return {
+    ...response,
+    image_path: params.image_path ?? null,
+    detected_object_source: normalizeDetectedObjectSource(
+      params.detected_object_source,
+    ),
+    vision_confidence: normalizeNullableConfidence(params.vision_confidence),
+    vision_alternatives: normalizeVisionAlternatives(params.vision_alternatives),
+    vision_source_type: cleanOptional(params.vision_source_type),
+    vision_source_badge: cleanOptional(params.vision_source_badge),
   };
 }
 
@@ -778,6 +814,9 @@ async function saveScanRecord(
     ennoia_succeeded: response.ennoia_succeeded,
     response_json: response,
     image_path: params.image_path ?? null,
+    detected_object_source: response.detected_object_source ?? "manual",
+    vision_confidence: response.vision_confidence ?? null,
+    vision_alternatives: response.vision_alternatives ?? null,
   };
 
   const url = new URL(
@@ -1067,6 +1106,38 @@ function clean(value: unknown, fallback: string): string {
 
 function cleanOptional(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeDetectedObjectSource(value: unknown): string {
+  const normalized = clean(value, "manual").toLowerCase();
+  if (
+    [
+      "manual",
+      "vision_suggested",
+      "vision_confirmed",
+      "fallback_default",
+    ].includes(normalized)
+  ) {
+    return normalized;
+  }
+  return "manual";
+}
+
+function normalizeNullableConfidence(value: unknown): number | null {
+  const parsed = typeof value === "number"
+    ? value
+    : typeof value === "string"
+    ? Number(value)
+    : Number.NaN;
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.min(1, parsed));
+}
+
+function normalizeVisionAlternatives(value: unknown): unknown[] | null {
+  if (!Array.isArray(value)) return null;
+  return value
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .slice(0, 5);
 }
 
 function readString(record: unknown, key: string): string {

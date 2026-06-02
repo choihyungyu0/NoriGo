@@ -22,6 +22,11 @@ class CultureGuideResult {
     required this.placeType,
     required this.detectedObject,
     required this.koreanKeyword,
+    this.imagePath,
+    this.detectedObjectSource = 'manual',
+    this.visionConfidence,
+    this.visionSourceType,
+    this.visionSourceBadge,
   });
 
   final String question;
@@ -43,6 +48,11 @@ class CultureGuideResult {
   final String placeType;
   final String detectedObject;
   final String koreanKeyword;
+  final String? imagePath;
+  final String detectedObjectSource;
+  final double? visionConfidence;
+  final String? visionSourceType;
+  final String? visionSourceBadge;
 
   bool get isLocalFallback => sourceType == 'culture_local';
 
@@ -104,6 +114,23 @@ class CultureGuideResult {
         'korean_keyword',
         'koreanKeyword',
       ], ''),
+      imagePath: _nullableString(data, const ['image_path', 'imagePath']),
+      detectedObjectSource: _string(data, const [
+        'detected_object_source',
+        'detectedObjectSource',
+      ], 'manual'),
+      visionConfidence: _nullableDouble(data, const [
+        'vision_confidence',
+        'visionConfidence',
+      ]),
+      visionSourceType: _nullableString(data, const [
+        'vision_source_type',
+        'visionSourceType',
+      ]),
+      visionSourceBadge: _nullableString(data, const [
+        'vision_source_badge',
+        'visionSourceBadge',
+      ]),
     );
   }
 
@@ -132,6 +159,11 @@ class CultureGuideResult {
       placeType: request.placeType,
       detectedObject: request.detectedObject,
       koreanKeyword: request.koreanKeyword,
+      imagePath: request.imagePath,
+      detectedObjectSource: request.detectedObjectSource,
+      visionConfidence: request.visionConfidence,
+      visionSourceType: request.visionSourceType,
+      visionSourceBadge: request.visionSourceBadge,
     );
   }
 
@@ -162,6 +194,11 @@ class CultureGuideResult {
       placeType: request.placeType,
       detectedObject: request.detectedObject,
       koreanKeyword: request.koreanKeyword,
+      imagePath: request.imagePath,
+      detectedObjectSource: request.detectedObjectSource,
+      visionConfidence: request.visionConfidence,
+      visionSourceType: request.visionSourceType,
+      visionSourceBadge: request.visionSourceBadge,
     );
   }
 
@@ -189,6 +226,12 @@ class CultureGuideResult {
         .join(' ');
   }
 
+  String get displaySourceBadge {
+    final visionBadge = visionSourceBadge?.trim();
+    if (visionBadge == null || visionBadge.isEmpty) return sourceBadge;
+    return '$visionBadge · $sourceBadge';
+  }
+
   Map<String, Object?> toJson() {
     return {
       'question': question,
@@ -210,6 +253,11 @@ class CultureGuideResult {
       'place_type': placeType,
       'detected_object': detectedObject,
       'korean_keyword': koreanKeyword,
+      if (imagePath != null) 'image_path': imagePath,
+      'detected_object_source': detectedObjectSource,
+      if (visionConfidence != null) 'vision_confidence': visionConfidence,
+      if (visionSourceType != null) 'vision_source_type': visionSourceType,
+      if (visionSourceBadge != null) 'vision_source_badge': visionSourceBadge,
     };
   }
 
@@ -252,6 +300,15 @@ class CultureGuideResult {
     return false;
   }
 
+  static String? _nullableString(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+      if (value is num) return value.toString();
+    }
+    return null;
+  }
+
   static double _double(
     Map<String, Object?> json,
     List<String> keys,
@@ -266,5 +323,17 @@ class CultureGuideResult {
       }
     }
     return fallback;
+  }
+
+  static double? _nullableDouble(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
   }
 }

@@ -71,7 +71,9 @@ void main() {
           {
             'location_name': 'Bulguksa',
             'detected_object': 'temple_stone_stack',
+            'detected_object_source': 'vision_confirmed',
             'source_badge': 'Culture DB',
+            'image_path': 'user-1/scan.jpg',
             'response_json': {'korean_phrase': 'Make a quiet wish'},
             'created_at': '2026-06-01T00:00:00Z',
           },
@@ -112,8 +114,17 @@ void main() {
     ]);
     expect(summary.cultureGuides.single.locationName, 'Bulguksa');
     expect(summary.cultureGuides.single.detectedObject, 'temple_stone_stack');
+    expect(
+      summary.cultureGuides.single.detectedObjectSource,
+      'vision_confirmed',
+    );
     expect(summary.cultureGuides.single.sourceBadge, 'Culture DB');
     expect(summary.cultureGuides.single.koreanPhrase, 'Make a quiet wish');
+    expect(summary.cultureGuides.single.imagePath, 'user-1/scan.jpg');
+    expect(
+      summary.cultureGuides.single.imageUrl,
+      'https://project.supabase.co/storage/v1/object/authenticated/culture-scans/user-1/scan.jpg',
+    );
     expect(summary.retripEvents.single.originalPlaceName, 'Cafe Myeong');
 
     final planRequests = requests

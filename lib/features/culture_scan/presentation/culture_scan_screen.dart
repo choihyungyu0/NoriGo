@@ -60,11 +60,37 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
 
   Future<void> _scanCulture() async {
     if (_controller.scanStatus == CultureScanStatus.scanning) return;
-    final selection = await _showCultureScanSheet();
+    final baseRequest = _controller.defaultRequest;
+    final draft = await _controller.prepareVisionScan(baseRequest);
     if (!mounted) return;
-    final request =
-        selection?.toRequest(_controller.selectedLanguage) ??
-        _controller.defaultRequest;
+
+    CultureScanRequest? request;
+    if (draft.visionResult.isLowConfidence) {
+      final selection = await _showCultureScanSheet();
+      if (!mounted) return;
+      request = selection
+          ?.toRequest(_controller.selectedLanguage)
+          .copyWith(imagePath: draft.imagePath);
+    } else {
+      final useVision = await _showVisionConfirmationSheet(draft);
+      if (!mounted) return;
+      if (useVision == true) {
+        request = draft.visionResult.toCultureScanRequest(
+          base: baseRequest.copyWith(
+            userLanguage: _controller.selectedLanguage,
+          ),
+          imagePath: draft.imagePath,
+          detectedObjectSource: 'vision_confirmed',
+        );
+      } else if (useVision == false) {
+        final selection = await _showCultureScanSheet();
+        if (!mounted) return;
+        request = selection
+            ?.toRequest(_controller.selectedLanguage)
+            .copyWith(imagePath: draft.imagePath);
+      }
+    }
+    if (request == null) return;
     await _controller.runCultureGuide(request);
   }
 
@@ -150,6 +176,16 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
       isScrollControlled: true,
       backgroundColor: _ScanColors.white,
       builder: (context) => const _CultureScanContextSheet(),
+    );
+  }
+
+  Future<bool?> _showVisionConfirmationSheet(CultureVisionScanDraft draft) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: _ScanColors.white,
+      builder: (context) => _VisionConfirmationSheet(draft: draft),
     );
   }
 
@@ -992,14 +1028,15 @@ class _AgentSourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReal = label == 'Culture DB + ennoia' || label == 'Culture DB';
-    final isLimited = label == 'Travel behavior only';
+    final isReal =
+        label.contains('Culture DB + ennoia') || label.contains('Culture DB');
+    final isLimited = label.contains('Travel behavior only');
     final isReady = label == 'Ready to scan';
     final isLocal = label == 'Local guide';
-    final isEnnoia = label == 'ennoia';
+    final isEnnoia = label.contains('ennoia');
     return Container(
       height: 26 * scale,
-      constraints: BoxConstraints(maxWidth: 116 * scale),
+      constraints: BoxConstraints(maxWidth: 176 * scale),
       padding: EdgeInsets.symmetric(horizontal: 8 * scale),
       alignment: Alignment.center,
       decoration: BoxDecoration(
@@ -1483,6 +1520,138 @@ class _CultureScanContextSheetState extends State<_CultureScanContextSheet> {
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VisionConfirmationSheet extends StatelessWidget {
+  const _VisionConfirmationSheet({required this.draft});
+
+  final CultureVisionScanDraft draft;
+
+  @override
+  Widget build(BuildContext context) {
+    final vision = draft.visionResult;
+    final confidence = '${(vision.confidence * 100).round()}%';
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final alternatives = vision.alternatives
+        .where((item) => item.detectedObject != vision.detectedObject)
+        .take(3)
+        .toList(growable: false);
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(22, 2, 22, 22 + bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'I found this situation',
+              style: TextStyle(
+                color: _ScanColors.deepText,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F4FF),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE0D7FF)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.center_focus_strong_rounded,
+                    color: _ScanColors.purple,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          vision.label,
+                          style: const TextStyle(
+                            color: _ScanColors.deepText,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${vision.sourceBadge} · confidence $confidence',
+                          style: const TextStyle(
+                            color: _ScanColors.bodyText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (alternatives.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const _SheetLabel(text: 'Other possible matches'),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: alternatives
+                    .map(
+                      (item) => Chip(
+                        label: Text(
+                          '${item.label} ${(item.confidence * 100).round()}%',
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text('Change'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _ScanColors.purple,
+                      side: const BorderSide(color: _ScanColors.purple),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    key: const ValueKey('useVisionCandidateButton'),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('Use this'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _ScanColors.purple,
+                      foregroundColor: _ScanColors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

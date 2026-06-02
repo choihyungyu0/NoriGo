@@ -8,6 +8,7 @@ import 'package:norigo/features/culture_scan/application/culture_image_capture.d
 import 'package:norigo/features/culture_scan/data/culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
+import 'package:norigo/features/culture_scan/domain/culture_vision_result.dart';
 
 class SupabaseCultureScanRepository extends CultureScanRepository {
   const SupabaseCultureScanRepository({
@@ -28,7 +29,6 @@ class SupabaseCultureScanRepository extends CultureScanRepository {
 
     final timestamp = DateTime.now().toUtc().millisecondsSinceEpoch;
     final objectPath = '$userId/$timestamp.${capture.extension}';
-    final storedPath = 'culture-scans/$objectPath';
     final uri = Uri.parse(
       '${config.url.replaceAll(RegExp(r'/+$'), '')}'
       '/storage/v1/object/culture-scans/$objectPath',
@@ -48,7 +48,54 @@ class SupabaseCultureScanRepository extends CultureScanRepository {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return null;
     }
-    return storedPath;
+    return objectPath;
+  }
+
+  @override
+  Future<CultureVisionResult> detectCultureObject(
+    CultureVisionRequest request,
+  ) async {
+    if (!config.isConfigured) {
+      return CultureVisionResult.heuristic(request);
+    }
+
+    final uri = Uri.parse(
+      '${config.url.replaceAll(RegExp(r'/+$'), '')}'
+      '/functions/v1/culture-vision-detect',
+    );
+    final authorizationToken =
+        SupabaseAuthSession.accessToken ?? config.anonKey;
+    final headers = {
+      'Authorization': 'Bearer $authorizationToken',
+      'apikey': config.anonKey,
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+    final body = jsonEncode(request.toJson());
+    final client = _client;
+    final http.Response response;
+    try {
+      response =
+          await (client != null
+                  ? client.post(uri, headers: headers, body: body)
+                  : http.post(uri, headers: headers, body: body))
+              .timeout(const Duration(seconds: 18));
+    } catch (_) {
+      return CultureVisionResult.heuristic(request);
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return CultureVisionResult.heuristic(request);
+    }
+
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is Map) {
+        return CultureVisionResult.fromJson(Map<String, Object?>.from(decoded));
+      }
+    } catch (_) {
+      return CultureVisionResult.heuristic(request);
+    }
+    return CultureVisionResult.heuristic(request);
   }
 
   @override

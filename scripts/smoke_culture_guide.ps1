@@ -219,6 +219,9 @@ foreach ($case in $cases) {
   Write-Host "persisted: $($payload.persisted)"
   Write-Host "cultureScanRecordId: $($payload.cultureScanRecordId)"
   Write-Host "scope_limited: $($payload.scope_limited)"
+  Write-Host "detected_object_source: $($payload.detected_object_source)"
+  Write-Host "vision_confidence: $($payload.vision_confidence)"
+  Write-Host "image_path_exists: $(-not [string]::IsNullOrWhiteSpace([string]$payload.image_path))"
   if ($DebugDiagnostics -and $payload.diagnostics) {
     Write-Host "diagnostics: $(($payload.diagnostics | ConvertTo-Json -Compress))"
   }

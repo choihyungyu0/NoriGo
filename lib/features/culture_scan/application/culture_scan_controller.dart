@@ -9,6 +9,7 @@ import 'package:norigo/features/culture_scan/data/supabase_culture_scan_reposito
 import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
+import 'package:norigo/features/culture_scan/domain/culture_vision_result.dart';
 
 enum CultureCameraStatus { initial, loading, ready, unavailable }
 
@@ -57,7 +58,7 @@ class CultureScanController extends ChangeNotifier {
 
   String get ennoiaSourceLabel => sourceBadge;
 
-  String get sourceBadge => _result?.sourceBadge ?? 'Ready to scan';
+  String get sourceBadge => _result?.displaySourceBadge ?? 'Ready to scan';
 
   String get sourceType => _result?.sourceType ?? 'culture_ready';
 
@@ -168,7 +169,9 @@ class CultureScanController extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      final imagePath = await _captureAndUploadScanImage();
+      final imagePath = effectiveRequest.imagePath?.trim().isNotEmpty == true
+          ? effectiveRequest.imagePath
+          : await _captureAndUploadScanImage();
       if (imagePath != null && imagePath.trim().isNotEmpty) {
         effectiveRequest = effectiveRequest.copyWith(imagePath: imagePath);
       }
@@ -196,6 +199,55 @@ class CultureScanController extends ChangeNotifier {
     }
 
     _safeNotifyListeners();
+  }
+
+  Future<CultureVisionScanDraft> prepareVisionScan(
+    CultureScanRequest request,
+  ) async {
+    final effectiveRequest = request.copyWith(userLanguage: _selectedLanguage);
+    _scanStatus = CultureScanStatus.scanning;
+    _friendlyMessage = null;
+    _safeNotifyListeners();
+
+    String? imagePath;
+    CultureVisionResult visionResult;
+    try {
+      imagePath = await _captureAndUploadScanImage();
+      final visionRequest = CultureVisionRequest(
+        imagePath: imagePath,
+        currentLocation: effectiveRequest.currentLocation,
+        userLanguage: effectiveRequest.userLanguage,
+        hintPlaceType: effectiveRequest.placeType,
+      );
+      visionResult = await _repository
+          .detectCultureObject(visionRequest)
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => CultureVisionResult.heuristic(visionRequest),
+          );
+    } catch (error) {
+      developer.log(
+        'Culture vision detection skipped.',
+        name: 'CultureScanController',
+        error: error.runtimeType,
+      );
+      final fallbackRequest = CultureVisionRequest(
+        imagePath: imagePath,
+        currentLocation: effectiveRequest.currentLocation,
+        userLanguage: effectiveRequest.userLanguage,
+        hintPlaceType: effectiveRequest.placeType,
+      );
+      visionResult = CultureVisionResult.heuristic(fallbackRequest);
+    }
+
+    if (!_disposed) {
+      _scanStatus = CultureScanStatus.ready;
+      _safeNotifyListeners();
+    }
+    return CultureVisionScanDraft(
+      imagePath: imagePath,
+      visionResult: visionResult,
+    );
   }
 
   Future<String?> _captureAndUploadScanImage() async {
@@ -229,4 +281,14 @@ class CultureScanController extends ChangeNotifier {
       notifyListeners();
     }
   }
+}
+
+class CultureVisionScanDraft {
+  const CultureVisionScanDraft({
+    required this.imagePath,
+    required this.visionResult,
+  });
+
+  final String? imagePath;
+  final CultureVisionResult visionResult;
 }

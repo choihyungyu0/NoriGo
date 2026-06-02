@@ -8,6 +8,7 @@ import 'package:norigo/features/culture_scan/application/culture_scan_controller
 import 'package:norigo/features/culture_scan/data/culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
+import 'package:norigo/features/culture_scan/domain/culture_vision_result.dart';
 
 void main() {
   test(
@@ -97,7 +98,7 @@ void main() {
 
   test('capture upload path is sent with the culture guide request', () async {
     final repository = _RecordingCultureScanRepository(
-      uploadResult: 'culture-scans/user-1/scan.jpg',
+      uploadResult: 'user-1/scan.jpg',
     );
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
@@ -108,7 +109,68 @@ void main() {
     await controller.scanCulture();
 
     expect(repository.uploadCount, 1);
-    expect(repository.lastRequest?.imagePath, 'culture-scans/user-1/scan.jpg');
+    expect(repository.lastRequest?.imagePath, 'user-1/scan.jpg');
+
+    controller.dispose();
+  });
+
+  test('image upload failure does not block culture guide call', () async {
+    final repository = _RecordingCultureScanRepository(uploadResult: null);
+    final controller = CultureScanController(
+      cameraService: const _CapturingCameraService(),
+      repository: repository,
+    );
+
+    await controller.initializeCamera();
+    await controller.scanCulture();
+
+    expect(repository.uploadCount, 1);
+    expect(repository.runCount, 1);
+    expect(repository.lastRequest?.imagePath, isNull);
+
+    controller.dispose();
+  });
+
+  test('vision-confirmed object is sent to culture guide request', () async {
+    final repository = _RecordingCultureScanRepository(
+      uploadResult: 'user-1/scan.jpg',
+      visionResult: const CultureVisionResult(
+        detectedObject: 'restaurant_call_bell',
+        placeType: 'restaurant',
+        confidence: 0.88,
+        alternatives: [
+          CultureVisionAlternative(
+            detectedObject: 'restaurant_call_bell',
+            placeType: 'restaurant',
+            label: 'Restaurant call bell',
+            confidence: 0.88,
+          ),
+        ],
+        needsConfirmation: true,
+        sourceType: 'vision_ai',
+        sourceBadge: 'Vision AI',
+      ),
+    );
+    final controller = CultureScanController(
+      cameraService: const _CapturingCameraService(),
+      repository: repository,
+    );
+
+    await controller.initializeCamera();
+    final draft = await controller.prepareVisionScan(controller.defaultRequest);
+    await controller.runCultureGuide(
+      draft.visionResult.toCultureScanRequest(
+        base: controller.defaultRequest,
+        imagePath: draft.imagePath,
+        detectedObjectSource: 'vision_confirmed',
+      ),
+    );
+
+    expect(repository.detectCount, 1);
+    expect(repository.lastRequest?.detectedObject, 'restaurant_call_bell');
+    expect(repository.lastRequest?.detectedObjectSource, 'vision_confirmed');
+    expect(repository.lastRequest?.visionConfidence, 0.88);
+    expect(repository.lastRequest?.imagePath, 'user-1/scan.jpg');
 
     controller.dispose();
   });
@@ -192,11 +254,13 @@ class _DelayedUnavailableCameraService implements CultureCameraService {
 }
 
 class _RecordingCultureScanRepository extends CultureScanRepository {
-  _RecordingCultureScanRepository({this.uploadResult});
+  _RecordingCultureScanRepository({this.uploadResult, this.visionResult});
 
   final String? uploadResult;
+  final CultureVisionResult? visionResult;
   int runCount = 0;
   int uploadCount = 0;
+  int detectCount = 0;
   CultureScanRequest? lastRequest;
 
   @override
@@ -216,6 +280,10 @@ class _RecordingCultureScanRepository extends CultureScanRepository {
       'place_type': request.placeType,
       'detected_object': request.detectedObject,
       'korean_keyword': request.koreanKeyword,
+      'detected_object_source': request.detectedObjectSource,
+      'vision_confidence': request.visionConfidence,
+      'vision_source_badge': request.visionSourceBadge,
+      'image_path': request.imagePath,
     });
   }
 
@@ -223,5 +291,13 @@ class _RecordingCultureScanRepository extends CultureScanRepository {
   Future<String?> uploadScanImage(CultureImageCapture capture) async {
     uploadCount++;
     return uploadResult;
+  }
+
+  @override
+  Future<CultureVisionResult> detectCultureObject(
+    CultureVisionRequest request,
+  ) async {
+    detectCount++;
+    return visionResult ?? await super.detectCultureObject(request);
   }
 }

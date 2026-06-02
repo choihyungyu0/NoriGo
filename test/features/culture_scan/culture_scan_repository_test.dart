@@ -8,6 +8,7 @@ import 'package:norigo/core/services/supabase_config.dart';
 import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
 import 'package:norigo/features/culture_scan/data/supabase_culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
+import 'package:norigo/features/culture_scan/domain/culture_vision_result.dart';
 
 void main() {
   tearDown(SupabaseAuthSession.clear);
@@ -25,6 +26,7 @@ void main() {
       'korean_keyword': '소원 성취',
       'user_intent': 'Understand local culture and etiquette',
       'user_question': 'Why is this here?',
+      'detected_object_source': 'manual',
     });
   });
 
@@ -217,9 +219,76 @@ void main() {
       ),
     );
 
-    expect(imagePath, startsWith('culture-scans/user-1/'));
+    expect(imagePath, startsWith('user-1/'));
     expect(imagePath, endsWith('.jpg'));
   });
+
+  test('vision detect calls Edge Function and parses suggestion', () async {
+    final repository = SupabaseCultureScanRepository(
+      config: const SupabaseConfig(
+        url: 'https://project.supabase.co',
+        anonKey: 'anon-key',
+      ),
+      client: MockClient((request) async {
+        expect(request.url.path, '/functions/v1/culture-vision-detect');
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        expect(body['image_path'], 'user-1/scan.jpg');
+        return _json({
+          'detected_object': 'restaurant_call_bell',
+          'place_type': 'restaurant',
+          'confidence': 0.82,
+          'alternatives': [
+            {
+              'detected_object': 'restaurant_call_bell',
+              'place_type': 'restaurant',
+              'label': 'Restaurant call bell',
+              'confidence': 0.82,
+            },
+          ],
+          'needs_confirmation': true,
+          'source_type': 'vision_ai',
+          'source_badge': 'Vision AI',
+        });
+      }),
+    );
+
+    final result = await repository.detectCultureObject(
+      const CultureVisionRequest(
+        imagePath: 'user-1/scan.jpg',
+        currentLocation: 'Korean restaurant',
+        userLanguage: 'English',
+        hintPlaceType: 'restaurant',
+      ),
+    );
+
+    expect(result.detectedObject, 'restaurant_call_bell');
+    expect(result.sourceBadge, 'Vision AI');
+    expect(result.confidence, 0.82);
+  });
+
+  test(
+    'vision detect falls back to heuristic when Edge Function fails',
+    () async {
+      final repository = SupabaseCultureScanRepository(
+        config: const SupabaseConfig(
+          url: 'https://project.supabase.co',
+          anonKey: 'anon-key',
+        ),
+        client: MockClient((request) async => http.Response('failed', 500)),
+      );
+
+      final result = await repository.detectCultureObject(
+        const CultureVisionRequest(
+          currentLocation: 'Seoul subway',
+          userLanguage: 'English',
+          hintPlaceType: 'subway',
+        ),
+      );
+
+      expect(result.detectedObject, 'subway_pregnant_seat');
+      expect(result.sourceType, 'vision_heuristic');
+    },
+  );
 }
 
 http.Response _json(Object body) {

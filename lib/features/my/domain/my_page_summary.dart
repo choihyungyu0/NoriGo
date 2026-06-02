@@ -178,8 +178,11 @@ class MyCultureGuidePreview {
     required this.createdAtLabel,
     this.locationName = '',
     this.detectedObject = '',
+    this.detectedObjectSource = '',
     this.sourceBadge = '',
     this.koreanPhrase = '',
+    this.imagePath,
+    this.imageUrl,
   });
 
   final String title;
@@ -187,8 +190,11 @@ class MyCultureGuidePreview {
   final String createdAtLabel;
   final String locationName;
   final String detectedObject;
+  final String detectedObjectSource;
   final String sourceBadge;
   final String koreanPhrase;
+  final String? imagePath;
+  final String? imageUrl;
 }
 
 class MyRetripEventPreview {

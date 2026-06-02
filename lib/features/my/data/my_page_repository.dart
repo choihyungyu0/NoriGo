@@ -344,18 +344,28 @@ class SupabaseMyPageRepository extends MyPageRepository {
               _string(responseJson['korean_phrase']) ??
               _string(row['korean_phrase']) ??
               '';
+          final detectedObjectSource =
+              _string(row['detected_object_source']) ??
+              _string(responseJson['detected_object_source']) ??
+              '';
+          final imagePath =
+              _string(row['image_path']) ?? _string(responseJson['image_path']);
           return MyCultureGuidePreview(
             title: locationName,
             subtitle: [
               detectedObject.replaceAll('_', ' '),
+              if (detectedObjectSource.isNotEmpty) detectedObjectSource,
               sourceBadge,
               if (koreanPhrase.isNotEmpty) koreanPhrase,
             ].join('\n'),
             createdAtLabel: _dateLabel(row['created_at']) ?? 'Saved',
             locationName: locationName,
             detectedObject: detectedObject,
+            detectedObjectSource: detectedObjectSource,
             sourceBadge: sourceBadge,
             koreanPhrase: koreanPhrase,
+            imagePath: imagePath,
+            imageUrl: _cultureScanImageUrl(imagePath),
           );
         })
         .toList(growable: false);
@@ -456,6 +466,24 @@ class SupabaseMyPageRepository extends MyPageRepository {
 
   Uri _restUri(String table, Map<String, String> query) {
     return Uri.parse('$_baseRest/$table').replace(queryParameters: query);
+  }
+
+  String? _cultureScanImageUrl(String? imagePath) {
+    final normalized = imagePath?.trim().replaceFirst(
+      RegExp(r'^culture-scans/'),
+      '',
+    );
+    if (normalized == null ||
+        normalized.isEmpty ||
+        normalized.contains('..') ||
+        normalized.startsWith('/')) {
+      return null;
+    }
+    final encodedPath = normalized
+        .split('/')
+        .map(Uri.encodeComponent)
+        .join('/');
+    return '${_baseUrl()}/storage/v1/object/authenticated/culture-scans/$encodedPath';
   }
 
   String get _baseRest => '${_baseUrl()}/rest/v1';

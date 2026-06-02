@@ -8,6 +8,11 @@ class CultureScanRequest {
     required this.userIntent,
     this.userQuestion,
     this.imagePath,
+    this.detectedObjectSource = 'manual',
+    this.visionConfidence,
+    this.visionAlternatives,
+    this.visionSourceType,
+    this.visionSourceBadge,
   });
 
   final String userLanguage;
@@ -18,6 +23,11 @@ class CultureScanRequest {
   final String userIntent;
   final String? userQuestion;
   final String? imagePath;
+  final String detectedObjectSource;
+  final double? visionConfidence;
+  final List<Map<String, Object?>>? visionAlternatives;
+  final String? visionSourceType;
+  final String? visionSourceBadge;
 
   factory CultureScanRequest.defaultTemple({String userLanguage = 'English'}) {
     return CultureScanRequest(
@@ -40,6 +50,11 @@ class CultureScanRequest {
     String? userIntent,
     String? userQuestion,
     String? imagePath,
+    String? detectedObjectSource,
+    double? visionConfidence,
+    List<Map<String, Object?>>? visionAlternatives,
+    String? visionSourceType,
+    String? visionSourceBadge,
   }) {
     return CultureScanRequest(
       userLanguage: userLanguage ?? this.userLanguage,
@@ -50,6 +65,11 @@ class CultureScanRequest {
       userIntent: userIntent ?? this.userIntent,
       userQuestion: userQuestion ?? this.userQuestion,
       imagePath: imagePath ?? this.imagePath,
+      detectedObjectSource: detectedObjectSource ?? this.detectedObjectSource,
+      visionConfidence: visionConfidence ?? this.visionConfidence,
+      visionAlternatives: visionAlternatives ?? this.visionAlternatives,
+      visionSourceType: visionSourceType ?? this.visionSourceType,
+      visionSourceBadge: visionSourceBadge ?? this.visionSourceBadge,
     );
   }
 
@@ -66,6 +86,11 @@ class CultureScanRequest {
       ),
       if (_hasText(userQuestion)) 'user_question': userQuestion!.trim(),
       if (_hasText(imagePath)) 'image_path': imagePath!.trim(),
+      'detected_object_source': _fallback(detectedObjectSource, 'manual'),
+      if (visionConfidence != null) 'vision_confidence': visionConfidence,
+      if (visionAlternatives != null) 'vision_alternatives': visionAlternatives,
+      if (_hasText(visionSourceType)) 'vision_source_type': visionSourceType,
+      if (_hasText(visionSourceBadge)) 'vision_source_badge': visionSourceBadge,
     };
   }
 

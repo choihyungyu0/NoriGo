@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/services/supabase_auth_session.dart';
 import 'package:norigo/features/my/application/my_page_controller.dart';
 import 'package:norigo/features/my/data/my_page_repository.dart';
 import 'package:norigo/features/my/domain/my_page_summary.dart';
@@ -1339,6 +1340,8 @@ class _CultureGuidesSheet extends StatelessWidget {
               guide.createdAtLabel,
               if (guide.detectedObject.isNotEmpty)
                 guide.detectedObject.replaceAll('_', ' '),
+              if (guide.detectedObjectSource.isNotEmpty)
+                guide.detectedObjectSource,
               if (guide.sourceBadge.isNotEmpty) guide.sourceBadge,
               if (guide.koreanPhrase.isNotEmpty) guide.koreanPhrase,
               if (guide.detectedObject.isEmpty && guide.sourceBadge.isEmpty)
@@ -1346,6 +1349,7 @@ class _CultureGuidesSheet extends StatelessWidget {
             ].join('\n');
             return _SheetListTile(
               icon: Icons.menu_book_outlined,
+              leading: _CultureGuideThumbnail(guide: guide),
               title: guide.locationName.isEmpty
                   ? guide.title
                   : guide.locationName,
@@ -1465,12 +1469,14 @@ class _SheetListTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.leading,
     this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final Widget? leading;
   final VoidCallback? onTap;
 
   @override
@@ -1486,7 +1492,7 @@ class _SheetListTile extends StatelessWidget {
         color: Colors.transparent,
         child: ListTile(
           onTap: onTap,
-          leading: Icon(icon, color: _MyColors.purple),
+          leading: leading ?? Icon(icon, color: _MyColors.purple),
           title: Text(
             title,
             style: const TextStyle(
@@ -1507,6 +1513,48 @@ class _SheetListTile extends StatelessWidget {
               : const Icon(Icons.chevron_right_rounded),
         ),
       ),
+    );
+  }
+}
+
+class _CultureGuideThumbnail extends StatelessWidget {
+  const _CultureGuideThumbnail({required this.guide});
+
+  final MyCultureGuidePreview guide;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = guide.imageUrl;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _thumbnailPlaceholder();
+    }
+
+    final token = SupabaseAuthSession.accessToken;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          headers: token == null ? null : {'Authorization': 'Bearer $token'},
+          errorBuilder: (context, error, stackTrace) => _thumbnailPlaceholder(),
+        ),
+      ),
+    );
+  }
+
+  Widget _thumbnailPlaceholder() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: _MyColors.purple.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(Icons.menu_book_outlined, color: _MyColors.purple),
     );
   }
 }
