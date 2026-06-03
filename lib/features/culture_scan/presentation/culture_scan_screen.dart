@@ -243,6 +243,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
       0 => AppRoutes.home,
       1 => AppRoutes.itinerary,
       2 => null,
+      3 => AppRoutes.discover,
       4 => AppRoutes.my,
       _ => null,
     };

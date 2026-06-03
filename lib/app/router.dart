@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:norigo/features/auth/presentation/login_screen.dart';
 import 'package:norigo/features/culture_scan/presentation/culture_scan_screen.dart';
 import 'package:norigo/features/dashboard/public_dashboard_screen.dart';
+import 'package:norigo/features/home/home_shell.dart';
 import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_screen.dart';
 import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
 import 'package:norigo/features/itinerary/presentation/step3_mobile_mockups_screen.dart';
@@ -26,6 +27,7 @@ class AppRoutes {
   static const step3Alternatives = '/step3/alternatives';
   static const step3UpdatedItinerary = '/step3/updated-itinerary';
   static const home = '/home';
+  static const discover = '/discover';
   static const scan = '/scan';
   static const cultureScan = '/culture-scan';
   static const crowdAlert = '/crowd-alert';
@@ -52,6 +54,7 @@ class AppRouter {
       AppRoutes.step3UpdatedItinerary: (_) =>
           const Step3UpdatedItineraryScreen(),
       AppRoutes.home: (_) => const Step3CrowdAlertScreen(),
+      AppRoutes.discover: (_) => const HomeShell(initialIndex: 3),
       AppRoutes.scan: (_) => const CultureScanScreen(),
       AppRoutes.cultureScan: (_) => const CultureScanScreen(),
       AppRoutes.crowdAlert: (_) => const CrowdAlertScreen(),

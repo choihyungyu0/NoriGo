@@ -6,6 +6,30 @@ This prototype includes:
 
 - English-first onboarding for trip basics, interests, alerts, queue help, and food needs.
 - Bottom-tab travel experience: Home, Itinerary, Scan, Discover, and My.
+
+## Discover
+
+Discover recommends hidden/local spots with low-crowd context. The Flutter UI
+uses local illustrations under `assets/images/discover/`, `flutter_map` for
+map visualization, and a polished local map fallback so the screen remains
+usable if public map tiles fail.
+
+The app calls the `discover-recommendations` Supabase Edge Function when
+Supabase is configured. That function can use KTO OpenAPI when
+`KTO_SERVICE_KEY` is available, and it is shaped to incorporate Seoul real-time
+low-crowd/risk data as those tables become available. If the backend or keys are
+unavailable, the Flutter repository falls back to bundled demo recommendations.
+
+OpenStreetMap public tiles are used only for development/demo. Production should
+use a proper tile provider, caching strategy, and attribution policy.
+
+Smoke test:
+
+```powershell
+.\scripts\smoke_discover_recommendations.ps1 `
+  -SupabaseUrl $env:SUPABASE_URL `
+  -SupabaseAnonKey $env:SUPABASE_ANON_KEY
+```
 - Crowd alert flow that explains hidden app-based queue risk.
 - Camera-style Culture Scan Guide with curated Korean context and etiquette guidance.
 - Hidden spot discovery with low-crowd, local-ratio, and diversity-score signals.

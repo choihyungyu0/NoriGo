@@ -73,6 +73,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
       0 => AppRoutes.home,
       1 => AppRoutes.itinerary,
       2 => AppRoutes.scan,
+      3 => AppRoutes.discover,
       _ => null,
     };
 
