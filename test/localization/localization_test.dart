@@ -274,10 +274,35 @@ class _CapturingEnnoiaRepository implements EnnoiaAgentRepository {
   }
 
   @override
+  Future<ItineraryAgentResult> generateItinerary(
+    ItineraryAgentRequest request,
+  ) {
+    return fetchItinerary(request);
+  }
+
+  @override
   Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request) async {
     retripRequest = request;
     return RetripAgentResult.mock(sourceType: 'kto_openapi_ennoia');
   }
+
+  @override
+  Future<void> saveCultureScanRecord(
+    CultureGuideAgentRequest request,
+    ennoia.CultureGuideResult result,
+  ) async {}
+
+  @override
+  Future<void> saveItineraryPlan(
+    ItineraryAgentRequest request,
+    ItineraryAgentResult result,
+  ) async {}
+
+  @override
+  Future<void> saveReTripEvent(
+    RetripAgentRequest request,
+    RetripAgentResult result,
+  ) async {}
 }
 
 class _CapturingCultureScanRepository extends CultureScanRepository {

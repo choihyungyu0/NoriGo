@@ -46,7 +46,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
   void _continue() {
     OnboardingPreferencesStore.saveTripBasics(_basics);
     if (AppRouter.routes.containsKey(AppRoutes.interests)) {
-      Navigator.of(context).pushNamed(AppRoutes.interests);
+      Navigator.of(context).pushNamed(AppRoutes.interests, arguments: _basics);
       return;
     }
 

@@ -257,6 +257,8 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                                   selectedAlternative:
                                       _controller.selectedAlternative,
                                   sourceLabel: _controller.sourceLabel,
+                                  persistenceLabel:
+                                      _controller.persistenceLabel,
                                   isGenerating: _controller.isGeneratingRetrip,
                                   scale: scale,
                                   onGenerate: _generateRetripAlternatives,
@@ -929,6 +931,7 @@ class _AlternativesSection extends StatelessWidget {
     required this.alert,
     required this.selectedAlternative,
     required this.sourceLabel,
+    required this.persistenceLabel,
     required this.isGenerating,
     required this.scale,
     required this.onGenerate,
@@ -938,6 +941,7 @@ class _AlternativesSection extends StatelessWidget {
   final CrowdAlert alert;
   final AlternativePlace? selectedAlternative;
   final String sourceLabel;
+  final String persistenceLabel;
   final bool isGenerating;
   final double scale;
   final VoidCallback onGenerate;
@@ -974,6 +978,8 @@ class _AlternativesSection extends StatelessWidget {
             height: 1.15,
           ),
         ),
+        SizedBox(height: 8 * scale),
+        _PersistenceBadge(label: persistenceLabel, scale: scale),
         SizedBox(height: 10 * scale),
         SizedBox(
           height: 44 * scale,
@@ -1027,6 +1033,46 @@ class _AlternativesSection extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+}
+
+class _PersistenceBadge extends StatelessWidget {
+  const _PersistenceBadge({required this.label, required this.scale});
+
+  final String label;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSaved = label == 'Saved to Supabase';
+    return Container(
+      height: 30 * scale,
+      constraints: BoxConstraints(maxWidth: 138 * scale),
+      padding: EdgeInsets.symmetric(horizontal: 10 * scale),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isSaved ? _CrowdColors.diversityBg : const Color(0xFFFFF4DF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isSaved
+              ? _CrowdColors.diversityBorder
+              : const Color(0xFFECD7AA),
+        ),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          maxLines: 1,
+          style: TextStyle(
+            color: isSaved ? _CrowdColors.green : const Color(0xFF8A5D0B),
+            fontSize: 11.5 * scale,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
+      ),
     );
   }
 }

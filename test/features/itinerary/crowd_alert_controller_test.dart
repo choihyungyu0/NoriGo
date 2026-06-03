@@ -250,6 +250,13 @@ class _CapturingRetripRepository implements EnnoiaAgentRepository {
   }
 
   @override
+  Future<ItineraryAgentResult> generateItinerary(
+    ItineraryAgentRequest request,
+  ) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<RetripAgentResult> fetchRetrip(RetripAgentRequest request) async {
     capturedRequest = request;
     return RetripAgentResult(
@@ -279,6 +286,24 @@ class _CapturingRetripRepository implements EnnoiaAgentRepository {
       ],
     );
   }
+
+  @override
+  Future<void> saveCultureScanRecord(
+    CultureGuideAgentRequest request,
+    CultureGuideResult result,
+  ) async {}
+
+  @override
+  Future<void> saveItineraryPlan(
+    ItineraryAgentRequest request,
+    ItineraryAgentResult result,
+  ) async {}
+
+  @override
+  Future<void> saveReTripEvent(
+    RetripAgentRequest request,
+    RetripAgentResult result,
+  ) async {}
 }
 
 class _StaticCrowdAlertRepository implements CrowdAlertRepository {

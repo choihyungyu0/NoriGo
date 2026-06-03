@@ -13,6 +13,7 @@ class ItineraryAgentResult {
     this.sourceBadge,
     this.sourceNote,
     this.persistedPlanId,
+    this.persisted = false,
   });
 
   final String id;
@@ -25,6 +26,7 @@ class ItineraryAgentResult {
   final String? sourceBadge;
   final String? sourceNote;
   final String? persistedPlanId;
+  final bool persisted;
 
   bool get isRealEnnoia => sourceType == 'kto_openapi_ennoia';
 
@@ -46,6 +48,12 @@ class ItineraryAgentResult {
         .take(5)
         .toList(growable: false);
 
+    final persistedPlanId =
+        _nullableString(data, const [
+          'persistedPlanId',
+          'persisted_plan_id',
+        ]) ??
+        _nullableString(json, const ['persistedPlanId', 'persisted_plan_id']);
     return ItineraryAgentResult(
       id: _string(data, const ['id'], fallback.id),
       dateLabel: _string(data, const [
@@ -71,16 +79,19 @@ class ItineraryAgentResult {
       sourceNote:
           _nullableString(data, const ['sourceNote', 'source_note']) ??
           _nullableString(json, const ['sourceNote', 'source_note']),
-      persistedPlanId:
-          _nullableString(data, const [
-            'persistedPlanId',
-            'persisted_plan_id',
-          ]) ??
-          _nullableString(json, const ['persistedPlanId', 'persisted_plan_id']),
+      persistedPlanId: persistedPlanId,
+      persisted:
+          _bool(data, const ['persisted']) ??
+          _bool(json, const ['persisted']) ??
+          persistedPlanId != null,
     );
   }
 
-  factory ItineraryAgentResult.mock({String sourceType = 'mock'}) {
+  factory ItineraryAgentResult.mock({
+    String sourceType = 'mock',
+    bool persisted = false,
+    String? persistedPlanId,
+  }) {
     return ItineraryAgentResult(
       id: 'mock-seoul-one-day',
       dateLabel: 'May 18, Sun',
@@ -90,7 +101,8 @@ class ItineraryAgentResult {
       summary: null,
       sourceBadge: null,
       sourceNote: null,
-      persistedPlanId: null,
+      persistedPlanId: persistedPlanId ?? (persisted ? 'plan-1' : null),
+      persisted: persisted,
       items: const [
         ItineraryAgentItemResult(
           id: 'gyeongbokgung-palace',
@@ -200,6 +212,19 @@ class ItineraryAgentResult {
     for (final key in keys) {
       final value = json[key];
       if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
+
+  static bool? _bool(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is bool) return value;
+      if (value is String) {
+        final normalized = value.trim().toLowerCase();
+        if (normalized == 'true') return true;
+        if (normalized == 'false') return false;
+      }
     }
     return null;
   }

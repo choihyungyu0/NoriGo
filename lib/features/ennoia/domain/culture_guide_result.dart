@@ -13,6 +13,11 @@ class CultureGuideResult {
     required this.etiquette,
     required this.story,
     required this.sourceType,
+    this.koreanPhrase,
+    this.pronunciation,
+    this.phraseMeaning,
+    this.confidence,
+    this.sourceNote,
   });
 
   final String locationName;
@@ -26,6 +31,11 @@ class CultureGuideResult {
   final String etiquette;
   final String story;
   final String sourceType;
+  final String? koreanPhrase;
+  final String? pronunciation;
+  final String? phraseMeaning;
+  final double? confidence;
+  final String? sourceNote;
 
   bool get isRealEnnoia => sourceType == 'ennoia';
 
@@ -74,6 +84,30 @@ class CultureGuideResult {
       ], fallback.etiquette),
       story: _string(data, const ['story', 'background'], fallback.story),
       sourceType: fallback.sourceType,
+      koreanPhrase: _nullableString(data, const [
+        'koreanPhrase',
+        'korean_phrase',
+        'phrase',
+      ]),
+      pronunciation: _nullableString(data, const [
+        'pronunciation',
+        'romanization',
+        'romanized',
+      ]),
+      phraseMeaning: _nullableString(data, const [
+        'phraseMeaning',
+        'phrase_meaning',
+        'phraseTranslation',
+        'phrase_translation',
+      ]),
+      confidence: _number(data, const ['confidence', 'score']),
+      sourceNote: _nullableString(data, const [
+        'sourceNote',
+        'source_note',
+        'evidence',
+        'evidenceNote',
+        'evidence_note',
+      ]),
     );
   }
 
@@ -93,6 +127,11 @@ class CultureGuideResult {
       story:
           'This tradition comes from ancient Buddhist beliefs and the hope for peace and well-being.',
       sourceType: sourceType,
+      koreanPhrase: '소원을 빌어요',
+      pronunciation: 'sowoneul bireoyo',
+      phraseMeaning: 'Make a wish.',
+      confidence: 0.94,
+      sourceNote: 'Mock culture guide evidence for demo fallback.',
     );
   }
 
@@ -109,6 +148,27 @@ class CultureGuideResult {
       etiquette: etiquette,
       story: story,
     );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'locationName': locationName,
+      'detectedObject': detectedObject,
+      'koreanSource': koreanSource,
+      'translation': translation,
+      'title': title,
+      'question': question,
+      'description': description,
+      'meaning': meaning,
+      'etiquette': etiquette,
+      'story': story,
+      'koreanPhrase': koreanPhrase,
+      'pronunciation': pronunciation,
+      'phraseMeaning': phraseMeaning,
+      'confidence': confidence,
+      'sourceNote': sourceNote,
+      'sourceType': sourceType,
+    };
   }
 
   static Map<String, Object?>? _nestedMap(Map<String, Object?> json) {
@@ -146,5 +206,24 @@ class CultureGuideResult {
       }
     }
     return fallback;
+  }
+
+  static String? _nullableString(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  static double? _number(Map<String, Object?> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+    }
+    return null;
   }
 }
