@@ -41,6 +41,9 @@ void main() {
     expect(find.text('Story'), findsNothing);
     expect(find.text('English'), findsOneWidget);
     expect(find.byKey(const ValueKey('flashToggleIconButton')), findsOneWidget);
+    expect(find.text('AR View'), findsNothing);
+    expect(find.text('Flash On'), findsNothing);
+    expect(find.text('Flash Off'), findsNothing);
     expect(find.text('Scan Culture'), findsOneWidget);
     expect(find.byKey(const ValueKey('active-nav-Scan')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -75,7 +78,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('CultureScanScreen toggles flash state locally', (tester) async {
+  testWidgets('CultureScanScreen shows flash unavailable message', (
+    tester,
+  ) async {
     _setScanSurface(tester);
     final controller = CultureScanController(
       cameraService: const _UnavailableCameraService(),
@@ -92,9 +97,10 @@ void main() {
     expect(find.byIcon(Icons.flash_off_rounded), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('flashToggleIconButton')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.flash_on_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.flash_off_rounded), findsOneWidget);
+    expect(find.text('Flash is not available on this device.'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
@@ -199,6 +205,51 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
   });
+
+  testWidgets(
+    'unsupported scan requires manual selection before culture guide runs',
+    (tester) async {
+      _setScanSurface(tester);
+      final repository = _NoMatchVisionRepository();
+      final controller = CultureScanController(
+        cameraService: const _UnavailableCameraService(),
+        repository: repository,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NoriGoTheme.light(),
+          home: CultureScanScreen(controller: controller),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('scanCultureButton')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'I couldn’t identify a supported travel situation. Please choose the closest situation.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Scan context'), findsOneWidget);
+      expect(repository.runCount, 0);
+      expect(repository.lastRequest, isNull);
+
+      await tester.tap(
+        find.byKey(const ValueKey('runCultureGuideFromSheetButton')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.runCount, 1);
+      expect(repository.lastRequest?.detectedObjectSource, 'manual');
+      expect(repository.lastRequest?.detectedObject, isNot('unsupported'));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      controller.dispose();
+    },
+  );
 
   testWidgets('result screen shows Vision AI badge with guide source', (
     tester,
@@ -308,11 +359,13 @@ class _ConfirmationVisionRepository extends CultureScanRepository {
     return const CultureVisionResult(
       detectedObject: 'temple_stone_stack',
       placeType: 'temple',
-      confidence: 0.64,
+      confidence: 0.82,
       alternatives: [],
       needsConfirmation: true,
-      sourceType: 'vision_heuristic',
-      sourceBadge: 'Context hint',
+      sourceType: 'vision_ai',
+      sourceBadge: 'Vision AI',
+      detectedObjectSource: 'mlkit_auto',
+      finalDecision: 'auto_confirm_possible',
     );
   }
 }
@@ -330,13 +383,40 @@ class _LowConfidenceVisionRepository extends CultureScanRepository {
     CultureVisionRequest request,
   ) async {
     return const CultureVisionResult(
-      detectedObject: 'temple_stone_stack',
-      placeType: 'temple',
+      detectedObject: 'kiosk_ordering',
+      placeType: 'restaurant',
       confidence: 0.42,
       alternatives: [],
       needsConfirmation: true,
-      sourceType: 'vision_heuristic',
-      sourceBadge: 'Context hint',
+      sourceType: 'vision_ai',
+      sourceBadge: 'Vision AI',
+      detectedObjectSource: 'mlkit_suggested',
+      finalDecision: 'manual_required',
+    );
+  }
+}
+
+class _NoMatchVisionRepository extends CultureScanRepository {
+  int runCount = 0;
+  CultureScanRequest? lastRequest;
+
+  @override
+  Future<CultureGuideResult> runCultureGuide(CultureScanRequest request) async {
+    runCount++;
+    lastRequest = request;
+    return CultureGuideResult.localDemo(request);
+  }
+
+  @override
+  Future<CultureVisionResult> detectCultureObject(
+    CultureVisionRequest request,
+  ) async {
+    return CultureVisionResult.noMatch(
+      request,
+      rawLabels: const [
+        CultureVisionLabelDiagnostic(label: 'Tissue', confidence: 0.91),
+        CultureVisionLabelDiagnostic(label: 'Paper', confidence: 0.87),
+      ],
     );
   }
 }

@@ -65,7 +65,12 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     if (!mounted) return;
 
     CultureScanRequest? request;
-    if (draft.visionResult.isLowConfidence) {
+    if (draft.visionResult.requiresManualSelection) {
+      if (draft.visionResult.detectedObjectSource == 'no_match') {
+        _showSnack(
+          'I couldn’t identify a supported travel situation. Please choose the closest situation.',
+        );
+      }
       final selection = await _showCultureScanSheet();
       if (!mounted) return;
       request = selection
@@ -80,7 +85,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
             userLanguage: _controller.selectedLanguage,
           ),
           imagePath: draft.imagePath,
-          detectedObjectSource: 'vision_confirmed',
+          detectedObjectSource: draft.visionResult.confirmedObjectSource,
         );
       } else if (useVision == false) {
         final selection = await _showCultureScanSheet();
@@ -138,7 +143,10 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
   }
 
   Future<void> _toggleFlash() async {
-    await _controller.toggleFlash();
+    final toggled = await _controller.toggleFlash();
+    if (!toggled && mounted) {
+      _showSnack('Flash is not available on this device.');
+    }
   }
 
   Future<void> _selectLanguage() async {
@@ -1559,6 +1567,9 @@ class _VisionConfirmationSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final vision = draft.visionResult;
     final confidence = '${(vision.confidence * 100).round()}%';
+    final title = vision.confidence >= 0.75
+        ? 'I found this situation'
+        : 'Maybe this is...';
     final bottom = MediaQuery.paddingOf(context).bottom;
     final alternatives = vision.alternatives
         .where((item) => item.detectedObject != vision.detectedObject)
@@ -1572,9 +1583,9 @@ class _VisionConfirmationSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'I found this situation',
-              style: TextStyle(
+            Text(
+              title,
+              style: const TextStyle(
                 color: _ScanColors.deepText,
                 fontSize: 22,
                 fontWeight: FontWeight.w900,

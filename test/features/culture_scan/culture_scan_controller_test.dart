@@ -201,6 +201,42 @@ void main() {
     },
   );
 
+  test(
+    'unsupported local labels require manual selection and keep diagnostics',
+    () async {
+      final repository = _RecordingCultureScanRepository(
+        uploadResult: 'user-1/tissue.jpg',
+      );
+      final controller = CultureScanController(
+        cameraService: const _CapturingCameraService(),
+        repository: repository,
+        visionClassifier: const _NoMatchLocalVisionClassifier(),
+      );
+
+      await controller.initializeCamera();
+      final draft = await controller.prepareVisionScan(
+        controller.defaultRequest,
+      );
+
+      expect(draft.visionResult.detectedObject, 'unsupported');
+      expect(draft.visionResult.detectedObjectSource, 'no_match');
+      expect(draft.visionResult.finalDecision, 'manual_required');
+      expect(draft.visionResult.requiresManualSelection, isTrue);
+      expect(repository.detectCount, 0);
+      expect(repository.runCount, 0);
+      expect(
+        controller.lastVisionDiagnostics?['detected_object_source'],
+        'no_match',
+      );
+      expect(
+        controller.lastVisionDiagnostics?['raw_labels'].toString(),
+        contains('Tissue'),
+      );
+
+      controller.dispose();
+    },
+  );
+
   test('CultureScanController ignores scan completion after dispose', () async {
     final controller = CultureScanController(
       cameraService: const _UnavailableCameraService(),
@@ -351,6 +387,26 @@ class _FakeLocalVisionClassifier extends CultureVisionClassifier {
       needsConfirmation: false,
       sourceType: 'vision_ai',
       sourceBadge: 'Vision AI',
+      detectedObjectSource: 'mlkit_auto',
+      finalDecision: 'auto_confirm_possible',
+    );
+  }
+}
+
+class _NoMatchLocalVisionClassifier extends CultureVisionClassifier {
+  const _NoMatchLocalVisionClassifier();
+
+  @override
+  Future<CultureVisionResult?> classify(
+    CultureImageCapture capture,
+    CultureVisionRequest request,
+  ) async {
+    return CultureVisionResult.noMatch(
+      request,
+      rawLabels: const [
+        CultureVisionLabelDiagnostic(label: 'Tissue', confidence: 0.91),
+        CultureVisionLabelDiagnostic(label: 'Paper', confidence: 0.87),
+      ],
     );
   }
 }

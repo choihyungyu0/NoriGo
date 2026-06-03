@@ -39,6 +39,9 @@ class CultureVisionResult {
     required this.needsConfirmation,
     required this.sourceType,
     required this.sourceBadge,
+    this.detectedObjectSource = 'context_hint',
+    this.finalDecision = 'needs_confirmation',
+    this.rawLabels = const [],
   });
 
   final String detectedObject;
@@ -48,8 +51,29 @@ class CultureVisionResult {
   final bool needsConfirmation;
   final String sourceType;
   final String sourceBadge;
+  final String detectedObjectSource;
+  final String finalDecision;
+  final List<CultureVisionLabelDiagnostic> rawLabels;
 
   bool get isLowConfidence => confidence < 0.5;
+
+  bool get requiresManualSelection =>
+      finalDecision == 'manual_required' ||
+      detectedObjectSource == 'no_match' ||
+      detectedObject == 'unsupported' ||
+      confidence < 0.5;
+
+  bool get isMlKitSuggestion =>
+      detectedObjectSource == 'mlkit_suggested' ||
+      detectedObjectSource == 'mlkit_auto';
+
+  String get confirmedObjectSource {
+    if (detectedObjectSource == 'mlkit_suggested' ||
+        detectedObjectSource == 'mlkit_auto') {
+      return 'mlkit_confirmed';
+    }
+    return 'vision_confirmed';
+  }
 
   String get label => cultureObjectLabel(detectedObject);
 
@@ -78,6 +102,15 @@ class CultureVisionResult {
         'source_badge',
         'sourceBadge',
       ], 'Context hint'),
+      detectedObjectSource: _string(json, const [
+        'detected_object_source',
+        'detectedObjectSource',
+      ], 'context_hint'),
+      finalDecision: _string(json, const [
+        'final_decision',
+        'finalDecision',
+      ], 'needs_confirmation'),
+      rawLabels: _rawLabels(json['raw_labels'] ?? json['rawLabels']),
     );
   }
 
@@ -99,6 +132,28 @@ class CultureVisionResult {
       needsConfirmation: true,
       sourceType: 'vision_heuristic',
       sourceBadge: 'Context hint',
+      detectedObjectSource: 'context_hint',
+      finalDecision: 'manual_required',
+    );
+  }
+
+  factory CultureVisionResult.noMatch(
+    CultureVisionRequest request, {
+    List<CultureVisionLabelDiagnostic> rawLabels = const [],
+  }) {
+    return CultureVisionResult(
+      detectedObject: 'unsupported',
+      placeType: request.hintPlaceType.trim().isEmpty
+          ? 'unknown'
+          : request.hintPlaceType.trim(),
+      confidence: 0,
+      alternatives: const [],
+      needsConfirmation: true,
+      sourceType: 'vision_no_match',
+      sourceBadge: 'Manual selection',
+      detectedObjectSource: 'no_match',
+      finalDecision: 'manual_required',
+      rawLabels: rawLabels,
     );
   }
 
@@ -131,7 +186,25 @@ class CultureVisionResult {
       'needs_confirmation': needsConfirmation,
       'source_type': sourceType,
       'source_badge': sourceBadge,
+      'detected_object_source': detectedObjectSource,
+      'final_decision': finalDecision,
+      if (rawLabels.isNotEmpty)
+        'raw_labels': rawLabels.map((item) => item.toJson()).toList(),
     };
+  }
+}
+
+class CultureVisionLabelDiagnostic {
+  const CultureVisionLabelDiagnostic({
+    required this.label,
+    required this.confidence,
+  });
+
+  final String label;
+  final double confidence;
+
+  Map<String, Object?> toJson() {
+    return {'label': label, 'confidence': confidence};
   }
 }
 
@@ -226,29 +299,28 @@ const _objectQuestions = {
 };
 
 String cultureObjectLabel(String objectKey) {
-  return _objectLabels[_allowedObject(objectKey)] ?? 'Culture situation';
+  return _objectLabels[objectKey.trim()] ?? 'Unsupported travel situation';
 }
 
 String cultureObjectKoreanKeyword(String objectKey) {
-  return _objectKeywords[_allowedObject(objectKey)] ?? '소원 성취';
+  return _objectKeywords[objectKey.trim()] ?? '문화 상황';
 }
 
 String cultureObjectDefaultQuestion(String objectKey) {
-  return _objectQuestions[_allowedObject(objectKey)] ??
-      'What should I do here?';
+  return _objectQuestions[objectKey.trim()] ?? 'What should I do here?';
 }
 
 String _allowedObject(String? value) {
   final normalized = value?.trim();
   return _objectPlaceTypes.containsKey(normalized)
       ? normalized!
-      : 'temple_stone_stack';
+      : 'unsupported';
 }
 
 String _placeTypeFor(String objectKey, String? value) {
   final normalized = value?.trim();
   if (normalized != null && normalized.isNotEmpty) return normalized;
-  return _objectPlaceTypes[_allowedObject(objectKey)] ?? 'temple';
+  return _objectPlaceTypes[_allowedObject(objectKey)] ?? 'unknown';
 }
 
 String _locationFor(String placeType, String fallback) {
@@ -293,6 +365,23 @@ List<CultureVisionAlternative> _alternatives(Object? value) {
         (item) =>
             CultureVisionAlternative.fromJson(Map<String, Object?>.from(item)),
       )
+      .toList(growable: false);
+}
+
+List<CultureVisionLabelDiagnostic> _rawLabels(Object? value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map((item) {
+        final json = Map<String, Object?>.from(item);
+        final label = _string(json, const ['label']);
+        if (label.isEmpty) return null;
+        return CultureVisionLabelDiagnostic(
+          label: label,
+          confidence: _double(json, const ['confidence'], 0),
+        );
+      })
+      .whereType<CultureVisionLabelDiagnostic>()
       .toList(growable: false);
 }
 

@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:norigo/ai/harness/culture_guide_harness.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
@@ -54,6 +55,7 @@ class CultureScanController extends ChangeNotifier {
   String? _friendlyMessage;
   bool _flashEnabled = false;
   bool _disposed = false;
+  Map<String, Object?>? _lastVisionDiagnostics;
 
   CultureCameraStatus get cameraStatus => _cameraStatus;
 
@@ -76,6 +78,8 @@ class CultureScanController extends ChangeNotifier {
   CultureGuideResult? get result => _result;
 
   CultureGuide? get guide => _result?.toCultureGuide();
+
+  Map<String, Object?>? get lastVisionDiagnostics => _lastVisionDiagnostics;
 
   CameraController? get cameraController => _cameraSession?.controller;
 
@@ -131,23 +135,26 @@ class CultureScanController extends ChangeNotifier {
     _safeNotifyListeners();
   }
 
-  Future<void> toggleFlash() async {
-    if (_disposed) return;
-
-    _flashEnabled = !_flashEnabled;
-    _safeNotifyListeners();
+  Future<bool> toggleFlash() async {
+    if (_disposed) return false;
 
     final controller = cameraController;
     if (controller == null || !controller.value.isInitialized) {
-      return;
+      _flashEnabled = false;
+      _safeNotifyListeners();
+      return false;
     }
 
     try {
+      final nextFlashState = !_flashEnabled;
       await controller.setFlashMode(
-        _flashEnabled ? FlashMode.torch : FlashMode.off,
+        nextFlashState ? FlashMode.torch : FlashMode.off,
       );
+      _flashEnabled = nextFlashState;
+      _safeNotifyListeners();
+      return true;
     } catch (error) {
-      if (_disposed) return;
+      if (_disposed) return false;
       developer.log(
         'Flash mode unavailable.',
         name: 'CultureScanController',
@@ -156,6 +163,7 @@ class CultureScanController extends ChangeNotifier {
       _flashEnabled = false;
       _friendlyMessage = 'Flash is unavailable on this device.';
       _safeNotifyListeners();
+      return false;
     }
   }
 
@@ -229,6 +237,7 @@ class CultureScanController extends ChangeNotifier {
         hintPlaceType: effectiveRequest.placeType,
       );
       visionResult = await _classifyCultureObject(capture, visionRequest);
+      _recordVisionDiagnostics(visionResult);
     } catch (error) {
       developer.log(
         'Culture vision detection skipped.',
@@ -242,6 +251,7 @@ class CultureScanController extends ChangeNotifier {
         hintPlaceType: effectiveRequest.placeType,
       );
       visionResult = CultureVisionResult.heuristic(fallbackRequest);
+      _recordVisionDiagnostics(visionResult);
     }
 
     if (!_disposed) {
@@ -302,6 +312,23 @@ class CultureScanController extends ChangeNotifier {
           const Duration(seconds: 20),
           onTimeout: () => CultureVisionResult.heuristic(request),
         );
+  }
+
+  void _recordVisionDiagnostics(CultureVisionResult result) {
+    if (!kDebugMode) return;
+    final diagnostics = {
+      'raw_labels': result.rawLabels.map((item) => item.toJson()).toList(),
+      'detected_object': result.detectedObject,
+      'place_type': result.placeType,
+      'detected_object_source': result.detectedObjectSource,
+      'confidence': result.confidence,
+      'final_decision': result.finalDecision,
+    };
+    _lastVisionDiagnostics = diagnostics;
+    developer.log(
+      'Culture vision diagnostics ${diagnostics.toString()}',
+      name: 'CultureScanController',
+    );
   }
 
   @override
