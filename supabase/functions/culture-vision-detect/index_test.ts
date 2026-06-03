@@ -1,6 +1,7 @@
 import {
   classifyWithHeuristics,
   handleCultureVisionDetectRequest,
+  noMatchResult,
 } from "./index.ts";
 
 Deno.test("heuristic returns an allowed culture object key", () => {
@@ -29,7 +30,24 @@ Deno.test("heuristic maps market queue context to allowed ticket object", () => 
   assertEquals(result.alternatives.length > 0, true);
 });
 
-Deno.test("handler works without image path or configured provider", async () => {
+Deno.test("no match result requires manual selection", () => {
+  const result = noMatchResult({
+    current_location: "Korean restaurant",
+    user_language: "English",
+    hint_place_type: "restaurant",
+  });
+
+  assertEquals(result.detected_object, "unsupported");
+  assertEquals(result.place_type, "restaurant");
+  assertEquals(result.confidence, 0);
+  assertEquals(result.needs_confirmation, true);
+  assertEquals(result.source_type, "vision_no_match");
+  assertEquals(result.source_badge, "Manual selection");
+  assertEquals(result.detected_object_source, "no_match");
+  assertEquals(result.final_decision, "manual_required");
+});
+
+Deno.test("handler does not infer objects from context without provider", async () => {
   const response = await handleCultureVisionDetectRequest(
     new Request(
       "https://example.test/functions/v1/culture-vision-detect",
@@ -47,8 +65,9 @@ Deno.test("handler works without image path or configured provider", async () =>
   const body = await response.json();
 
   assertEquals(response.status, 200);
-  assertEquals(body.detected_object, "subway_pregnant_seat");
-  assertEquals(body.source_type, "vision_heuristic");
+  assertEquals(body.detected_object, "unsupported");
+  assertEquals(body.source_type, "vision_no_match");
+  assertEquals(body.detected_object_source, "no_match");
 });
 
 function assertEquals(actual: unknown, expected: unknown): void {

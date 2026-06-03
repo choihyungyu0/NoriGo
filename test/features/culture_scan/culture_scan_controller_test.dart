@@ -150,6 +150,8 @@ void main() {
         needsConfirmation: true,
         sourceType: 'vision_ai',
         sourceBadge: 'Vision AI',
+        detectedObjectSource: 'vision_provider',
+        finalDecision: 'auto_confirm_possible',
       ),
     );
     final controller = CultureScanController(
@@ -232,6 +234,45 @@ void main() {
         controller.lastVisionDiagnostics?['raw_labels'].toString(),
         contains('Tissue'),
       );
+
+      controller.dispose();
+    },
+  );
+
+  test(
+    'server context-only vision result is treated as no match after capture',
+    () async {
+      final repository = _RecordingCultureScanRepository(
+        uploadResult: 'user-1/tissue.jpg',
+        visionResult: CultureVisionResult.heuristic(
+          const CultureVisionRequest(
+            imagePath: 'user-1/tissue.jpg',
+            currentLocation: 'Korean restaurant',
+            userLanguage: 'English',
+            hintPlaceType: 'restaurant',
+          ),
+        ),
+      );
+      final controller = CultureScanController(
+        cameraService: const _CapturingCameraService(),
+        repository: repository,
+        visionClassifier: const _NullLocalVisionClassifier(),
+        initialRequest: CultureScanRequest.defaultTemple().copyWith(
+          currentLocation: 'Korean restaurant',
+          placeType: 'restaurant',
+        ),
+      );
+
+      await controller.initializeCamera();
+      final draft = await controller.prepareVisionScan(
+        controller.defaultRequest,
+      );
+
+      expect(repository.detectCount, 1);
+      expect(draft.visionResult.detectedObject, 'unsupported');
+      expect(draft.visionResult.sourceType, 'vision_no_match');
+      expect(draft.visionResult.detectedObjectSource, 'no_match');
+      expect(draft.visionResult.requiresManualSelection, isTrue);
 
       controller.dispose();
     },
@@ -408,5 +449,17 @@ class _NoMatchLocalVisionClassifier extends CultureVisionClassifier {
         CultureVisionLabelDiagnostic(label: 'Paper', confidence: 0.87),
       ],
     );
+  }
+}
+
+class _NullLocalVisionClassifier extends CultureVisionClassifier {
+  const _NullLocalVisionClassifier();
+
+  @override
+  Future<CultureVisionResult?> classify(
+    CultureImageCapture capture,
+    CultureVisionRequest request,
+  ) async {
+    return null;
   }
 }

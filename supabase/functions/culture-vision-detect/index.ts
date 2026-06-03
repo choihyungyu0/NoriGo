@@ -20,8 +20,10 @@ export type CultureVisionResult = {
   confidence: number;
   alternatives: CultureVisionAlternative[];
   needs_confirmation: boolean;
-  source_type: "vision_ai" | "vision_heuristic";
-  source_badge: "Vision AI" | "Context hint";
+  source_type: "vision_ai" | "vision_heuristic" | "vision_no_match";
+  source_badge: "Vision AI" | "Context hint" | "Manual selection";
+  detected_object_source?: string;
+  final_decision?: string;
 };
 
 type AllowedCultureObject = {
@@ -127,16 +129,33 @@ export async function handleCultureVisionDetectRequest(
     params,
     imageBytes,
   ).catch(() => null);
-  const result = providerResult ?? classifyWithHeuristics(params);
+  const result = providerResult ?? noMatchResult(params);
 
   console.log(JSON.stringify({
     image_path_suffix: suffix(params.image_path),
     source_type: result.source_type,
     confidence: result.confidence,
     detected_object: result.detected_object,
+    detected_object_source: result.detected_object_source ?? null,
   }));
 
   return jsonResponse(result, 200);
+}
+
+export function noMatchResult(
+  params: CultureVisionRequest,
+): CultureVisionResult {
+  return {
+    detected_object: "unsupported",
+    place_type: optionalString(params.hint_place_type) ?? "unknown",
+    confidence: 0,
+    alternatives: [],
+    needs_confirmation: true,
+    source_type: "vision_no_match",
+    source_badge: "Manual selection",
+    detected_object_source: "no_match",
+    final_decision: "manual_required",
+  };
 }
 
 if (import.meta.main) {
@@ -254,6 +273,12 @@ function visionResultFromProvider(
     needs_confirmation: confidence < 0.72,
     source_type: "vision_ai",
     source_badge: "Vision AI",
+    detected_object_source: "vision_provider",
+    final_decision: confidence >= 0.75
+      ? "auto_confirm_possible"
+      : confidence >= 0.5
+      ? "needs_confirmation"
+      : "manual_required",
   };
 }
 

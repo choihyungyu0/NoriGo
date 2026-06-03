@@ -263,11 +263,13 @@ void main() {
 
     expect(result.detectedObject, 'restaurant_call_bell');
     expect(result.sourceBadge, 'Vision AI');
+    expect(result.detectedObjectSource, 'vision_provider');
+    expect(result.finalDecision, 'auto_confirm_possible');
     expect(result.confidence, 0.82);
   });
 
   test(
-    'vision detect falls back to heuristic when Edge Function fails',
+    'vision detect requires manual selection when Edge Function fails',
     () async {
       final repository = SupabaseCultureScanRepository(
         config: const SupabaseConfig(
@@ -285,10 +287,48 @@ void main() {
         ),
       );
 
-      expect(result.detectedObject, 'subway_pregnant_seat');
-      expect(result.sourceType, 'vision_heuristic');
+      expect(result.detectedObject, 'unsupported');
+      expect(result.sourceType, 'vision_no_match');
+      expect(result.detectedObjectSource, 'no_match');
+      expect(result.finalDecision, 'manual_required');
+      expect(result.requiresManualSelection, isTrue);
     },
   );
+
+  test('vision no match response is parsed as manual selection', () async {
+    final repository = SupabaseCultureScanRepository(
+      config: const SupabaseConfig(
+        url: 'https://project.supabase.co',
+        anonKey: 'anon-key',
+      ),
+      client: MockClient((request) async {
+        return _json({
+          'detected_object': 'unsupported',
+          'place_type': 'restaurant',
+          'confidence': 0,
+          'alternatives': [],
+          'needs_confirmation': true,
+          'source_type': 'vision_no_match',
+          'source_badge': 'Manual selection',
+          'detected_object_source': 'no_match',
+          'final_decision': 'manual_required',
+        });
+      }),
+    );
+
+    final result = await repository.detectCultureObject(
+      const CultureVisionRequest(
+        currentLocation: 'Korean restaurant',
+        userLanguage: 'English',
+        hintPlaceType: 'restaurant',
+      ),
+    );
+
+    expect(result.detectedObject, 'unsupported');
+    expect(result.placeType, 'restaurant');
+    expect(result.detectedObjectSource, 'no_match');
+    expect(result.requiresManualSelection, isTrue);
+  });
 }
 
 http.Response _json(Object body) {

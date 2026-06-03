@@ -101,8 +101,8 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     await _showGuideResultSheet();
   }
 
-  Future<void> _runEnnoiaCultureGuide() async {
-    await _controller.runCultureGuide(_controller.defaultRequest);
+  Future<void> _runEnnoiaCultureGuide([CultureScanRequest? request]) async {
+    await _controller.runCultureGuide(request ?? _controller.defaultRequest);
     if (!mounted) return;
     await _showGuideResultSheet();
   }
@@ -112,7 +112,11 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
       await _showGuideResultSheet();
       return;
     }
-    await _runEnnoiaCultureGuide();
+    final selection = await _showCultureScanSheet();
+    if (!mounted || selection == null) return;
+    await _runEnnoiaCultureGuide(
+      selection.toRequest(_controller.selectedLanguage),
+    );
   }
 
   Future<void> _showGuideResultSheet() async {
@@ -132,13 +136,32 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
             sourceLabel: _controller.ennoiaSourceLabel,
             isEnnoiaLoading: _controller.isRunningEnnoia,
             onRunEnnoia: () {
+              final refreshRequest = _requestFromCurrentResult();
               Navigator.of(sheetContext).pop();
-              _runEnnoiaCultureGuide();
+              _runEnnoiaCultureGuide(refreshRequest);
             },
             onPhraseTap: () => _handlePhraseTap(guide),
           ),
         );
       },
+    );
+  }
+
+  CultureScanRequest? _requestFromCurrentResult() {
+    final result = _controller.result;
+    if (result == null) return null;
+    return CultureScanRequest.defaultTemple(
+      userLanguage: _controller.selectedLanguage,
+    ).copyWith(
+      currentLocation: result.locationName,
+      placeType: result.placeType,
+      detectedObject: result.detectedObject,
+      koreanKeyword: result.koreanKeyword,
+      imagePath: result.imagePath,
+      detectedObjectSource: result.detectedObjectSource,
+      visionConfidence: result.visionConfidence,
+      visionSourceType: result.visionSourceType,
+      visionSourceBadge: result.visionSourceBadge,
     );
   }
 

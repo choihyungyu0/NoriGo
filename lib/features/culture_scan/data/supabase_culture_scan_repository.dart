@@ -56,7 +56,7 @@ class SupabaseCultureScanRepository extends CultureScanRepository {
     CultureVisionRequest request,
   ) async {
     if (!config.isConfigured) {
-      return CultureVisionResult.heuristic(request);
+      return CultureVisionResult.noMatch(request);
     }
 
     final uri = Uri.parse(
@@ -80,11 +80,11 @@ class SupabaseCultureScanRepository extends CultureScanRepository {
                   : http.post(uri, headers: headers, body: body))
               .timeout(const Duration(seconds: 18));
     } catch (_) {
-      return CultureVisionResult.heuristic(request);
+      return CultureVisionResult.noMatch(request);
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      return CultureVisionResult.heuristic(request);
+      return CultureVisionResult.noMatch(request);
     }
 
     try {
@@ -93,9 +93,9 @@ class SupabaseCultureScanRepository extends CultureScanRepository {
         return CultureVisionResult.fromJson(Map<String, Object?>.from(decoded));
       }
     } catch (_) {
-      return CultureVisionResult.heuristic(request);
+      return CultureVisionResult.noMatch(request);
     }
-    return CultureVisionResult.heuristic(request);
+    return CultureVisionResult.noMatch(request);
   }
 
   @override

@@ -13,7 +13,7 @@ abstract class CultureScanRepository {
   Future<CultureVisionResult> detectCultureObject(
     CultureVisionRequest request,
   ) async {
-    return CultureVisionResult.heuristic(request);
+    return CultureVisionResult.noMatch(request);
   }
 }
 

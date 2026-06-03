@@ -78,38 +78,47 @@ class CultureVisionResult {
   String get label => cultureObjectLabel(detectedObject);
 
   factory CultureVisionResult.fromJson(Map<String, Object?> json) {
+    final detectedObject = _allowedObject(
+      _string(json, const ['detected_object', 'detectedObject']),
+    );
+    final confidence = _double(json, const ['confidence'], 0);
+    final sourceType = _string(json, const [
+      'source_type',
+      'sourceType',
+    ], 'vision_heuristic');
+    final detectedObjectSource = _visionObjectSource(
+      explicit: _string(json, const [
+        'detected_object_source',
+        'detectedObjectSource',
+      ]),
+      sourceType: sourceType,
+      detectedObject: detectedObject,
+    );
+    final finalDecision = _visionFinalDecision(
+      explicit: _string(json, const ['final_decision', 'finalDecision']),
+      sourceType: sourceType,
+      detectedObject: detectedObject,
+      confidence: confidence,
+    );
     return CultureVisionResult(
-      detectedObject: _allowedObject(
-        _string(json, const ['detected_object', 'detectedObject']),
-      ),
+      detectedObject: detectedObject,
       placeType: _placeTypeFor(
-        _allowedObject(
-          _string(json, const ['detected_object', 'detectedObject']),
-        ),
+        detectedObject,
         _string(json, const ['place_type', 'placeType']),
       ),
-      confidence: _double(json, const ['confidence'], 0),
+      confidence: confidence,
       alternatives: _alternatives(json['alternatives']),
       needsConfirmation: _bool(json, const [
         'needs_confirmation',
         'needsConfirmation',
       ], true),
-      sourceType: _string(json, const [
-        'source_type',
-        'sourceType',
-      ], 'vision_heuristic'),
+      sourceType: sourceType,
       sourceBadge: _string(json, const [
         'source_badge',
         'sourceBadge',
       ], 'Context hint'),
-      detectedObjectSource: _string(json, const [
-        'detected_object_source',
-        'detectedObjectSource',
-      ], 'context_hint'),
-      finalDecision: _string(json, const [
-        'final_decision',
-        'finalDecision',
-      ], 'needs_confirmation'),
+      detectedObjectSource: detectedObjectSource,
+      finalDecision: finalDecision,
       rawLabels: _rawLabels(json['raw_labels'] ?? json['rawLabels']),
     );
   }
@@ -321,6 +330,39 @@ String _placeTypeFor(String objectKey, String? value) {
   final normalized = value?.trim();
   if (normalized != null && normalized.isNotEmpty) return normalized;
   return _objectPlaceTypes[_allowedObject(objectKey)] ?? 'unknown';
+}
+
+String _visionObjectSource({
+  required String explicit,
+  required String sourceType,
+  required String detectedObject,
+}) {
+  if (explicit.trim().isNotEmpty) return explicit.trim();
+  if (sourceType == 'vision_ai' && detectedObject != 'unsupported') {
+    return 'vision_provider';
+  }
+  if (sourceType == 'vision_no_match' || detectedObject == 'unsupported') {
+    return 'no_match';
+  }
+  return 'context_hint';
+}
+
+String _visionFinalDecision({
+  required String explicit,
+  required String sourceType,
+  required String detectedObject,
+  required double confidence,
+}) {
+  if (explicit.trim().isNotEmpty) return explicit.trim();
+  if (sourceType == 'vision_no_match' ||
+      detectedObject == 'unsupported' ||
+      confidence < 0.5) {
+    return 'manual_required';
+  }
+  if (sourceType == 'vision_ai' && confidence >= 0.75) {
+    return 'auto_confirm_possible';
+  }
+  return 'needs_confirmation';
 }
 
 String _locationFor(String placeType, String fallback) {

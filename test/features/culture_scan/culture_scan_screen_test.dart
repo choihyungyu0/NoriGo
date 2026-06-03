@@ -106,12 +106,14 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('culture guide refresh falls back when Supabase is missing', (
+  testWidgets('guide pill requires manual context before running guide', (
     tester,
   ) async {
     _setScanSurface(tester);
+    final repository = _NoMatchVisionRepository();
     final controller = CultureScanController(
       cameraService: const _UnavailableCameraService(),
+      repository: repository,
     );
 
     await tester.pumpWidget(
@@ -125,6 +127,17 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('guidePill')));
     await tester.pumpAndSettle();
 
+    expect(find.text('Scan context'), findsOneWidget);
+    expect(repository.runCount, 0);
+    expect(find.text('AI Culture Guide'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('runCultureGuideFromSheetButton')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.runCount, 1);
+    expect(repository.lastRequest?.detectedObjectSource, 'manual');
     expect(find.text('Local guide'), findsOneWidget);
     expect(find.text('AI Culture Guide'), findsOneWidget);
     expect(tester.takeException(), isNull);

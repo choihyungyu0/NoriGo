@@ -250,7 +250,7 @@ class CultureScanController extends ChangeNotifier {
         userLanguage: effectiveRequest.userLanguage,
         hintPlaceType: effectiveRequest.placeType,
       );
-      visionResult = CultureVisionResult.heuristic(fallbackRequest);
+      visionResult = CultureVisionResult.noMatch(fallbackRequest);
       _recordVisionDiagnostics(visionResult);
     }
 
@@ -306,12 +306,22 @@ class CultureScanController extends ChangeNotifier {
         );
       }
     }
-    return _repository
+    final remoteResult = await _repository
         .detectCultureObject(request)
         .timeout(
           const Duration(seconds: 20),
-          onTimeout: () => CultureVisionResult.heuristic(request),
+          onTimeout: () => CultureVisionResult.noMatch(request),
         );
+    if (_isContextOnlyVisionResult(remoteResult)) {
+      return CultureVisionResult.noMatch(request);
+    }
+    return remoteResult;
+  }
+
+  bool _isContextOnlyVisionResult(CultureVisionResult result) {
+    return result.sourceType == 'vision_heuristic' ||
+        result.detectedObjectSource == 'context_hint' ||
+        result.sourceBadge == 'Context hint';
   }
 
   void _recordVisionDiagnostics(CultureVisionResult result) {
