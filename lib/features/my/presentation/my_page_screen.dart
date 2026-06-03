@@ -3,10 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/app_locale_controller.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/core/services/supabase_auth_session.dart';
 import 'package:norigo/features/my/application/my_page_controller.dart';
 import 'package:norigo/features/my/data/my_page_repository.dart';
 import 'package:norigo/features/my/domain/my_page_summary.dart';
+import 'package:norigo/l10n/app_localizations.dart';
 
 class MyPageAssets {
   const MyPageAssets._();
@@ -78,16 +81,17 @@ class _MyPageScreenState extends State<MyPageScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('This section will be connected later.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.l10n.sectionComingSoon)));
   }
 
   void _openMenuSheet(_MyMenuAction action, MyPageSummary summary) {
+    final l10n = context.l10n;
     switch (action) {
       case _MyMenuAction.itineraries:
         _showSheet(
-          title: 'My itineraries',
+          title: l10n.myItineraries,
           child: _ItinerariesSheet(
             plans: summary.itineraries,
             onOpenPlan: _openItineraryDetail,
@@ -95,56 +99,66 @@ class _MyPageScreenState extends State<MyPageScreen> {
         );
       case _MyMenuAction.savedPlaces:
         _showSheet(
-          title: 'Saved places',
+          title: l10n.savedPlaces,
           child: _SavedPlacesSheet(places: summary.savedPlaces),
         );
       case _MyMenuAction.translationHistory:
         _showSheet(
-          title: 'Translation history',
-          child: const _MessageSheet(
-            message: 'Translation history will appear here.',
-          ),
+          title: l10n.translationHistory,
+          child: _MessageSheet(message: l10n.translationHistoryEmpty),
         );
       case _MyMenuAction.cultureGuides:
         _showSheet(
-          title: 'Saved culture guides',
+          title: l10n.savedCultureGuides,
           child: _CultureGuidesSheet(guides: summary.cultureGuides),
         );
       case _MyMenuAction.waitTimeHistory:
         _showSheet(
-          title: 'Wait-time help history',
+          title: l10n.waitTimeHelpHistory,
           child: _RetripEventsSheet(events: summary.retripEvents),
         );
       case _MyMenuAction.interests:
         _showSheet(
-          title: 'Interests',
+          title: l10n.interests,
           child: _InterestsSheet(
             interests: summary.interests,
             foodNeeds: summary.foodNeeds,
           ),
         );
       case _MyMenuAction.languageNotifications:
-        _showSheet(
-          title: 'Language & notifications',
-          child: _LanguageSheet(language: summary.languageLabel),
-        );
+        _showLanguageSheet();
       case _MyMenuAction.privacyData:
         _showSheet(
-          title: 'Privacy & data',
-          child: const _MessageSheet(
-            message:
-                'Your travel data is saved to improve your itinerary experience.',
-          ),
+          title: l10n.privacyData,
+          child: _MessageSheet(message: l10n.privacyDataMessage),
         );
       case _MyMenuAction.helpCenter:
         _showSheet(
-          title: 'Help center',
-          child: const _MessageSheet(
-            message:
-                'NoriGo helps you avoid crowds, understand local culture, and adapt your trip.',
-          ),
+          title: l10n.helpCenter,
+          child: _MessageSheet(message: l10n.helpCenterMessage),
         );
     }
+  }
+
+  Future<void> _showLanguageSheet() async {
+    final localeController = AppLocaleScope.of(context);
+    final selectedLocale = await showModalBottomSheet<Locale>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: _MyColors.white,
+      builder: (context) {
+        return _LanguageSheet(selectedLocale: localeController.locale);
+      },
+    );
+    if (selectedLocale == null) return;
+
+    await localeController.setLocale(selectedLocale);
+    if (!mounted) return;
+    final l10n = lookupAppLocalizations(selectedLocale);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.languageUpdated)));
+    _controller.load();
   }
 
   void _openItineraryDetail(MyItineraryPlanPreview plan) {
@@ -208,6 +222,39 @@ class _MyPageScreenState extends State<MyPageScreen> {
       ),
     );
   }
+}
+
+String _menuActionLabel(BuildContext context, _MyMenuAction action) {
+  final l10n = context.l10n;
+  return switch (action) {
+    _MyMenuAction.itineraries => l10n.myItineraries,
+    _MyMenuAction.savedPlaces => l10n.savedPlaces,
+    _MyMenuAction.translationHistory => l10n.translationHistory,
+    _MyMenuAction.cultureGuides => l10n.savedCultureGuides,
+    _MyMenuAction.waitTimeHistory => l10n.waitTimeHelpHistory,
+    _MyMenuAction.interests => l10n.interests,
+    _MyMenuAction.languageNotifications => l10n.languageNotifications,
+    _MyMenuAction.privacyData => l10n.privacyData,
+    _MyMenuAction.helpCenter => l10n.helpCenter,
+  };
+}
+
+String _languageDisplayLabel(BuildContext context, String language) {
+  if (AppLocaleScope.maybeOf(context) == null) return language;
+  final locale = AppLocaleController.localeForUserLanguage(language);
+  if (locale.languageCode == 'ko') return context.l10n.koreanNative;
+  return context.l10n.english;
+}
+
+String _bottomNavLabel(BuildContext context, int index) {
+  final l10n = context.l10n;
+  return switch (index) {
+    0 => l10n.home,
+    1 => l10n.itinerary,
+    2 => l10n.scan,
+    3 => l10n.discover,
+    _ => l10n.my,
+  };
 }
 
 class _MyPageContent extends StatelessWidget {
@@ -323,12 +370,10 @@ class _TopBar extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             IconButton(
-              tooltip: 'Notifications',
+              tooltip: context.l10n.notifications,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Notifications will open when connected.'),
-                  ),
+                  SnackBar(content: Text(context.l10n.notificationsPending)),
                 );
               },
               icon: Icon(
@@ -524,7 +569,14 @@ class _ProfileHeader extends StatelessWidget {
                                 SizedBox(height: 8 * scale),
                                 _MetaLine(
                                   icon: Icons.translate_rounded,
-                                  label: summary.languageLabel,
+                                  label:
+                                      AppLocaleScope.maybeOf(
+                                        context,
+                                      )?.languageDisplayName ??
+                                      _languageDisplayLabel(
+                                        context,
+                                        summary.languageLabel,
+                                      ),
                                   scale: scale,
                                 ),
                               ],
@@ -752,29 +804,30 @@ class _StatsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final stats = [
       _StatData(
         icon: Icons.bookmark_border_rounded,
         value: '${summary.savedPlansCount}',
-        label: 'Saved plans',
+        label: l10n.savedPlans,
         color: _MyColors.purple,
       ),
       _StatData(
         icon: Icons.location_on_outlined,
         value: '${summary.savedPlacesCount}',
-        label: 'Saved places',
+        label: l10n.savedPlaces,
         color: _MyColors.green,
       ),
       _StatData(
         icon: Icons.crop_free_rounded,
         value: '${summary.cultureScansCount}',
-        label: 'Culture scans',
+        label: l10n.cultureScans,
         color: _MyColors.purple,
       ),
       _StatData(
         icon: Icons.schedule_rounded,
         value: summary.timeSavedLabel,
-        label: 'Time saved',
+        label: l10n.timeSaved,
         color: _MyColors.orange,
       ),
     ];
@@ -952,6 +1005,7 @@ class _MenuCard extends StatelessWidget {
           final item = _items[index];
           return _MenuRow(
             data: item,
+            label: _menuActionLabel(context, item.action),
             scale: scale,
             showDivider: index < _items.length - 1,
             onTap: () => onSelected(item.action),
@@ -965,12 +1019,14 @@ class _MenuCard extends StatelessWidget {
 class _MenuRow extends StatelessWidget {
   const _MenuRow({
     required this.data,
+    required this.label,
     required this.scale,
     required this.showDivider,
     required this.onTap,
   });
 
   final _MenuItemData data;
+  final String label;
   final double scale;
   final bool showDivider;
   final VoidCallback onTap;
@@ -991,7 +1047,7 @@ class _MenuRow extends StatelessWidget {
                   SizedBox(width: 18 * scale),
                   Expanded(
                     child: Text(
-                      data.label,
+                      label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1166,7 +1222,7 @@ class _ExplorerProgressCopy extends StatelessWidget {
         ),
         SizedBox(height: 6 * scale),
         Text(
-          'Keep exploring to level up!',
+          context.l10n.keepExploring,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -1246,7 +1302,7 @@ class _ItinerariesSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (plans.isEmpty) {
-      return const _EmptySheetMessage(message: 'No saved itineraries yet.');
+      return _EmptySheetMessage(message: context.l10n.noSavedItineraries);
     }
 
     return Column(
@@ -1281,9 +1337,7 @@ class _ItineraryDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (plan.placeNames.isEmpty) {
-      return const _EmptySheetMessage(
-        message: 'No itinerary items are saved for this plan yet.',
-      );
+      return _EmptySheetMessage(message: context.l10n.noSavedItineraries);
     }
     return Column(
       children: plan.placeNames
@@ -1291,7 +1345,7 @@ class _ItineraryDetailSheet extends StatelessWidget {
             (name) => _SheetListTile(
               icon: Icons.place_outlined,
               title: name,
-              subtitle: 'Saved itinerary stop',
+              subtitle: context.l10n.savedItineraryStop,
             ),
           )
           .toList(growable: false),
@@ -1307,7 +1361,7 @@ class _SavedPlacesSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (places.isEmpty) {
-      return const _EmptySheetMessage(message: 'No saved places yet.');
+      return _EmptySheetMessage(message: context.l10n.noSavedPlaces);
     }
     return Column(
       children: places
@@ -1331,7 +1385,7 @@ class _CultureGuidesSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (guides.isEmpty) {
-      return const _EmptySheetMessage(message: 'No saved culture guides yet.');
+      return _EmptySheetMessage(message: context.l10n.noSavedCultureGuides);
     }
     return Column(
       children: guides
@@ -1369,9 +1423,7 @@ class _RetripEventsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (events.isEmpty) {
-      return const _EmptySheetMessage(
-        message: 'No wait-time help history yet.',
-      );
+      return _EmptySheetMessage(message: context.l10n.noWaitTimeHistory);
     }
     return Column(
       children: events
@@ -1400,7 +1452,7 @@ class _InterestsSheet extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (interests.isEmpty)
-          const _EmptySheetMessage(message: 'No interests selected yet.')
+          _EmptySheetMessage(message: context.l10n.noInterestsSelected)
         else
           Wrap(
             spacing: 8,
@@ -1412,7 +1464,7 @@ class _InterestsSheet extends StatelessWidget {
         const SizedBox(height: 16),
         _SheetListTile(
           icon: Icons.restaurant_menu_rounded,
-          title: 'Food needs',
+          title: context.l10n.foodNeeds,
           subtitle: foodNeeds,
         ),
       ],
@@ -1421,26 +1473,65 @@ class _InterestsSheet extends StatelessWidget {
 }
 
 class _LanguageSheet extends StatelessWidget {
-  const _LanguageSheet({required this.language});
+  const _LanguageSheet({required this.selectedLocale});
 
-  final String language;
+  final Locale selectedLocale;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _SheetListTile(
-          icon: Icons.translate_rounded,
-          title: 'Preferred language',
-          subtitle: language,
+    final l10n = context.l10n;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.language,
+              style: const TextStyle(
+                color: _MyColors.deepPurple,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _LanguageOptionTile(
+              locale: const Locale('en'),
+              selectedLocale: selectedLocale,
+              title: l10n.english,
+            ),
+            _LanguageOptionTile(
+              locale: const Locale('ko'),
+              selectedLocale: selectedLocale,
+              title: l10n.koreanNative,
+            ),
+          ],
         ),
-        const _SheetListTile(
-          icon: Icons.notifications_none_rounded,
-          title: 'Notifications',
-          subtitle:
-              'Crowd alerts and itinerary updates are enabled by default.',
-        ),
-      ],
+      ),
+    );
+  }
+}
+
+class _LanguageOptionTile extends StatelessWidget {
+  const _LanguageOptionTile({
+    required this.locale,
+    required this.selectedLocale,
+    required this.title,
+  });
+
+  final Locale locale;
+  final Locale selectedLocale;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = locale.languageCode == selectedLocale.languageCode;
+    return _SheetListTile(
+      icon: selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+      title: title,
+      subtitle: selected ? context.l10n.preferredLanguage : '',
+      onTap: () => Navigator.of(context).pop(locale),
     );
   }
 }
@@ -1643,6 +1734,7 @@ class _MyBottomNavigation extends StatelessWidget {
                 final item = _items[index];
                 final selected = index == 4;
                 final isScan = index == 2;
+                final label = _bottomNavLabel(context, index);
                 return Expanded(
                   child: InkWell(
                     onTap: () => onChanged(index),
@@ -1691,7 +1783,7 @@ class _MyBottomNavigation extends StatelessWidget {
                             ),
                           const SizedBox(height: 5),
                           Text(
-                            item.label,
+                            label,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

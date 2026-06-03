@@ -5,11 +5,14 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/app_locale_controller.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
+import 'package:norigo/features/culture_scan/domain/culture_vision_result.dart';
 
 const _scanBackgroundAsset = 'assets/images/scan/bulguksa_stone_stack_bg.png';
 
@@ -48,6 +51,17 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final language = AppLocaleController.userLanguageForLocale(
+      Localizations.localeOf(context),
+    );
+    if (_controller.selectedLanguage != language) {
+      _controller.updateLanguage(language);
+    }
+  }
+
   void _onControllerChanged() {
     if (mounted) setState(() {});
   }
@@ -67,9 +81,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     CultureScanRequest? request;
     if (draft.visionResult.requiresManualSelection) {
       if (draft.visionResult.detectedObjectSource == 'no_match') {
-        _showSnack(
-          'I couldn’t identify a supported travel situation. Please choose the closest situation.',
-        );
+        _showSnack(context.l10n.unsupportedTravelSituation);
       }
       final selection = await _showCultureScanSheet();
       if (!mounted) return;
@@ -168,17 +180,18 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
   Future<void> _toggleFlash() async {
     final toggled = await _controller.toggleFlash();
     if (!toggled && mounted) {
-      _showSnack('Flash is not available on this device.');
+      _showSnack(context.l10n.flashNotAvailable);
     }
   }
 
   Future<void> _selectLanguage() async {
-    final language = await showModalBottomSheet<String>(
+    final localeController = AppLocaleScope.of(context);
+    final locale = await showModalBottomSheet<Locale>(
       context: context,
       showDragHandle: true,
       backgroundColor: _ScanColors.white,
       builder: (context) {
-        const languages = ['English', '한국어', '日本語', '中文'];
+        final l10n = context.l10n;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -186,8 +199,8 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Language',
+                Text(
+                  l10n.language,
                   style: TextStyle(
                     color: _ScanColors.deepText,
                     fontSize: 22,
@@ -195,17 +208,19 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                ...languages.map(
+                ...AppLocaleController.supportedLocales.map(
                   (item) => ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      item == _controller.selectedLanguage
+                      item.languageCode == localeController.locale.languageCode
                           ? Icons.check_circle_rounded
                           : Icons.circle_outlined,
                       color: _ScanColors.purple,
                     ),
                     title: Text(
-                      item,
+                      item.languageCode == 'ko'
+                          ? l10n.koreanNative
+                          : l10n.english,
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     onTap: () => Navigator.of(context).pop(item),
@@ -217,7 +232,10 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
         );
       },
     );
-    if (language != null) _controller.updateLanguage(language);
+    if (locale == null) return;
+    await localeController.setLocale(locale);
+    _controller.updateLanguage(localeController.userLanguage);
+    if (mounted) _showSnack(context.l10n.languageUpdated);
   }
 
   void _handleBottomNavigation(int index) {
@@ -236,7 +254,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
       return;
     }
 
-    _showSnack('This section will be connected later.');
+    _showSnack(context.l10n.sectionComingSoon);
   }
 
   Future<_CultureScanSheetSelection?> _showCultureScanSheet() {
@@ -262,7 +280,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
   Future<void> _handlePhraseTap(CultureGuide guide) async {
     final phrase = guide.koreanSource.trim();
     if (phrase.isEmpty) {
-      _showSnack('No phrase is available yet.');
+      _showSnack(context.l10n.noPhraseAvailable);
       return;
     }
     await Clipboard.setData(ClipboardData(text: phrase));
@@ -356,7 +374,10 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                 left: 18 * scale,
                                 right: 18 * scale,
                                 child: _CameraFallbackNotice(
-                                  message: _controller.friendlyMessage!,
+                                  message: _localizedCameraMessage(
+                                    context,
+                                    _controller.friendlyMessage!,
+                                  ),
                                   scale: scale,
                                 ),
                               ),
@@ -366,7 +387,14 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                               bottom: 24 * scale,
                               child: _BottomScanControls(
                                 scale: scale,
-                                selectedLanguage: _controller.selectedLanguage,
+                                selectedLanguage:
+                                    AppLocaleScope.maybeOf(
+                                      context,
+                                    )?.languageDisplayName ??
+                                    _scanLanguageDisplay(
+                                      context,
+                                      _controller.selectedLanguage,
+                                    ),
                                 scanStatus: _controller.scanStatus,
                                 onLanguageTap: _selectLanguage,
                                 onScanCulture: _scanCulture,
@@ -713,7 +741,7 @@ class _GuidePill extends StatelessWidget {
                 ),
                 SizedBox(width: 8 * scale),
                 Text(
-                  'Guide',
+                  context.l10n.guide,
                   style: TextStyle(
                     color: _ScanColors.deepText,
                     fontSize: 17 * scale,
@@ -748,7 +776,7 @@ class _FlashIconButton extends StatelessWidget {
         : Icons.flash_off_rounded;
     return Semantics(
       button: true,
-      label: flashEnabled ? 'Flash on' : 'Flash off',
+      label: flashEnabled ? context.l10n.flashOn : context.l10n.flashOff,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -842,7 +870,9 @@ class _CultureGuideCard extends StatelessWidget {
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        isReady ? 'Run Guide' : 'Refresh Guide',
+                        isReady
+                            ? context.l10n.runGuide
+                            : context.l10n.refreshGuide,
                         style: TextStyle(
                           fontSize: 11.8 * scale,
                           fontWeight: FontWeight.w900,
@@ -890,7 +920,7 @@ class _CultureGuideCard extends StatelessWidget {
                       SizedBox(width: 10 * scale),
                       Expanded(
                         child: Text(
-                          'Understanding the local context...',
+                          context.l10n.understandingLocalContext,
                           style: TextStyle(
                             color: _ScanColors.bodyText,
                             fontSize: 13.5 * scale,
@@ -918,7 +948,7 @@ class _CultureGuideCard extends StatelessWidget {
             icon: Icons.favorite_rounded,
             iconColor: const Color(0xFF8D6BF4),
             bubbleColor: const Color(0xFFEAE1FF),
-            title: 'Meaning',
+            title: context.l10n.meaning,
             body: guide.meaning,
           ),
           SizedBox(height: 10 * scale),
@@ -927,7 +957,7 @@ class _CultureGuideCard extends StatelessWidget {
             icon: Icons.volunteer_activism_rounded,
             iconColor: const Color(0xFF39A217),
             bubbleColor: const Color(0xFFEAF8DE),
-            title: 'Etiquette',
+            title: context.l10n.etiquette,
             body: guide.etiquette,
           ),
           SizedBox(height: 10 * scale),
@@ -936,7 +966,7 @@ class _CultureGuideCard extends StatelessWidget {
             icon: Icons.menu_book_rounded,
             iconColor: _ScanColors.blue,
             bubbleColor: const Color(0xFFE0F1FF),
-            title: 'Story',
+            title: context.l10n.story,
             body: guide.story,
           ),
         ],
@@ -1135,7 +1165,7 @@ class _AgentSourceBadge extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
-          label,
+          _cultureSourceLabel(context, label),
           maxLines: 1,
           style: TextStyle(
             color: isReal
@@ -1373,7 +1403,7 @@ class _ScanButton extends StatelessWidget {
         children: [
           Semantics(
             button: true,
-            label: 'Scan Culture',
+            label: context.l10n.scanCulture,
             child: SizedBox(
               width: 88 * scale,
               height: 88 * scale,
@@ -1421,7 +1451,7 @@ class _ScanButton extends StatelessWidget {
           ),
           SizedBox(height: 8 * scale),
           Text(
-            'Scan Culture',
+            context.l10n.scanCulture,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: _ScanColors.white,
@@ -1475,8 +1505,8 @@ class _CultureScanContextSheetState extends State<_CultureScanContextSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Scan context',
+            Text(
+              context.l10n.scanContext,
               style: TextStyle(
                 color: _ScanColors.deepText,
                 fontSize: 22,
@@ -1564,7 +1594,7 @@ class _CultureScanContextSheetState extends State<_CultureScanContextSheet> {
                   );
                 },
                 icon: const Icon(Icons.travel_explore_rounded),
-                label: const Text('Scan Culture'),
+                label: Text(context.l10n.scanCulture),
                 style: FilledButton.styleFrom(
                   backgroundColor: _ScanColors.purple,
                   foregroundColor: _ScanColors.white,
@@ -1590,9 +1620,7 @@ class _VisionConfirmationSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final vision = draft.visionResult;
     final confidence = '${(vision.confidence * 100).round()}%';
-    final title = vision.confidence >= 0.75
-        ? 'I found this situation'
-        : 'Maybe this is...';
+    final title = _confirmationTitle(context, vision);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final alternatives = vision.alternatives
         .where((item) => item.detectedObject != vision.detectedObject)
@@ -1681,7 +1709,7 @@ class _VisionConfirmationSheet extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).pop(false),
                     icon: const Icon(Icons.tune_rounded),
-                    label: const Text('Change'),
+                    label: Text(context.l10n.change),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _ScanColors.purple,
                       side: const BorderSide(color: _ScanColors.purple),
@@ -1697,7 +1725,7 @@ class _VisionConfirmationSheet extends StatelessWidget {
                     key: const ValueKey('useVisionCandidateButton'),
                     onPressed: () => Navigator.of(context).pop(true),
                     icon: const Icon(Icons.check_rounded),
-                    label: const Text('Use this'),
+                    label: Text(context.l10n.useThis),
                     style: FilledButton.styleFrom(
                       backgroundColor: _ScanColors.purple,
                       foregroundColor: _ScanColors.white,
@@ -1713,6 +1741,17 @@ class _VisionConfirmationSheet extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _confirmationTitle(BuildContext context, CultureVisionResult vision) {
+    if (vision.detectedObjectSource == 'mlkit_custom_call_bell') {
+      return vision.confidence >= 0.8
+          ? context.l10n.iFoundRestaurantCallBell
+          : context.l10n.callBellConfirmation;
+    }
+    return vision.confidence >= 0.75
+        ? context.l10n.iFoundThisSituation
+        : context.l10n.maybeThisIs;
   }
 }
 
@@ -1898,6 +1937,64 @@ List<_SituationOption> _situationsFor(String placeType) {
   };
 }
 
+String _localizedCameraMessage(BuildContext context, String message) {
+  if (message.contains('No camera detected')) {
+    return context.l10n.noCameraDetected;
+  }
+  final lower = message.toLowerCase();
+  if (lower.contains('permission')) return context.l10n.cameraPermissionBlocked;
+  if (message.contains('Camera preview is unavailable')) {
+    return context.l10n.cameraPreviewUnavailable;
+  }
+  if (message.contains('Flash is unavailable')) {
+    return context.l10n.flashUnavailable;
+  }
+  if (message.contains('Culture Guide is not connected')) {
+    return context.l10n.cultureGuideLocalFallback;
+  }
+  if (message.contains('could not reach Culture Guide')) {
+    return context.l10n.cultureGuideOfflineFallback;
+  }
+  return message;
+}
+
+String _scanLanguageDisplay(BuildContext context, String language) {
+  final locale = AppLocaleController.localeForUserLanguage(language);
+  if (locale.languageCode == 'ko') return context.l10n.koreanNative;
+  return context.l10n.english;
+}
+
+String _cultureSourceLabel(BuildContext context, String label) {
+  final separatorIndex = label.indexOf(' · ');
+  if (separatorIndex != -1) {
+    final prefix = label.substring(0, separatorIndex);
+    final source = label.substring(separatorIndex + 3);
+    return '$prefix · ${_cultureSourceLabel(context, source)}';
+  }
+  if (label.contains('Culture DB + ennoia')) {
+    return context.l10n.cultureDbEnnoia;
+  }
+  if (label.contains('Culture DB')) return context.l10n.cultureDb;
+  if (label.contains('Travel behavior only')) {
+    return context.l10n.travelBehaviorOnly;
+  }
+  if (label == 'Ready to scan') return context.l10n.readyToScan;
+  if (label == 'Local guide') return context.l10n.localGuide;
+  if (label.contains('Demo fallback')) return context.l10n.demoFallback;
+  return label;
+}
+
+String _scanBottomNavLabel(BuildContext context, int index) {
+  final l10n = context.l10n;
+  return switch (index) {
+    0 => l10n.home,
+    1 => l10n.itinerary,
+    2 => l10n.scan,
+    3 => l10n.discover,
+    _ => l10n.my,
+  };
+}
+
 class _ScanBottomNavigation extends StatelessWidget {
   const _ScanBottomNavigation({
     required this.selectedIndex,
@@ -1938,6 +2035,7 @@ class _ScanBottomNavigation extends StatelessWidget {
                                 : 'nav-${item.label}',
                           ),
                           item: item,
+                          label: _scanBottomNavLabel(context, index),
                           selected: selectedIndex == index,
                           scale: scale,
                           onTap: () => onChanged(index),
@@ -1958,6 +2056,7 @@ class _ScanBottomNavigation extends StatelessWidget {
 class _ScanNavItem extends StatelessWidget {
   const _ScanNavItem({
     required this.item,
+    required this.label,
     required this.selected,
     required this.scale,
     required this.onTap,
@@ -1965,6 +2064,7 @@ class _ScanNavItem extends StatelessWidget {
   });
 
   final _ScanNavData item;
+  final String label;
   final bool selected;
   final double scale;
   final VoidCallback onTap;
@@ -2005,7 +2105,7 @@ class _ScanNavItem extends StatelessWidget {
               ),
             SizedBox(height: 3 * scale),
             Text(
-              item.label,
+              label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

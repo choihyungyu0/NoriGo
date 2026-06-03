@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:norigo/app/theme.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/core/widgets/app_card.dart';
 import 'package:norigo/core/widgets/nori_chip.dart';
 import 'package:norigo/core/widgets/section_header.dart';
@@ -49,22 +50,23 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   Widget build(BuildContext context) {
     final picks = _filteredPlaces();
+    final l10n = context.l10n;
 
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const SectionHeader(
-            title: 'Discover hidden spots',
-            subtitle: 'AI picks that disperse crowds and reveal local texture',
+          SectionHeader(
+            title: l10n.discoverHiddenSpots,
+            subtitle: l10n.discoverSubtitle,
           ),
           const SizedBox(height: 14),
           TextField(
             controller: _searchController,
             onChanged: _onSearchChanged,
-            decoration: const InputDecoration(
-              hintText: 'Search quiet cafes, dessert, culture',
-              prefixIcon: Icon(Icons.search),
+            decoration: InputDecoration(
+              hintText: l10n.discoverSearchHint,
+              prefixIcon: const Icon(Icons.search),
             ),
           ),
           const SizedBox(height: 12),
@@ -86,14 +88,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           const SizedBox(height: 14),
           const _DiscoverMap(),
           const SizedBox(height: 18),
-          const SectionHeader(title: 'AI picks'),
+          SectionHeader(title: l10n.aiPicks),
           const SizedBox(height: 10),
           if (picks.isEmpty)
-            const NoriCard(
-              child: Text(
-                'No calm places found for this search. Try a broader category or clear the search.',
-              ),
-            )
+            NoriCard(child: Text(l10n.noCalmPlaces))
           else
             ...picks.map(_HiddenSpotCard.new),
         ],
@@ -150,7 +148,7 @@ class _DiscoverMap extends StatelessWidget {
             ),
             Center(
               child: Text(
-                'Map placeholder',
+                context.l10n.mapPlaceholder,
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(color: NoriGoColors.softInk),

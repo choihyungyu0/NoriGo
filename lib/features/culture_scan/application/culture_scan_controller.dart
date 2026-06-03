@@ -4,6 +4,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:norigo/ai/harness/culture_guide_harness.dart';
+import 'package:norigo/core/localization/app_locale_controller.dart';
+import 'package:norigo/features/culture_scan/application/call_bell_custom_classifier.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
 import 'package:norigo/features/culture_scan/application/culture_mlkit_vision_classifier.dart';
@@ -31,19 +33,27 @@ class CultureScanController extends ChangeNotifier {
   CultureScanController({
     required CultureCameraService cameraService,
     CultureScanRepository repository = const SupabaseCultureScanRepository(),
+    CultureVisionClassifier callBellClassifier =
+        const CallBellCustomClassifier(),
     CultureVisionClassifier visionClassifier =
         const MlKitCultureVisionClassifier(),
     CultureGuideHarness? harness,
     CultureScanRequest? initialRequest,
   }) : _cameraService = cameraService,
        _repository = repository,
+       _callBellClassifier = callBellClassifier,
        _visionClassifier = visionClassifier,
-       _baseRequest = initialRequest ?? CultureScanRequest.defaultTemple() {
+       _baseRequest =
+           initialRequest ??
+           CultureScanRequest.defaultTemple(
+             userLanguage: AppLocaleController.currentUserLanguage,
+           ) {
     _selectedLanguage = _baseRequest.userLanguage;
   }
 
   final CultureCameraService _cameraService;
   final CultureScanRepository _repository;
+  final CultureVisionClassifier _callBellClassifier;
   final CultureVisionClassifier _visionClassifier;
   final CultureScanRequest _baseRequest;
 
@@ -295,6 +305,19 @@ class CultureScanController extends ChangeNotifier {
     CultureVisionRequest request,
   ) async {
     if (capture != null && !capture.isEmpty) {
+      try {
+        final callBellResult = await _callBellClassifier.classify(
+          capture,
+          request,
+        );
+        if (callBellResult != null) return callBellResult;
+      } catch (error) {
+        developer.log(
+          'Custom call bell classifier skipped.',
+          name: 'CultureScanController',
+          error: error.runtimeType,
+        );
+      }
       try {
         final localResult = await _visionClassifier.classify(capture, request);
         if (localResult != null) return localResult;

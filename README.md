@@ -126,6 +126,90 @@ and camera-failure paths keep the fallback scan background and do not crash.
 Detection is context-guided for now; future work is real vision
 classification/OCR for detected signs and objects.
 
+### Custom Call Bell Recognition
+
+Base ML Kit image labeling is useful for broad objects, but Korean restaurant
+call bells are small, varied, and often surrounded by visually similar table
+items. NoriGo therefore supports an optional custom TensorFlow Lite image
+classifier for the first production-like Culture Scan object:
+`restaurant_call_bell`.
+
+Dataset structure:
+
+```text
+ml_data/call_bell/
+  train/
+    restaurant_call_bell/
+    not_restaurant_call_bell/
+  val/
+    restaurant_call_bell/
+    not_restaurant_call_bell/
+  test/
+    restaurant_call_bell/
+    not_restaurant_call_bell/
+```
+
+`ml_data/` is local training data only. It is ignored by Git, is not bundled
+into the Flutter app, and must not be added to `pubspec.yaml`. Keep the 400+
+training photos outside normal app source control; use Google Drive or other
+external storage for dataset backups.
+
+The negative class should include tissue, cups, bowls, plates, receipts,
+remotes, mouse devices, kiosk screens, and other non-call-bell table items.
+Keep train, validation, and test splits separated by location/session to avoid
+leakage, and do not include private customer faces. The test set must contain
+real photos only.
+
+Train the model:
+
+```powershell
+python tools/ml/train_call_bell_classifier.py
+```
+
+The script exports:
+
+```text
+build/ml/call_bell_labeler.tflite
+build/ml/call_bell_labels.txt
+build/ml/call_bell_metrics.json
+```
+
+Copy a real trained model into Flutter assets:
+
+```powershell
+Copy-Item build/ml/call_bell_labeler.tflite assets/ml/call_bell_labeler.tflite
+Copy-Item build/ml/call_bell_labels.txt assets/ml/call_bell_labels.txt -Force
+```
+
+Do not add a fake placeholder model. If `assets/ml/call_bell_labeler.tflite`
+is missing, the app skips the custom classifier and continues through the
+existing base ML Kit/server/manual selection flow.
+
+Only these runtime ML files are bundled by Flutter through `assets/ml/`:
+
+```text
+assets/ml/call_bell_labeler.tflite
+assets/ml/call_bell_labels.txt
+```
+
+Run the asset safety check before building release/test APKs:
+
+```powershell
+python tools/ml/check_dataset_not_bundled.py
+```
+
+Confidence behavior:
+
+- `>= 0.80`: show "I found a restaurant call bell" and require confirmation.
+- `0.60-0.79`: show "This may be a restaurant call bell. Is that right?"
+  and require confirmation.
+- `< 0.60` or `not_restaurant_call_bell`: open manual selection; never map the
+  negative class to a Culture Guide object.
+
+Current limitation: call bell recognition is image classification, not
+bounding-box detection. It can say whether the image likely contains a call
+bell, but it does not locate the bell on screen.
+
 Run the deployed function smoke test:
 
 ```powershell
@@ -146,3 +230,22 @@ Static local images for the profile header and Local Explorer progress card are
 stored under `assets/images/my/`. If Supabase is unavailable, table permissions
 fail, or optional history tables are missing, the page falls back to polished
 local mode instead of crashing.
+
+## Localization
+
+NoriGo uses Flutter ARB localization (`lib/l10n/app_en.arb` and
+`lib/l10n/app_ko.arb`) with generated `AppLocalizations` delegates.
+
+Supported locales:
+
+- English (`en`)
+- Korean (`ko`)
+
+Fixed UI text is not machine-translated at runtime. The app language can be
+changed from My Page under Language & notifications, and the selected locale is
+persisted locally. When Supabase profile/preference sync is available, the app
+also updates `preferred_language` in `trip_preferences`.
+
+AI-generated content uses the selected `user_language` for new itinerary,
+Re-Trip, and Culture Scan requests. Existing saved records are displayed as
+stored, so older English rows are not rewritten when the UI language changes.

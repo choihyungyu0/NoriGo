@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:norigo/core/localization/app_locale_controller.dart';
 import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
@@ -55,8 +56,13 @@ class CrowdAlertController extends ChangeNotifier {
   RetripAgentRequest get currentRequest {
     final context = _retripContext;
     return context == null
-        ? RetripAgentRequest.defaults()
-        : RetripAgentRequest.fromContext(context);
+        ? RetripAgentRequest.defaults().copyWith(
+            userLanguage: AppLocaleController.currentUserLanguage,
+          )
+        : RetripAgentRequest.fromContext(
+            context,
+            userLanguage: AppLocaleController.currentUserLanguage,
+          );
   }
 
   Future<void> loadAlert() async {

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/itinerary/application/crowd_alert_controller.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/data/supabase_crowd_alert_repository.dart';
@@ -89,9 +90,9 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('This section will be connected later.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.l10n.sectionComingSoon)));
   }
 
   Future<void> _keepOriginalPlan() async {
@@ -102,7 +103,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
       SnackBar(
         content: Text(
           kept
-              ? 'Original plan kept.'
+              ? context.l10n.keepOriginal
               : _controller.errorMessage ?? 'Unable to keep the original plan.',
         ),
       ),
@@ -121,7 +122,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
       SnackBar(
         content: Text(
           switched
-              ? 'Plan updated.'
+              ? context.l10n.planUpdated
               : _controller.errorMessage ??
                     'Recommendation selected, but plan update could not be saved.',
         ),
@@ -186,9 +187,23 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                       if ((_controller.isLoading ||
                               _controller.isGeneratingRetrip) &&
                           alert == null) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: _CrowdColors.purple,
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(
+                                color: _CrowdColors.purple,
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                context.l10n.generateRetripAlternatives,
+                                style: const TextStyle(
+                                  color: _CrowdColors.textSub,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       }
@@ -197,7 +212,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                         return _ErrorState(
                           message:
                               _controller.errorMessage ??
-                              'Unable to load crowd alert.',
+                              context.l10n.unableToLoadCrowdAlert,
                           onRetry: _loadInitialAlert,
                         );
                       }
@@ -656,7 +671,7 @@ class _AlertMessageCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              'Crowd Alert',
+                              context.l10n.crowdAlert,
                               style: TextStyle(
                                 color: _CrowdColors.deepPurple,
                                 fontSize: 28 * scale,
@@ -941,7 +956,7 @@ class _AlternativesSection extends StatelessWidget {
         ),
         SizedBox(height: 4 * scale),
         Text(
-          'Real-time recommendations',
+          context.l10n.alternativePlaces,
           style: TextStyle(
             color: _CrowdColors.textSub,
             fontSize: 14.2 * scale,
@@ -970,8 +985,8 @@ class _AlternativesSection extends StatelessWidget {
               fit: BoxFit.scaleDown,
               child: Text(
                 isGenerating
-                    ? 'Generating...'
-                    : 'Generate Re-Trip alternatives',
+                    ? context.l10n.generating
+                    : context.l10n.generateRetripAlternatives,
                 style: TextStyle(
                   fontSize: 15.6 * scale,
                   fontWeight: FontWeight.w900,
@@ -1030,7 +1045,7 @@ class _AgentSourceBadge extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
-          label,
+          _crowdSourceLabel(context, label),
           maxLines: 1,
           style: TextStyle(
             color: isReal ? _CrowdColors.green : _CrowdColors.purple,
@@ -1273,7 +1288,7 @@ class _SwitchButton extends StatelessWidget {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            selected ? 'Selected' : 'Switch',
+            selected ? 'Selected' : context.l10n.switchPlan,
             style: TextStyle(
               fontSize: 14.2 * scale,
               fontWeight: FontWeight.w900,
@@ -1320,7 +1335,7 @@ class _BottomActionButtons extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  'Keep original plan',
+                  context.l10n.keepOriginal,
                   style: TextStyle(
                     fontSize: 15.5 * scale,
                     fontWeight: FontWeight.w800,
@@ -1363,7 +1378,7 @@ class _BottomActionButtons extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  isSwitching ? 'Updating...' : 'Switch plan',
+                  isSwitching ? context.l10n.updating : context.l10n.switchPlan,
                   style: TextStyle(
                     fontSize: 15.5 * scale,
                     fontWeight: FontWeight.w900,
@@ -1424,6 +1439,7 @@ class _BottomNavigation extends StatelessWidget {
           children: List.generate(items.length, (index) {
             final item = items[index];
             final selected = index == selectedIndex;
+            final label = _crowdBottomNavLabel(context, index);
 
             return Expanded(
               child: InkWell(
@@ -1455,7 +1471,7 @@ class _BottomNavigation extends StatelessWidget {
                     ),
                     SizedBox(height: 4 * scale),
                     Text(
-                      item.label,
+                      label,
                       style: TextStyle(
                         color: selected
                             ? _CrowdColors.purple
@@ -1642,6 +1658,22 @@ class _BottomNavData {
 
   final String label;
   final IconData icon;
+}
+
+String _crowdBottomNavLabel(BuildContext context, int index) {
+  final l10n = context.l10n;
+  return switch (index) {
+    0 => l10n.home,
+    1 => l10n.itinerary,
+    2 => l10n.scan,
+    3 => l10n.discover,
+    _ => l10n.my,
+  };
+}
+
+String _crowdSourceLabel(BuildContext context, String label) {
+  if (label == 'KTO OpenAPI + ennoia') return context.l10n.ktoOpenApiEnnoia;
+  return label;
 }
 
 class _CrowdColors {

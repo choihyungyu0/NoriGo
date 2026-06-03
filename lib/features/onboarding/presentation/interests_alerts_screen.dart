@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/onboarding/application/onboarding_preferences_store.dart';
 import 'package:norigo/features/onboarding/domain/interests_alerts.dart';
 
@@ -43,7 +44,7 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
 
     if (nextInterests.contains(interest)) {
       if (nextInterests.length == 1) {
-        _showSnackBar('Select at least one interest.');
+        _showSnackBar(context.l10n.selectAtLeastOneInterest);
         return;
       }
       nextInterests.remove(interest);
@@ -64,7 +65,7 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
 
   void _requestEssentialAccess() {
     _update(_settings.copyWith(essentialAccessRequested: true));
-    _showSnackBar('Permission flow will be connected later.');
+    _showSnackBar(context.l10n.permissionFlowPending);
   }
 
   void _updateToggle(String label, bool value) {
@@ -96,12 +97,12 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
         ).pushNamedAndRemoveUntil(AppRoutes.itinerary, (route) => false);
         return;
       } on FlutterError {
-        _showSnackBar('Setup complete. Itinerary screen will be added next.');
+        _showSnackBar(context.l10n.setupCompletePending);
         return;
       }
     }
 
-    _showSnackBar('Setup complete. Itinerary screen will be added next.');
+    _showSnackBar(context.l10n.setupCompletePending);
   }
 
   void _showSnackBar(String message) {
@@ -149,7 +150,7 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
                             ),
                             SizedBox(height: 18 * scale),
                             Text(
-                              'Interests & Alerts',
+                              context.l10n.interestsAlerts,
                               style: TextStyle(
                                 color: _AlertColors.deepPurple,
                                 fontSize: 34 * scale,
@@ -159,7 +160,7 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
                             ),
                             SizedBox(height: 8 * scale),
                             Text(
-                              'Personalize your experience.',
+                              context.l10n.personalizeExperience,
                               style: TextStyle(
                                 color: _AlertColors.mutedText,
                                 fontSize: 17 * scale,
@@ -168,7 +169,7 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
                               ),
                             ),
                             SizedBox(height: 22 * scale),
-                            const _SectionTitle('Select your interests'),
+                            _SectionTitle(context.l10n.selectYourInterests),
                             SizedBox(height: 10 * scale),
                             _InterestsGrid(
                               interests: _interests,
@@ -176,7 +177,7 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
                               onToggle: _toggleInterest,
                             ),
                             SizedBox(height: 24 * scale),
-                            const _SectionTitle('Crowd preference'),
+                            _SectionTitle(context.l10n.crowdPreference),
                             SizedBox(height: 8 * scale),
                             _CrowdPreferenceSlider(
                               value: _settings.crowdPreference,
@@ -959,9 +960,9 @@ class _FinishButton extends StatelessWidget {
           key: const ValueKey('finishSetupButton'),
           onPressed: onPressed,
           style: _purpleButtonStyle(),
-          child: const Text(
-            'Finish setup',
-            style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
+          child: Text(
+            context.l10n.finishSetup,
+            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
           ),
         ),
       ),

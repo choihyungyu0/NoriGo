@@ -93,7 +93,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('switchPlanButton')));
     await tester.pump();
 
-    expect(find.text('Plan updated.'), findsOneWidget);
+    expect(find.text('Plan updated'), findsOneWidget);
   });
 
   testWidgets('Itinerary tab is active in bottom navigation', (tester) async {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:norigo/app/theme.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/core/widgets/app_card.dart';
 import 'package:norigo/core/widgets/nori_button.dart';
 import 'package:norigo/core/widgets/section_header.dart';
@@ -12,13 +13,14 @@ class ItineraryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final itinerary = MockNoriGoData.itinerary;
+    final l10n = context.l10n;
 
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           SectionHeader(
-            title: 'AI itinerary planner',
+            title: l10n.aiItineraryPlanner,
             subtitle: itinerary.title,
           ),
           const SizedBox(height: 14),
@@ -44,12 +46,12 @@ class ItineraryScreen extends StatelessWidget {
           const _MapPlaceholder(),
           const SizedBox(height: 18),
           NoriButton(
-            label: 'Save this plan',
+            label: l10n.saveThisPlan,
             icon: Icons.bookmark_add_outlined,
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Plan saved to My itineraries.')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(l10n.savedToSupabase)));
             },
           ),
         ],
@@ -114,7 +116,7 @@ class _TimelineCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Stay time: ${item.stayTime}',
+                    '${context.l10n.stayTime}: ${item.stayTime}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 8),
@@ -143,7 +145,7 @@ class _MapPlaceholder extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Route overview map',
+            context.l10n.routeOverviewMap,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),

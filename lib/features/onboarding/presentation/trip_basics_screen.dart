@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/onboarding/application/onboarding_preferences_store.dart';
 import 'package:norigo/features/onboarding/domain/trip_basics.dart';
 
@@ -49,13 +50,9 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Trip basics saved. Interests screen will be added next.',
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.l10n.setupCompletePending)));
   }
 
   @override
@@ -106,7 +103,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                               SizedBox(height: 16 * scale),
                               _SectionCard(
                                 icon: Icons.translate_rounded,
-                                title: '1. Preferred language',
+                                title: context.l10n.preferredLanguageStep,
                                 child: _ChipRow(
                                   group: 'language',
                                   values: _languages,
@@ -123,7 +120,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                               SizedBox(height: 12 * scale),
                               _SectionCard(
                                 icon: Icons.location_on_rounded,
-                                title: '2. Destination',
+                                title: context.l10n.destinationStep,
                                 child: DropdownButtonFormField<String>(
                                   initialValue: _basics.destination,
                                   items: const [
@@ -149,7 +146,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                               SizedBox(height: 12 * scale),
                               _SectionCard(
                                 icon: Icons.groups_rounded,
-                                title: '3. First visit?',
+                                title: context.l10n.firstVisitStep,
                                 child: _ChipRow(
                                   group: 'firstVisit',
                                   values: const ['Yes', 'No'],
@@ -166,7 +163,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                               SizedBox(height: 12 * scale),
                               _SectionCard(
                                 icon: Icons.card_travel_rounded,
-                                title: '4. Main purpose',
+                                title: context.l10n.mainPurposeStep,
                                 child: _ChipRow(
                                   group: 'purpose',
                                   values: _purposes,
@@ -189,7 +186,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                 compact: compact,
                                 left: _SectionCard(
                                   icon: Icons.calendar_month_rounded,
-                                  title: '5. Trip length',
+                                  title: context.l10n.tripLengthStep,
                                   child: _TripLengthStepper(
                                     days: _basics.tripLengthDays,
                                     onMinus: () => _changeTripLength(-1),
@@ -198,7 +195,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                 ),
                                 right: _SectionCard(
                                   icon: Icons.groups_rounded,
-                                  title: '6. Need queue help?',
+                                  title: context.l10n.needQueueHelpStep,
                                   child: _QueueHelpToggle(
                                     value: _basics.needQueueHelp,
                                     onChanged: (value) {
@@ -212,7 +209,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                               SizedBox(height: 12 * scale),
                               _SectionCard(
                                 icon: Icons.groups_rounded,
-                                title: '7. Who are you traveling with?',
+                                title: context.l10n.companionStep,
                                 child: _ChipRow(
                                   group: 'companion',
                                   values: _companions,
@@ -233,7 +230,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                               SizedBox(height: 12 * scale),
                               _SectionCard(
                                 icon: Icons.restaurant_menu_rounded,
-                                title: '8. Food needs',
+                                title: context.l10n.foodNeedsStep,
                                 child: _ChipRow(
                                   group: 'food',
                                   values: _foodNeeds,
@@ -329,7 +326,7 @@ class _OnboardingHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Trip Basics',
+                  context.l10n.tripBasics,
                   style: TextStyle(
                     color: _TripColors.deepPurple,
                     fontSize: 38 * scale,
@@ -848,9 +845,9 @@ class _PrimaryButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
           ),
-          child: const Text(
-            '✨ Next',
-            style: TextStyle(
+          child: Text(
+            context.l10n.continueLabel,
+            style: const TextStyle(
               color: _TripColors.white,
               fontSize: 22,
               fontWeight: FontWeight.w900,

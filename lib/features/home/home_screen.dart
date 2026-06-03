@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:norigo/app/theme.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/core/widgets/app_card.dart';
 import 'package:norigo/core/widgets/section_header.dart';
 import 'package:norigo/data/mock/mock_norigo_data.dart';
@@ -18,6 +19,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final places = MockNoriGoData.hiddenSpots;
+    final l10n = context.l10n;
 
     return SafeArea(
       child: ListView(
@@ -30,19 +32,19 @@ class HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hi, Emma!',
+                      l10n.homeGreeting,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Crowd-aware Korea, culture-aware context.',
+                      l10n.homeTagline,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
               ),
               IconButton.filledTonal(
-                tooltip: 'Notifications',
+                tooltip: l10n.notifications,
                 onPressed: onOpenCrowdAlert,
                 icon: const Icon(Icons.notifications_outlined),
               ),
@@ -50,9 +52,9 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           TextField(
-            decoration: const InputDecoration(
-              hintText: 'Search routes, cafes, culture tips',
-              prefixIcon: Icon(Icons.search),
+            decoration: InputDecoration(
+              hintText: l10n.homeSearchHint,
+              prefixIcon: const Icon(Icons.search),
             ),
             onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           ),
@@ -63,14 +65,14 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const InfoPill(
-                  label: 'AI route check',
+                InfoPill(
+                  label: l10n.aiRouteCheck,
                   icon: Icons.auto_awesome,
                   color: NoriGoColors.sea,
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  'Crowd-free route now',
+                  l10n.crowdFreeRouteNow,
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 8),
@@ -82,13 +84,13 @@ class HomeScreen extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onOpenCrowdAlert,
                   icon: const Icon(Icons.alt_route),
-                  label: const Text('Review alert'),
+                  label: Text(l10n.reviewAlert),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          const SectionHeader(title: 'Quick actions'),
+          SectionHeader(title: l10n.quickActions),
           const SizedBox(height: 10),
           GridView.count(
             crossAxisCount: 2,
@@ -100,33 +102,30 @@ class HomeScreen extends StatelessWidget {
             children: [
               _QuickAction(
                 icon: Icons.map_outlined,
-                label: 'Crowd map',
-                onTap: () => _showSnack(
-                  context,
-                  'Crowd map will connect to public data.',
-                ),
+                label: l10n.crowdMap,
+                onTap: () => _showSnack(context, l10n.sectionComingSoon),
               ),
               _QuickAction(
                 icon: Icons.hourglass_bottom,
-                label: 'Wait-time help',
+                label: l10n.waitTimeHelp,
                 onTap: onOpenCrowdAlert,
               ),
               _QuickAction(
                 icon: Icons.translate,
-                label: 'Live translation',
+                label: l10n.liveTranslation,
                 onTap: () => onSelectTab(2),
               ),
               _QuickAction(
                 icon: Icons.explore_outlined,
-                label: 'Hidden spots',
+                label: l10n.hiddenSpots,
                 onTap: () => onSelectTab(3),
               ),
             ],
           ),
           const SizedBox(height: 22),
-          const SectionHeader(
-            title: 'Good to visit now',
-            subtitle: 'Low-crowd picks close to your route',
+          SectionHeader(
+            title: l10n.goodToVisitNow,
+            subtitle: l10n.lowCrowdPicks,
           ),
           const SizedBox(height: 10),
           ...places.map(_PlaceNowCard.new),
@@ -144,7 +143,7 @@ class HomeScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Today's culture tip",
+                        l10n.todaysCultureTip,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 6),

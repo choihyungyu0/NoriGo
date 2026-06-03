@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:norigo/core/localization/app_locale_controller.dart';
 import 'package:norigo/features/ennoia/data/ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/mock_ennoia_agent_repository.dart';
 import 'package:norigo/features/ennoia/data/supabase_ennoia_agent_repository.dart';
@@ -91,7 +92,9 @@ class ItineraryController extends ChangeNotifier {
     _errorMessage = null;
     _safeNotifyListeners();
 
-    final request = OnboardingPreferencesStore.itineraryRequest();
+    final request = OnboardingPreferencesStore.itineraryRequest(
+      userLanguage: AppLocaleController.currentUserLanguage,
+    );
 
     try {
       final result = await _ennoiaRepository.fetchItinerary(request);

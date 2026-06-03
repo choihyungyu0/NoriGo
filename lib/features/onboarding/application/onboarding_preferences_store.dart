@@ -24,15 +24,16 @@ class OnboardingPreferencesStore {
     _interestsAlerts = const InterestsAlerts();
   }
 
-  static ItineraryAgentRequest itineraryRequest() {
+  static ItineraryAgentRequest itineraryRequest({String? userLanguage}) {
     final basics = _tripBasics;
     final interests = _interestsAlerts;
+    final language = userLanguage ?? basics.preferredLanguage;
     final selectedInterests = interests.selectedInterests.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     return ItineraryAgentRequest(
-      preferredLanguage: basics.preferredLanguage,
-      userLanguage: basics.preferredLanguage,
+      preferredLanguage: language,
+      userLanguage: language,
       destination: basics.destination,
       tripDays: basics.tripLengthDays.toString(),
       baseLocation: basics.baseLocation,

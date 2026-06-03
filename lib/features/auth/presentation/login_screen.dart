@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/data/repositories/repository_interfaces.dart';
 import 'package:norigo/data/repositories/supabase_auth_repository.dart';
 
@@ -79,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      _showSnackBar('Auth succeeded. Trip basics route is not connected yet.');
+      _showSnackBar(context.l10n.authSucceededPending);
     } catch (error) {
       if (!mounted) return;
       _showSnackBar(_friendlyAuthError(error));
@@ -101,9 +102,9 @@ class _LoginScreenState extends State<LoginScreen> {
   String _friendlyAuthError(Object error) {
     final message = error is AuthRepositoryException
         ? error.message
-        : 'Unable to authenticate right now.';
+        : context.l10n.unableToAuthenticate;
     if (message.toLowerCase().contains('invalid login')) {
-      return 'Invalid email or password.';
+      return context.l10n.invalidEmailPassword;
     }
     return message;
   }
@@ -163,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               isSubmitting: _isSubmitting,
                               onForgotPassword: () {
                                 _showSnackBar(
-                                  'Password reset will be connected later.',
+                                  context.l10n.passwordResetPending,
                                 );
                               },
                               onOutlineTap: () {
@@ -174,14 +175,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 );
                               },
                               onGoogleTap: () {
-                                _showSnackBar(
-                                  'Google login will be connected later.',
-                                );
+                                _showSnackBar(context.l10n.googleLoginPending);
                               },
                               onAppleTap: () {
-                                _showSnackBar(
-                                  'Apple login will be connected later.',
-                                );
+                                _showSnackBar(context.l10n.appleLoginPending);
                               },
                             ),
                             SizedBox(height: 18 * scale),
@@ -268,7 +265,7 @@ class _LoginHeader extends StatelessWidget {
                 const _WelcomeTitle(),
                 SizedBox(height: 14 * scale),
                 Text(
-                  'Crowd-free routes and\ncultural help in Korea.',
+                  context.l10n.authHeroCopy,
                   style: TextStyle(
                     color: _AuthColors.mutedText,
                     fontSize: 18 * scale,
@@ -419,6 +416,7 @@ class _AuthFormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLogin = selectedTab == _AuthTab.login;
+    final l10n = context.l10n;
 
     return Container(
       width: double.infinity,
@@ -447,13 +445,13 @@ class _AuthFormCard extends StatelessWidget {
             _AuthTextField(
               key: const ValueKey('emailField'),
               controller: emailController,
-              hintText: 'Email',
+              hintText: l10n.email,
               icon: Icons.mail_outline_rounded,
               keyboardType: TextInputType.emailAddress,
               validator: (value) {
                 final email = value?.trim() ?? '';
-                if (email.isEmpty) return 'Email is required.';
-                if (!email.contains('@')) return 'Enter a valid email.';
+                if (email.isEmpty) return l10n.emailRequired;
+                if (!email.contains('@')) return l10n.emailInvalid;
                 return null;
               },
             ),
@@ -461,20 +459,22 @@ class _AuthFormCard extends StatelessWidget {
             _AuthTextField(
               key: const ValueKey('passwordField'),
               controller: passwordController,
-              hintText: 'Password',
+              hintText: l10n.password,
               icon: Icons.lock_outline_rounded,
               obscureText: obscurePassword,
               validator: (value) {
                 final password = value ?? '';
-                if (password.isEmpty) return 'Password is required.';
+                if (password.isEmpty) return l10n.passwordRequired;
                 if (password.length < 6) {
-                  return 'Password must be at least 6 characters.';
+                  return l10n.passwordTooShort;
                 }
                 return null;
               },
               suffixIcon: IconButton(
                 key: const ValueKey('togglePasswordButton'),
-                tooltip: obscurePassword ? 'Show password' : 'Hide password',
+                tooltip: obscurePassword
+                    ? l10n.showPassword
+                    : l10n.hidePassword,
                 onPressed: onTogglePassword,
                 icon: Icon(
                   obscurePassword
@@ -488,7 +488,7 @@ class _AuthFormCard extends StatelessWidget {
               child: TextButton(
                 onPressed: onForgotPassword,
                 child: Text(
-                  'Forgot password?',
+                  l10n.forgotPassword,
                   style: TextStyle(
                     color: _AuthColors.purple,
                     fontSize: 14 * scale,
@@ -500,28 +500,28 @@ class _AuthFormCard extends StatelessWidget {
             SizedBox(height: 8 * scale),
             _PrimaryAuthButton(
               key: const ValueKey('authSubmitButton'),
-              text: isLogin ? 'Log in' : 'Create account',
+              text: isLogin ? l10n.logIn : l10n.createAccount,
               isLoading: isSubmitting,
               onTap: onSubmit,
             ),
             SizedBox(height: 12 * scale),
             _OutlineAuthButton(
-              text: isLogin ? 'Create account' : 'Log in instead',
+              text: isLogin ? l10n.createAccount : l10n.logInInstead,
               onTap: onOutlineTap,
             ),
             SizedBox(height: 22 * scale),
-            const _DividerText(),
+            _DividerText(text: l10n.orContinueWith),
             SizedBox(height: 14 * scale),
             _SocialLoginButton(
               key: const ValueKey('googleLoginButton'),
-              text: 'Continue with Google',
+              text: l10n.continueWithGoogle,
               icon: const _GoogleMark(),
               onTap: onGoogleTap,
             ),
             SizedBox(height: 10 * scale),
             _SocialLoginButton(
               key: const ValueKey('appleLoginButton'),
-              text: 'Continue with Apple',
+              text: l10n.continueWithApple,
               icon: const Icon(Icons.apple, color: Colors.black, size: 28),
               onTap: onAppleTap,
             ),
@@ -545,6 +545,7 @@ class _SegmentedAuthTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Container(
       height: 48 * scale,
       padding: const EdgeInsets.all(2),
@@ -556,13 +557,13 @@ class _SegmentedAuthTabs extends StatelessWidget {
         children: [
           _TabButton(
             key: const ValueKey('loginTab'),
-            label: 'Log in',
+            label: l10n.logIn,
             selected: selectedTab == _AuthTab.login,
             onTap: () => onChanged(_AuthTab.login),
           ),
           _TabButton(
             key: const ValueKey('signUpTab'),
-            label: 'Sign up',
+            label: l10n.signUp,
             selected: selectedTab == _AuthTab.signUp,
             onTap: () => onChanged(_AuthTab.signUp),
           ),
@@ -766,25 +767,27 @@ class _OutlineAuthButton extends StatelessWidget {
 }
 
 class _DividerText extends StatelessWidget {
-  const _DividerText();
+  const _DividerText({required this.text});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        Expanded(child: Divider(color: _AuthColors.borderGray)),
+        const Expanded(child: Divider(color: _AuthColors.borderGray)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
-            'or continue with',
-            style: TextStyle(
+            text,
+            style: const TextStyle(
               color: _AuthColors.mutedText,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
           ),
         ),
-        Expanded(child: Divider(color: _AuthColors.borderGray)),
+        const Expanded(child: Divider(color: _AuthColors.borderGray)),
       ],
     );
   }
@@ -900,7 +903,7 @@ class _BottomInfoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Avoid crowds + understand culture in one app.',
+                  context.l10n.authInfoTitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -912,7 +915,7 @@ class _BottomInfoCard extends StatelessWidget {
                 ),
                 SizedBox(height: 6 * scale),
                 Text(
-                  'Smart routes, real-time insights, and local help made for travelers like you.',
+                  context.l10n.authInfoBody,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

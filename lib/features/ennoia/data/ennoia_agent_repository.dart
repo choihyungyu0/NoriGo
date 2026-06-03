@@ -151,7 +151,10 @@ class RetripAgentRequest {
     );
   }
 
-  factory RetripAgentRequest.fromContext(RetripContext context) {
+  factory RetripAgentRequest.fromContext(
+    RetripContext context, {
+    String userLanguage = 'English',
+  }) {
     final item = context.item;
     final locationParts = [
       item.address,
@@ -160,7 +163,7 @@ class RetripAgentRequest {
     return RetripAgentRequest(
       planId: context.planId,
       originalItemId: context.originalItemId,
-      userLanguage: 'English',
+      userLanguage: userLanguage,
       currentLocation: locationParts.isEmpty ? item.placeName : locationParts,
       originalPlace: item.placeName,
       originalPlaceType: item.contentTypeId ?? item.extraBadge ?? 'Attraction',
@@ -171,6 +174,36 @@ class RetripAgentRequest {
       crowdLevel: context.crowdLevel,
       estimatedWait: context.estimatedWait,
       userPreference: context.userPreference,
+    );
+  }
+
+  RetripAgentRequest copyWith({
+    String? planId,
+    String? originalItemId,
+    String? userLanguage,
+    String? currentLocation,
+    String? originalPlace,
+    String? originalPlaceType,
+    String? originalPlaceValue,
+    String? scheduledTime,
+    String? triggerType,
+    String? crowdLevel,
+    String? estimatedWait,
+    String? userPreference,
+  }) {
+    return RetripAgentRequest(
+      planId: planId ?? this.planId,
+      originalItemId: originalItemId ?? this.originalItemId,
+      userLanguage: userLanguage ?? this.userLanguage,
+      currentLocation: currentLocation ?? this.currentLocation,
+      originalPlace: originalPlace ?? this.originalPlace,
+      originalPlaceType: originalPlaceType ?? this.originalPlaceType,
+      originalPlaceValue: originalPlaceValue ?? this.originalPlaceValue,
+      scheduledTime: scheduledTime ?? this.scheduledTime,
+      triggerType: triggerType ?? this.triggerType,
+      crowdLevel: crowdLevel ?? this.crowdLevel,
+      estimatedWait: estimatedWait ?? this.estimatedWait,
+      userPreference: userPreference ?? this.userPreference,
     );
   }
 

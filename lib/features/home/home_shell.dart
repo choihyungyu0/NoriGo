@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/discover/discover_screen.dart';
 import 'package:norigo/features/home/home_screen.dart';
 import 'package:norigo/features/itinerary/itinerary_screen.dart';
@@ -26,6 +27,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final pages = [
       HomeScreen(
         onSelectTab: _selectTab,
@@ -43,26 +45,26 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _selectTab,
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            label: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            label: l10n.home,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.route_outlined),
-            label: 'Itinerary',
+            icon: const Icon(Icons.route_outlined),
+            label: l10n.itinerary,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.center_focus_strong),
-            label: 'Scan',
+            icon: const Icon(Icons.center_focus_strong),
+            label: l10n.scan,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.travel_explore),
-            label: 'Discover',
+            icon: const Icon(Icons.travel_explore),
+            label: l10n.discover,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'My',
+            icon: const Icon(Icons.person_outline),
+            label: l10n.my,
           ),
         ],
       ),
