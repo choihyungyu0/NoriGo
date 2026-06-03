@@ -4,10 +4,12 @@ class CultureVisionObservedLabel {
   const CultureVisionObservedLabel({
     required this.label,
     required this.confidence,
+    this.index,
   });
 
   final String label;
   final double confidence;
+  final int? index;
 
   CultureVisionLabelDiagnostic toDiagnostic() {
     return CultureVisionLabelDiagnostic(

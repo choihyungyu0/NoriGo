@@ -44,3 +44,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ML datasets and training artifacts
+ml_data/
+build/ml/
+*.h5
+*.keras

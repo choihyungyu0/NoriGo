@@ -65,9 +65,13 @@ class CultureVisionResult {
 
   bool get isMlKitSuggestion =>
       detectedObjectSource == 'mlkit_suggested' ||
-      detectedObjectSource == 'mlkit_auto';
+      detectedObjectSource == 'mlkit_auto' ||
+      detectedObjectSource == 'mlkit_custom_call_bell';
 
   String get confirmedObjectSource {
+    if (detectedObjectSource == 'mlkit_custom_call_bell') {
+      return 'mlkit_custom_call_bell_confirmed';
+    }
     if (detectedObjectSource == 'mlkit_suggested' ||
         detectedObjectSource == 'mlkit_auto') {
       return 'mlkit_confirmed';
