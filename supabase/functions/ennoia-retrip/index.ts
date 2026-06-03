@@ -11,6 +11,7 @@ type RetripRequest = {
   crowd_level: string;
   estimated_wait: string;
   user_preference: string;
+  source_note?: string;
 };
 
 type JsonRecord = Record<string, unknown>;

@@ -20,10 +20,15 @@ class CrowdAlertController extends ChangeNotifier {
     EnnoiaAgentRepository fallbackEnnoiaRepository =
         const MockEnnoiaAgentRepository(),
     RetripContext? retripContext,
+    CrowdAlert? initialAlert,
   }) : _repository = repository,
        _ennoiaRepository = ennoiaRepository,
        _fallbackEnnoiaRepository = fallbackEnnoiaRepository,
-       _retripContext = retripContext;
+       _retripContext = retripContext,
+       _status = initialAlert == null
+           ? CrowdAlertStatus.initial
+           : CrowdAlertStatus.loaded,
+       _alert = initialAlert;
 
   final CrowdAlertRepository _repository;
   final EnnoiaAgentRepository _ennoiaRepository;
@@ -32,7 +37,7 @@ class CrowdAlertController extends ChangeNotifier {
 
   bool _disposed = false;
   bool _isGeneratingRetrip = false;
-  CrowdAlertStatus _status = CrowdAlertStatus.initial;
+  CrowdAlertStatus _status;
   CrowdAlert? _alert;
   AlternativePlace? _selectedAlternative;
   String? _errorMessage;
@@ -169,12 +174,12 @@ class CrowdAlertController extends ChangeNotifier {
 
     try {
       final result = await _ennoiaRepository.fetchRetrip(request);
-      _alert = result.toCrowdAlert();
+      _alert = _mergeGeneratedAlert(result.toCrowdAlert());
       _selectedAlternative = null;
       _status = CrowdAlertStatus.loaded;
     } catch (_) {
       final fallback = await _fallbackEnnoiaRepository.fetchRetrip(request);
-      _alert = fallback.toCrowdAlert();
+      _alert = _mergeGeneratedAlert(fallback.toCrowdAlert());
       _selectedAlternative = null;
       _status = CrowdAlertStatus.loaded;
       _errorMessage = 'Using mock ennoia alternatives.';
@@ -182,6 +187,19 @@ class CrowdAlertController extends ChangeNotifier {
       _isGeneratingRetrip = false;
       _safeNotifyListeners();
     }
+  }
+
+  CrowdAlert _mergeGeneratedAlert(CrowdAlert generated) {
+    final current = _alert;
+    if (current?.sourceType != 'seoul_realtime_citydata') return generated;
+
+    return current!.copyWith(
+      alternatives: generated.alternatives,
+      retripEventId: generated.retripEventId,
+      persisted: generated.persisted,
+      recommendedAction:
+          generated.recommendedAction ?? current.recommendedAction,
+    );
   }
 
   void _safeNotifyListeners() {

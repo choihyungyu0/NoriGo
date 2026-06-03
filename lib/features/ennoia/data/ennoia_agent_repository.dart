@@ -120,6 +120,7 @@ class RetripAgentRequest {
     required this.crowdLevel,
     required this.estimatedWait,
     required this.userPreference,
+    this.sourceNote,
   });
 
   final String? planId;
@@ -134,6 +135,7 @@ class RetripAgentRequest {
   final String crowdLevel;
   final String estimatedWait;
   final String userPreference;
+  final String? sourceNote;
 
   factory RetripAgentRequest.defaults() {
     return const RetripAgentRequest(
@@ -164,7 +166,9 @@ class RetripAgentRequest {
       planId: context.planId,
       originalItemId: context.originalItemId,
       userLanguage: userLanguage,
-      currentLocation: locationParts.isEmpty ? item.placeName : locationParts,
+      currentLocation:
+          context.currentLocation ??
+          (locationParts.isEmpty ? item.placeName : locationParts),
       originalPlace: item.placeName,
       originalPlaceType: item.contentTypeId ?? item.extraBadge ?? 'Attraction',
       originalPlaceValue:
@@ -174,6 +178,7 @@ class RetripAgentRequest {
       crowdLevel: context.crowdLevel,
       estimatedWait: context.estimatedWait,
       userPreference: context.userPreference,
+      sourceNote: context.sourceNote,
     );
   }
 
@@ -190,6 +195,7 @@ class RetripAgentRequest {
     String? crowdLevel,
     String? estimatedWait,
     String? userPreference,
+    String? sourceNote,
   }) {
     return RetripAgentRequest(
       planId: planId ?? this.planId,
@@ -204,6 +210,7 @@ class RetripAgentRequest {
       crowdLevel: crowdLevel ?? this.crowdLevel,
       estimatedWait: estimatedWait ?? this.estimatedWait,
       userPreference: userPreference ?? this.userPreference,
+      sourceNote: sourceNote ?? this.sourceNote,
     );
   }
 
@@ -222,6 +229,7 @@ class RetripAgentRequest {
       'crowd_level': crowdLevel,
       'estimated_wait': estimatedWait,
       'user_preference': userPreference,
+      if (sourceNote != null) 'source_note': sourceNote,
     };
   }
 }

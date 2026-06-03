@@ -20,12 +20,14 @@ class CrowdAlertScreen extends StatefulWidget {
     this.repository = const SupabaseCrowdAlertRepository(),
     this.autoGenerateOnOpen = true,
     this.retripContext,
+    this.initialAlert,
   });
 
   final String logoAsset;
   final CrowdAlertRepository repository;
   final bool autoGenerateOnOpen;
   final RetripContext? retripContext;
+  final CrowdAlert? initialAlert;
 
   @override
   State<CrowdAlertScreen> createState() => _CrowdAlertScreenState();
@@ -40,6 +42,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
     _controller = CrowdAlertController(
       repository: widget.repository,
       retripContext: widget.retripContext,
+      initialAlert: widget.initialAlert,
     );
     _loadInitialAlert();
   }
@@ -81,6 +84,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
     final route = switch (index) {
       0 => AppRoutes.home,
       2 => AppRoutes.scan,
+      3 => AppRoutes.discover,
       4 => AppRoutes.my,
       _ => null,
     };
@@ -148,6 +152,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
   }
 
   void _loadInitialAlert() {
+    if (widget.initialAlert != null) return;
     if (widget.autoGenerateOnOpen) {
       _controller.generateRetripAlternatives();
       return;
@@ -748,6 +753,7 @@ class _OriginalPlanCard extends StatelessWidget {
             width: compact ? double.infinity : 126 * scale,
             height: compact ? 120 * scale : 112 * scale,
             radius: 10 * scale,
+            imageUrl: alert.originalImageUrl,
           );
           final details = _OriginalPlanDetails(alert: alert, scale: scale);
 
@@ -817,7 +823,7 @@ class _OriginalPlanDetails extends StatelessWidget {
               Expanded(
                 child: _AlertMetricBox(
                   icon: Icons.groups_rounded,
-                  title: alert.crowdLevel,
+                  title: alert.congestionLevel ?? alert.crowdLevel,
                   subtitle: 'crowd',
                   color: _CrowdColors.alertRed,
                   scale: scale,
@@ -826,9 +832,13 @@ class _OriginalPlanDetails extends StatelessWidget {
               SizedBox(width: 7 * scale),
               Expanded(
                 child: _AlertMetricBox(
-                  icon: Icons.schedule_rounded,
-                  title: alert.estimatedWait,
-                  subtitle: 'Est. wait',
+                  icon: alert.riskScore == null
+                      ? Icons.schedule_rounded
+                      : Icons.speed_rounded,
+                  title: alert.riskScore == null
+                      ? alert.estimatedWait
+                      : '${alert.riskScore}',
+                  subtitle: alert.riskScore == null ? 'Est. wait' : 'Risk',
                   color: _CrowdColors.alertRed,
                   scale: scale,
                 ),
@@ -1029,7 +1039,8 @@ class _AgentSourceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReal = label == 'KTO OpenAPI + ennoia';
+    final isReal =
+        label == 'KTO OpenAPI + ennoia' || label == 'Seoul Real-time';
     return Container(
       height: 30 * scale,
       constraints: BoxConstraints(maxWidth: 134 * scale),

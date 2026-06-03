@@ -9,6 +9,8 @@ class RetripContext {
     this.crowdLevel = 'Very High',
     this.estimatedWait = '40-60 min',
     this.userPreference = 'Nearby low-crowd alternative',
+    this.currentLocation,
+    this.sourceNote,
   });
 
   final ItineraryPlan plan;
@@ -17,6 +19,8 @@ class RetripContext {
   final String crowdLevel;
   final String estimatedWait;
   final String userPreference;
+  final String? currentLocation;
+  final String? sourceNote;
 
   String get planId => plan.persistedPlanId ?? plan.id;
   String get originalItemId => item.id;

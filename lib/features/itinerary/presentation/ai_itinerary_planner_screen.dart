@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
+import 'package:norigo/features/crowd/application/seoul_realtime_risk_controller.dart';
+import 'package:norigo/features/crowd/data/seoul_realtime_risk_repository.dart';
+import 'package:norigo/features/crowd/domain/seoul_realtime_risk.dart';
 import 'package:norigo/features/itinerary/application/itinerary_controller.dart';
 import 'package:norigo/features/itinerary/application/itinerary_source_label.dart';
 import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
@@ -23,12 +26,15 @@ class AiItineraryPlannerScreen extends StatefulWidget {
     this.logoAsset = _logoAsset,
     this.headerAsset = _headerAsset,
     this.repository = const SupabaseItineraryRepository(),
+    this.seoulRealtimeRiskRepository =
+        const SupabaseSeoulRealtimeRiskRepository(),
     this.autoGenerateOnOpen = true,
   });
 
   final String logoAsset;
   final String headerAsset;
   final ItineraryRepository repository;
+  final SeoulRealtimeRiskRepository seoulRealtimeRiskRepository;
   final bool autoGenerateOnOpen;
 
   @override
@@ -38,18 +44,24 @@ class AiItineraryPlannerScreen extends StatefulWidget {
 
 class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
   late final ItineraryController _controller;
+  late final SeoulRealtimeRiskController _riskController;
+  final Map<String, SeoulRealtimeRisk> _riskByItemId = {};
   int _selectedTimeIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _controller = ItineraryController(repository: widget.repository);
+    _riskController = SeoulRealtimeRiskController(
+      repository: widget.seoulRealtimeRiskRepository,
+    );
     _loadInitialPlan();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _riskController.dispose();
     super.dispose();
   }
 
@@ -61,7 +73,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
       final plan = _controller.plan;
       final item = _selectedItem(plan);
       if (plan != null && item != null) {
-        _openCrowdAlertForItem(item);
+        await _checkAndOpenCrowdAlertForItem(item);
       } else {
         Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
       }
@@ -83,11 +95,14 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     setState(() {
       _selectedTimeIndex = 0;
     });
+    await _checkNextUpcomingRisk();
   }
 
   Future<void> _loadInitialPlan() async {
     if (ItinerarySessionStore.currentPlan != null) {
       await _controller.loadPlan();
+      if (!mounted) return;
+      await _checkNextUpcomingRisk();
       return;
     }
     if (widget.autoGenerateOnOpen) {
@@ -96,9 +111,13 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
       if (_controller.plan == null || _controller.plan?.sourceType == 'mock') {
         await _controller.generateWithEnnoia();
       }
+      if (!mounted) return;
+      await _checkNextUpcomingRisk();
       return;
     }
     await _controller.loadPlan();
+    if (!mounted) return;
+    await _checkNextUpcomingRisk();
   }
 
   void _showRouteReason() {
@@ -165,20 +184,71 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     return plan.items.first;
   }
 
-  void _openCrowdAlertForItem(ItineraryItem item) {
+  Future<void> _checkNextUpcomingRisk() async {
+    final items = _controller.plan?.items;
+    if (items == null || items.isEmpty) return;
+    final item = items.first;
+    final risk = await _riskController.checkItineraryItem(item);
+    if (!mounted) return;
+    setState(() {
+      _riskByItemId[item.id] = risk;
+    });
+  }
+
+  Future<void> _checkAndOpenCrowdAlertForItem(ItineraryItem item) async {
+    final risk = await _riskController.checkItineraryItem(item);
+    if (!mounted) return;
+    setState(() {
+      _riskByItemId[item.id] = risk;
+    });
+    if (risk.shouldAlert) {
+      _openCrowdAlertForItem(item, risk);
+    }
+  }
+
+  void _openCrowdAlertForItem(ItineraryItem item, [SeoulRealtimeRisk? risk]) {
     final plan = _controller.plan;
     if (plan == null) {
       Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert);
       return;
     }
+    final retripContext = _retripContextFor(plan, item, risk);
+    final initialAlert = risk?.toCrowdAlert(
+      id: 'seoul-${item.id}',
+      originalPlace: item.placeName,
+      scheduledTime: item.time,
+      planId: plan.persistedPlanId,
+      originalItemId: item.id,
+      originalImageUrl: item.imageUrl,
+    );
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CrowdAlertScreen(
-          retripContext: RetripContext(plan: plan, item: item),
+          retripContext: retripContext,
+          initialAlert: initialAlert,
+          autoGenerateOnOpen: initialAlert == null,
         ),
         settings: const RouteSettings(name: AppRoutes.itineraryCrowdAlert),
       ),
+    );
+  }
+
+  RetripContext _retripContextFor(
+    ItineraryPlan plan,
+    ItineraryItem item,
+    SeoulRealtimeRisk? risk,
+  ) {
+    if (risk == null) return RetripContext(plan: plan, item: item);
+    return RetripContext(
+      plan: plan,
+      item: item,
+      triggerType: risk.triggerType,
+      crowdLevel: risk.riskLevel,
+      estimatedWait: risk.estimatedWait,
+      currentLocation: risk.areaNm.isEmpty ? item.placeName : risk.areaNm,
+      sourceNote:
+          'Triggered by Seoul real-time city data for ${risk.areaNm}. ${risk.riskReason}',
     );
   }
 
@@ -188,6 +258,7 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     final route = switch (index) {
       0 => AppRoutes.home,
       2 => AppRoutes.scan,
+      3 => AppRoutes.discover,
       4 => AppRoutes.my,
       _ => null,
     };
@@ -312,8 +383,9 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                                 SizedBox(height: 16 * scale),
                                 _ItineraryTimeline(
                                   items: plan.items,
+                                  riskByItemId: _riskByItemId,
                                   scale: scale,
-                                  onCrowdAlert: _openCrowdAlertForItem,
+                                  onCrowdAlert: _checkAndOpenCrowdAlertForItem,
                                 ),
                                 SizedBox(height: 12 * scale),
                                 _RouteSummaryCard(plan: plan, scale: scale),
@@ -807,11 +879,13 @@ class _TimeChipRow extends StatelessWidget {
 class _ItineraryTimeline extends StatelessWidget {
   const _ItineraryTimeline({
     required this.items,
+    required this.riskByItemId,
     required this.scale,
     required this.onCrowdAlert,
   });
 
   final List<ItineraryItem> items;
+  final Map<String, SeoulRealtimeRisk> riskByItemId;
   final double scale;
   final ValueChanged<ItineraryItem> onCrowdAlert;
 
@@ -825,6 +899,7 @@ class _ItineraryTimeline extends StatelessWidget {
           padding: EdgeInsets.only(bottom: index == items.length - 1 ? 0 : 10),
           child: _ItineraryCard(
             item: item,
+            risk: riskByItemId[item.id],
             isFirst: index == 0,
             isLast: index == items.length - 1,
             scale: scale,
@@ -839,6 +914,7 @@ class _ItineraryTimeline extends StatelessWidget {
 class _ItineraryCard extends StatelessWidget {
   const _ItineraryCard({
     required this.item,
+    required this.risk,
     required this.isFirst,
     required this.isLast,
     required this.scale,
@@ -846,6 +922,7 @@ class _ItineraryCard extends StatelessWidget {
   });
 
   final ItineraryItem item;
+  final SeoulRealtimeRisk? risk;
   final bool isFirst;
   final bool isLast;
   final double scale;
@@ -861,8 +938,8 @@ class _ItineraryCard extends StatelessWidget {
           padding: EdgeInsets.all(10 * scale),
           decoration: _softCardDecoration(),
           child: compact
-              ? _CompactItineraryContent(item: item, scale: scale)
-              : _WideItineraryContent(item: item, scale: scale),
+              ? _CompactItineraryContent(item: item, risk: risk, scale: scale)
+              : _WideItineraryContent(item: item, risk: risk, scale: scale),
         );
 
         final cardContent = onTap == null
@@ -900,9 +977,14 @@ class _ItineraryCard extends StatelessWidget {
 }
 
 class _WideItineraryContent extends StatelessWidget {
-  const _WideItineraryContent({required this.item, required this.scale});
+  const _WideItineraryContent({
+    required this.item,
+    required this.risk,
+    required this.scale,
+  });
 
   final ItineraryItem item;
+  final SeoulRealtimeRisk? risk;
   final double scale;
 
   @override
@@ -927,7 +1009,7 @@ class _WideItineraryContent extends StatelessWidget {
         _PlaceThumbnail(item: item, scale: scale),
         SizedBox(width: 10 * scale),
         Expanded(
-          child: _ItineraryDetails(item: item, scale: scale),
+          child: _ItineraryDetails(item: item, risk: risk, scale: scale),
         ),
         SizedBox(width: 8 * scale),
         _TipBox(text: item.aiTip, scale: scale),
@@ -937,9 +1019,14 @@ class _WideItineraryContent extends StatelessWidget {
 }
 
 class _CompactItineraryContent extends StatelessWidget {
-  const _CompactItineraryContent({required this.item, required this.scale});
+  const _CompactItineraryContent({
+    required this.item,
+    required this.risk,
+    required this.scale,
+  });
 
   final ItineraryItem item;
+  final SeoulRealtimeRisk? risk;
   final double scale;
 
   @override
@@ -965,7 +1052,7 @@ class _CompactItineraryContent extends StatelessWidget {
             _PlaceThumbnail(item: item, scale: scale),
             SizedBox(width: 10 * scale),
             Expanded(
-              child: _ItineraryDetails(item: item, scale: scale),
+              child: _ItineraryDetails(item: item, risk: risk, scale: scale),
             ),
           ],
         ),
@@ -1072,9 +1159,14 @@ class _PlaceImagePlaceholder extends StatelessWidget {
 }
 
 class _ItineraryDetails extends StatelessWidget {
-  const _ItineraryDetails({required this.item, required this.scale});
+  const _ItineraryDetails({
+    required this.item,
+    required this.risk,
+    required this.scale,
+  });
 
   final ItineraryItem item;
+  final SeoulRealtimeRisk? risk;
   final double scale;
 
   @override
@@ -1105,6 +1197,8 @@ class _ItineraryDetails extends StatelessWidget {
             if (item.contentId != null)
               _KtoContentBadge(contentId: item.contentId!),
             if (item.extraBadge != null) _ExtraBadge(text: item.extraBadge!),
+            if (risk?.shouldShowCrowdRisingBadge ?? false)
+              const _ExtraBadge(text: 'Crowd rising'),
           ],
         ),
         if (item.cultureTip != null) ...[

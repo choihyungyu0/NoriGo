@@ -87,6 +87,41 @@ void main() {
     expect(find.text('90%'), findsOneWidget);
   });
 
+  testWidgets('Seoul real-time alert renders congestion and risk score', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: CrowdAlertScreen(
+          autoGenerateOnOpen: false,
+          initialAlert: CrowdAlert(
+            id: 'seoul-alert',
+            originalPlace: 'Bukchon Hanok Village',
+            scheduledTime: '14:00',
+            crowdLevel: '붐빔',
+            estimatedWait: '40-60 min',
+            alertMessage: 'Bukchon is very crowded.',
+            foreignerQueueTip: 'No incident data was used.',
+            sourceType: 'seoul_realtime_citydata',
+            sourceBadge: 'Seoul Real-time',
+            congestionLevel: '붐빔',
+            riskScore: 85,
+            alternatives: [],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seoul Real-time'), findsOneWidget);
+    expect(find.text('붐빔'), findsOneWidget);
+    expect(find.text('85'), findsOneWidget);
+    expect(find.text('Bukchon is very crowded.'), findsOneWidget);
+  });
+
   testWidgets('bottom Switch plan button shows update message', (tester) async {
     await _pumpCrowdAlert(tester);
 

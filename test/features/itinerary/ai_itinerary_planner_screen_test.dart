@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:norigo/features/crowd/data/seoul_realtime_risk_repository.dart';
+import 'package:norigo/features/crowd/domain/seoul_realtime_risk.dart';
 import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
 import 'package:norigo/features/itinerary/data/itinerary_repository.dart';
@@ -52,7 +54,10 @@ void main() {
   testWidgets('save this plan button opens crowd alert for selected item', (
     tester,
   ) async {
-    await _pumpPlanner(tester);
+    await _pumpPlanner(
+      tester,
+      riskRepository: const _StaticSeoulRiskRepository(_veryHighRisk),
+    );
 
     await tester.tap(find.byKey(const ValueKey('savePlanButton')));
     await tester.pumpAndSettle();
@@ -64,7 +69,10 @@ void main() {
   testWidgets('itinerary card opens crowd alert with actual item', (
     tester,
   ) async {
-    await _pumpPlanner(tester);
+    await _pumpPlanner(
+      tester,
+      riskRepository: const _StaticSeoulRiskRepository(_veryHighRisk),
+    );
 
     final trigger = find.byKey(const ValueKey('crowd-alert-item-dessert-cafe'));
     await tester.ensureVisible(trigger);
@@ -74,6 +82,42 @@ void main() {
     expect(find.text('Crowd Alert'), findsOneWidget);
     expect(find.text('Dessert Cafe'), findsWidgets);
     expect(find.text('Cafe Arte'), findsNothing);
+    expect(find.text('Seoul Real-time'), findsOneWidget);
+    expect(find.text('85'), findsOneWidget);
+  });
+
+  testWidgets('itinerary card shows Crowd rising without opening alert', (
+    tester,
+  ) async {
+    await _pumpPlanner(
+      tester,
+      riskRepository: const _StaticSeoulRiskRepository(_highWatchRisk),
+    );
+
+    final trigger = find.byKey(const ValueKey('crowd-alert-item-dessert-cafe'));
+    await tester.ensureVisible(trigger);
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Crowd Alert'), findsNothing);
+    expect(find.text('Crowd rising'), findsWidgets);
+  });
+
+  testWidgets('Seoul risk API failure does not crash or open alert', (
+    tester,
+  ) async {
+    await _pumpPlanner(
+      tester,
+      riskRepository: const _ThrowingSeoulRiskRepository(),
+    );
+
+    final trigger = find.byKey(const ValueKey('crowd-alert-item-dessert-cafe'));
+    await tester.ensureVisible(trigger);
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Crowd Alert'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('missing header image asset falls back without crashing', (
@@ -233,6 +277,7 @@ Future<void> _pumpPlanner(
   WidgetTester tester, {
   String? headerAsset,
   ItineraryRepository? repository,
+  SeoulRealtimeRiskRepository? riskRepository,
   Map<String, WidgetBuilder>? routes,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 932));
@@ -244,6 +289,8 @@ Future<void> _pumpPlanner(
         headerAsset:
             headerAsset ?? 'assets/images/itinerary/itinerary_header_bg.png',
         repository: repository ?? const MockItineraryRepository(),
+        seoulRealtimeRiskRepository:
+            riskRepository ?? const _StaticSeoulRiskRepository(_lowRisk),
         autoGenerateOnOpen: false,
       ),
       routes: routes ?? const {},
@@ -263,3 +310,88 @@ class _StaticItineraryRepository implements ItineraryRepository {
   @override
   Future<ItineraryPlan> savePlan(ItineraryPlan plan) async => plan;
 }
+
+class _StaticSeoulRiskRepository implements SeoulRealtimeRiskRepository {
+  const _StaticSeoulRiskRepository(this.risk);
+
+  final SeoulRealtimeRisk risk;
+
+  @override
+  Future<SeoulRealtimeRisk> checkRisk(SeoulRealtimeRiskRequest request) async {
+    return risk;
+  }
+}
+
+class _ThrowingSeoulRiskRepository implements SeoulRealtimeRiskRepository {
+  const _ThrowingSeoulRiskRepository();
+
+  @override
+  Future<SeoulRealtimeRisk> checkRisk(SeoulRealtimeRiskRequest request) async {
+    return SeoulRealtimeRisk.unavailable(
+      scheduledPlaceName: request.scheduledPlaceName,
+    );
+  }
+}
+
+const _lowRisk = SeoulRealtimeRisk(
+  areaNm: '북촌한옥마을',
+  matchedPlaceName: 'Bukchon Hanok Village',
+  scheduledPlaceName: 'Bukchon Hanok Village',
+  congestionLevel: '보통',
+  congestionMessage: 'Normal crowd level.',
+  populationMin: 100,
+  populationMax: 200,
+  populationTime: '2026-06-03 14:00',
+  crowdScore: 45,
+  incidentBonus: 0,
+  riskScore: 45,
+  riskLevel: 'Moderate',
+  shouldAlert: false,
+  triggerType: 'none',
+  alertMessage: 'Bukchon is moderate.',
+  riskReason: 'No incident data was used.',
+  sourceType: 'seoul_realtime_citydata',
+  sourceBadge: 'Seoul Real-time',
+);
+
+const _highWatchRisk = SeoulRealtimeRisk(
+  areaNm: '북촌한옥마을',
+  matchedPlaceName: 'Bukchon Hanok Village',
+  scheduledPlaceName: 'Bukchon Hanok Village',
+  congestionLevel: '약간 붐빔',
+  congestionMessage: 'Crowd is rising.',
+  populationMin: 1000,
+  populationMax: 2000,
+  populationTime: '2026-06-03 14:00',
+  crowdScore: 70,
+  incidentBonus: 0,
+  riskScore: 70,
+  riskLevel: 'High',
+  shouldAlert: false,
+  triggerType: 'crowd_watch',
+  alertMessage: 'Bukchon crowd is rising.',
+  riskReason: 'No incident data was used.',
+  sourceType: 'seoul_realtime_citydata',
+  sourceBadge: 'Seoul Real-time',
+);
+
+const _veryHighRisk = SeoulRealtimeRisk(
+  areaNm: '북촌한옥마을',
+  matchedPlaceName: 'Bukchon Hanok Village',
+  scheduledPlaceName: 'Bukchon Hanok Village',
+  congestionLevel: '붐빔',
+  congestionMessage: 'Very crowded.',
+  populationMin: 2000,
+  populationMax: 3000,
+  populationTime: '2026-06-03 14:00',
+  crowdScore: 85,
+  incidentBonus: 0,
+  riskScore: 85,
+  riskLevel: 'Very High',
+  shouldAlert: true,
+  triggerType: 'crowd_spike',
+  alertMessage: 'Bukchon is very crowded.',
+  riskReason: 'No incident data was used.',
+  sourceType: 'seoul_realtime_citydata',
+  sourceBadge: 'Seoul Real-time',
+);
