@@ -55,7 +55,7 @@ class AppRouter {
       AppRoutes.step3Alternatives: (_) => const Step3AlternativePlacesScreen(),
       AppRoutes.step3UpdatedItinerary: (_) =>
           const Step3UpdatedItineraryScreen(),
-      AppRoutes.home: (_) => const Step3MobileMockupsScreen(),
+      AppRoutes.home: (_) => const Step3CrowdAlertScreen(),
       AppRoutes.discover: (_) => const HomeShell(initialIndex: 3),
       AppRoutes.scan: (_) => const CultureScanScreen(),
       AppRoutes.cultureScan: (_) => const CultureScanScreen(),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:norigo/core/localization/app_locale_controller.dart';
 import 'package:norigo/features/onboarding/presentation/trip_basics_screen.dart';
+import 'package:norigo/l10n/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('TripBasicsScreen renders title, subtitle, and defaults', (
@@ -78,6 +81,47 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Trip Basics'), findsOneWidget);
   });
+
+  testWidgets('language chips include Korean and switch locale copy', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final localeController = AppLocaleController(
+      preferenceSync: const _NoopLocalePreferenceSync(),
+    );
+    await localeController.load(deviceLocale: const Locale('en'));
+
+    await _pumpLocalizedTripBasics(tester, localeController);
+
+    expect(
+      find.byKey(const ValueKey('selected-language-English')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('chip-language-Korean')), findsOneWidget);
+    expect(find.text('Trip Basics'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chip-language-Korean')));
+    await tester.pumpAndSettle();
+
+    expect(localeController.locale, const Locale('ko'));
+    expect(
+      find.byKey(const ValueKey('selected-language-Korean')),
+      findsOneWidget,
+    );
+    expect(find.text('여행 기본 정보'), findsOneWidget);
+    expect(find.text('1. 선호 언어'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chip-language-English')));
+    await tester.pumpAndSettle();
+
+    expect(localeController.locale, const Locale('en'));
+    expect(
+      find.byKey(const ValueKey('selected-language-English')),
+      findsOneWidget,
+    );
+    expect(find.text('Trip Basics'), findsOneWidget);
+    expect(find.text('1. Preferred language'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpTripBasics(WidgetTester tester, {String? headerAsset}) {
@@ -89,4 +133,33 @@ Future<void> _pumpTripBasics(WidgetTester tester, {String? headerAsset}) {
       ),
     ),
   );
+}
+
+Future<void> _pumpLocalizedTripBasics(
+  WidgetTester tester,
+  AppLocaleController localeController,
+) {
+  return tester.pumpWidget(
+    AppLocaleScope(
+      controller: localeController,
+      child: AnimatedBuilder(
+        animation: localeController,
+        builder: (context, _) {
+          return MaterialApp(
+            locale: localeController.locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const TripBasicsScreen(),
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class _NoopLocalePreferenceSync extends LocalePreferenceSync {
+  const _NoopLocalePreferenceSync();
+
+  @override
+  Future<void> syncPreferredLanguage(String userLanguage) async {}
 }

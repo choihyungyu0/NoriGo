@@ -45,6 +45,7 @@
   "authInfoTitle": "혼잡 회피와 문화 이해를 한 앱에서.",
   "authInfoBody": "여행자를 위한 스마트 동선, 실시간 인사이트, 로컬 도움을 제공합니다.",
   "tripBasics": "여행 기본 정보",
+  "tripBasicsSubtitle": "더 스마트한 추천을 위해 여행 정보를 설정하세요.",
   "interestsAlerts": "관심사 및 알림",
   "destination": "목적지",
   "baseLocation": "기준 위치",

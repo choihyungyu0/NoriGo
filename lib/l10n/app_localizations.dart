@@ -368,6 +368,12 @@ abstract class AppLocalizations {
   /// **'Trip Basics'**
   String get tripBasics;
 
+  /// No description provided for @tripBasicsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up your trip for smarter recommendations.'**
+  String get tripBasicsSubtitle;
+
   /// No description provided for @interestsAlerts.
   ///
   /// In en, this message translates to:

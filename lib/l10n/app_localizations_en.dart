@@ -146,6 +146,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tripBasics => 'Trip Basics';
 
   @override
+  String get tripBasicsSubtitle =>
+      'Set up your trip for smarter recommendations.';
+
+  @override
   String get interestsAlerts => 'Interests & Alerts';
 
   @override

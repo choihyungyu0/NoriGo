@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/app_locale_controller.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/onboarding/application/onboarding_preferences_store.dart';
 import 'package:norigo/features/onboarding/domain/trip_basics.dart';
@@ -26,11 +28,25 @@ class TripBasicsScreen extends StatefulWidget {
 
 class _TripBasicsScreenState extends State<TripBasicsScreen> {
   TripBasics _basics = const TripBasics();
+  bool _didSyncLanguageFromLocale = false;
 
-  static const _languages = ['English', '日本語', '中文', 'Français'];
+  static const _languages = ['English', 'Korean', '日本語', '中文', 'Français'];
   static const _purposes = ['Sightseeing', 'Food', 'Cafe', 'Culture'];
   static const _companions = ['Solo', 'Friends', 'Family', 'Couple'];
   static const _foodNeeds = ['None', 'Halal', 'Vegetarian', 'Allergy'];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didSyncLanguageFromLocale) return;
+    _didSyncLanguageFromLocale = true;
+
+    final localeController = AppLocaleScope.maybeOf(context);
+    if (localeController == null) return;
+    _basics = _basics.copyWith(
+      preferredLanguage: localeController.userLanguage,
+    );
+  }
 
   void _update(TripBasics basics) {
     setState(() {
@@ -41,6 +57,15 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
   void _changeTripLength(int delta) {
     final nextDays = (_basics.tripLengthDays + delta).clamp(1, 30);
     _update(_basics.copyWith(tripLengthDays: nextDays));
+  }
+
+  void _selectLanguage(String value) {
+    _update(_basics.copyWith(preferredLanguage: value));
+
+    final localeController = AppLocaleScope.maybeOf(context);
+    if (localeController == null) return;
+    final locale = AppLocaleController.localeForUserLanguage(value);
+    unawaited(localeController.setLocale(locale));
   }
 
   void _continue() {
@@ -108,13 +133,8 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                   group: 'language',
                                   values: _languages,
                                   selected: _basics.preferredLanguage,
-                                  onSelected: (value) {
-                                    _update(
-                                      _basics.copyWith(
-                                        preferredLanguage: value,
-                                      ),
-                                    );
-                                  },
+                                  labels: _languageLabels(context),
+                                  onSelected: _selectLanguage,
                                 ),
                               ),
                               SizedBox(height: 12 * scale),
@@ -126,7 +146,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                   items: const [
                                     DropdownMenuItem(
                                       value: 'South Korea',
-                                      child: Text('South Korea'),
+                                      child: _LocalizedSouthKoreaLabel(),
                                     ),
                                   ],
                                   onChanged: (value) {
@@ -151,6 +171,10 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                   group: 'firstVisit',
                                   values: const ['Yes', 'No'],
                                   selected: _basics.isFirstVisit ? 'Yes' : 'No',
+                                  labels: {
+                                    'Yes': context.l10n.yes,
+                                    'No': context.l10n.no,
+                                  },
                                   onSelected: (value) {
                                     _update(
                                       _basics.copyWith(
@@ -168,6 +192,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                   group: 'purpose',
                                   values: _purposes,
                                   selected: _basics.mainPurpose,
+                                  labels: _purposeLabels(context),
                                   icons: const {
                                     'Sightseeing': Icons.camera_alt_outlined,
                                     'Food': Icons.restaurant_rounded,
@@ -214,6 +239,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                   group: 'companion',
                                   values: _companions,
                                   selected: _basics.companionType,
+                                  labels: _companionLabels(context),
                                   icons: const {
                                     'Solo': Icons.person_outline_rounded,
                                     'Friends': Icons.people_outline_rounded,
@@ -235,6 +261,7 @@ class _TripBasicsScreenState extends State<TripBasicsScreen> {
                                   group: 'food',
                                   values: _foodNeeds,
                                   selected: _basics.foodNeed,
+                                  labels: _foodNeedLabels(context),
                                   icons: const {
                                     'None': Icons.check_circle_outline_rounded,
                                     'Halal': Icons.nightlight_round,
@@ -280,6 +307,52 @@ class _TripColors {
   static const border = Color(0xFFE5E1EE);
   static const mutedText = Color(0xFF5D567A);
   static const shadow = Color(0xFF7B69A5);
+}
+
+Map<String, String> _languageLabels(BuildContext context) {
+  return {
+    'English': context.l10n.english,
+    'Korean': context.l10n.koreanNative,
+    '日本語': '日本語',
+    '中文': '中文',
+    'Français': 'Français',
+  };
+}
+
+Map<String, String> _purposeLabels(BuildContext context) {
+  return {
+    'Sightseeing': context.l10n.sightseeing,
+    'Food': context.l10n.food,
+    'Cafe': context.l10n.cafe,
+    'Culture': context.l10n.culture,
+  };
+}
+
+Map<String, String> _companionLabels(BuildContext context) {
+  return {
+    'Solo': context.l10n.solo,
+    'Friends': context.l10n.friends,
+    'Family': context.l10n.family,
+    'Couple': context.l10n.couple,
+  };
+}
+
+Map<String, String> _foodNeedLabels(BuildContext context) {
+  return {
+    'None': context.l10n.none,
+    'Halal': context.l10n.halal,
+    'Vegetarian': context.l10n.vegetarian,
+    'Allergy': context.l10n.allergy,
+  };
+}
+
+class _LocalizedSouthKoreaLabel extends StatelessWidget {
+  const _LocalizedSouthKoreaLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(context.l10n.southKorea);
+  }
 }
 
 class _OnboardingHeader extends StatelessWidget {
@@ -336,7 +409,7 @@ class _OnboardingHeader extends StatelessWidget {
                 ),
                 SizedBox(height: 14 * scale),
                 Text(
-                  'Set up your trip for smarter recommendations.',
+                  context.l10n.tripBasicsSubtitle,
                   style: TextStyle(
                     color: _TripColors.mutedText,
                     fontSize: 18 * scale,
@@ -596,12 +669,14 @@ class _ChipRow extends StatelessWidget {
     required this.values,
     required this.selected,
     required this.onSelected,
+    this.labels = const {},
     this.icons = const {},
   });
 
   final String group;
   final List<String> values;
   final String selected;
+  final Map<String, String> labels;
   final Map<String, IconData> icons;
   final ValueChanged<String> onSelected;
 
@@ -613,7 +688,8 @@ class _ChipRow extends StatelessWidget {
       children: values.map((value) {
         return _SelectableChip(
           group: group,
-          label: value,
+          value: value,
+          label: labels[value] ?? value,
           icon: icons[value],
           selected: selected == value,
           onTap: () => onSelected(value),
@@ -626,6 +702,7 @@ class _ChipRow extends StatelessWidget {
 class _SelectableChip extends StatelessWidget {
   const _SelectableChip({
     required this.group,
+    required this.value,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -633,6 +710,7 @@ class _SelectableChip extends StatelessWidget {
   });
 
   final String group;
+  final String value;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -641,7 +719,7 @@ class _SelectableChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      key: ValueKey(selected ? 'selected-$group-$label' : 'chip-$group-$label'),
+      key: ValueKey(selected ? 'selected-$group-$value' : 'chip-$group-$value'),
       borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: AnimatedContainer(

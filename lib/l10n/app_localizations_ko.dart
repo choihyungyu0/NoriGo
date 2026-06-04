@@ -144,6 +144,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get tripBasics => '여행 기본 정보';
 
   @override
+  String get tripBasicsSubtitle => '더 스마트한 추천을 위해 여행 정보를 설정하세요.';
+
+  @override
   String get interestsAlerts => '관심사 및 알림';
 
   @override
