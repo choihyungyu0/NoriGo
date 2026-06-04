@@ -28,7 +28,13 @@ class ItineraryAgentResult {
   final String? persistedPlanId;
   final bool persisted;
 
-  bool get isRealEnnoia => sourceType == 'kto_openapi_ennoia';
+  bool get isRealEnnoia {
+    final normalized = sourceType.toLowerCase();
+    return normalized == 'kto_openapi_ennoia' ||
+        normalized == 'ennoia_kto_mcp' ||
+        normalized == 'kto_openapi_basic' ||
+        normalized == 'kto_openapi_direct';
+  }
 
   factory ItineraryAgentResult.fromJson(Map<String, Object?> json) {
     final data = _nestedMap(json) ?? json;
@@ -49,10 +55,7 @@ class ItineraryAgentResult {
         .toList(growable: false);
 
     final persistedPlanId =
-        _nullableString(data, const [
-          'persistedPlanId',
-          'persisted_plan_id',
-        ]) ??
+        _nullableString(data, const ['persistedPlanId', 'persisted_plan_id']) ??
         _nullableString(json, const ['persistedPlanId', 'persisted_plan_id']);
     return ItineraryAgentResult(
       id: _string(data, const ['id'], fallback.id),
