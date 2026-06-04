@@ -589,13 +589,126 @@ class AppLocalizationsKo extends AppLocalizations {
   String get discoverHiddenSpots => '숨은 장소 발견';
 
   @override
-  String get discoverSubtitle => '혼잡을 분산하고 로컬 분위기를 보여주는 AI 추천';
+  String get discoverSubtitle => '기다림은 줄이고, 로컬처럼 이동하세요.';
 
   @override
-  String get discoverSearchHint => '조용한 카페, 디저트, 문화 검색';
+  String get discoverSearchHint => '목적지, 음식, 카페, 문화 질문 검색';
 
   @override
   String get aiPicks => 'AI 추천';
+
+  @override
+  String get aiPicksForYou => '나를 위한 AI 추천';
+
+  @override
+  String get placeSaved => '장소를 저장했습니다.';
+
+  @override
+  String get addToItineraryComingSoon => '일정에 추가 기능은 곧 연결됩니다.';
+
+  @override
+  String get preferencesComingSoon => '취향 설정 기능은 곧 연결됩니다.';
+
+  @override
+  String get discoverQuietCafe => '조용한 카페';
+
+  @override
+  String get discoverDessert => '디저트';
+
+  @override
+  String get discoverLocalFood => '로컬 음식';
+
+  @override
+  String get discoverPhotoSpot => '포토 스팟';
+
+  @override
+  String get discoverCulture => '문화';
+
+  @override
+  String get mapLabel => '지도';
+
+  @override
+  String get listLabel => '목록';
+
+  @override
+  String get localFallbackMap => '로컬 대체 지도';
+
+  @override
+  String get basedOnLocalDataLowCrowdInsights => '로컬 데이터와 낮은 혼잡도 인사이트 기반';
+
+  @override
+  String get basedOnKtoLowCrowdInsights => 'KTO와 낮은 혼잡도 인사이트 기반';
+
+  @override
+  String get seeAll => '전체 보기';
+
+  @override
+  String get personalizedRecommendations => '맞춤 추천';
+
+  @override
+  String get personalizedRecommendationsBody =>
+      '좋아하는 것을 알려주면 더 많은 숨은 장소를 찾아드릴게요.';
+
+  @override
+  String get tellUsYourPreferences => '취향 알려주기';
+
+  @override
+  String get savePlace => '장소 저장';
+
+  @override
+  String get savedPlace => '저장된 장소';
+
+  @override
+  String get noHiddenSpotsAvailable => '아직 표시할 숨은 장소가 없습니다.';
+
+  @override
+  String noHiddenSpotsMatched(String query) {
+    return '\"$query\"와 일치하는 숨은 장소가 없습니다.';
+  }
+
+  @override
+  String get dataLocationConsent => '데이터 및 위치 동의';
+
+  @override
+  String get dataUseConsent => '데이터 사용 동의';
+
+  @override
+  String get dataUseConsentBody =>
+      'NoriGo는 여행 취향, 저장한 일정, 문화 스캔, Re-Trip 기록을 추천 개선에 사용합니다.';
+
+  @override
+  String get locationUseConsent => '위치 사용 동의';
+
+  @override
+  String get locationUseConsentBody =>
+      'NoriGo는 현재 위치를 사용해 근처의 낮은 혼잡도 장소와 더 나은 대안을 찾습니다.';
+
+  @override
+  String get agree => '동의';
+
+  @override
+  String get skipForNow => '지금은 건너뛰기';
+
+  @override
+  String get allowLocation => '위치 허용';
+
+  @override
+  String get useMyLocation => '내 위치 사용';
+
+  @override
+  String get notNow => '나중에';
+
+  @override
+  String get locationPermissionDenied => '위치 권한이 거부되었습니다';
+
+  @override
+  String get usingBaseLocationInstead => '기준 위치를 대신 사용합니다';
+
+  @override
+  String get consentSaved => '동의 설정을 저장했습니다.';
+
+  @override
+  String get consentContinue => '계속';
 
   @override
   String get noCalmPlaces =>

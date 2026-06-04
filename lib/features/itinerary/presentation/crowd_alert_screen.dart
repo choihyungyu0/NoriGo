@@ -5,13 +5,18 @@ import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/itinerary/application/crowd_alert_controller.dart';
+import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/data/supabase_crowd_alert_repository.dart';
 import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 import 'package:norigo/features/itinerary/domain/crowd_alert.dart';
+import 'package:norigo/features/itinerary/domain/itinerary_item.dart';
+import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
 import 'package:norigo/features/itinerary/domain/retrip_context.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
+
+enum _ReTripStep { alert, alternatives, updated }
 
 class CrowdAlertScreen extends StatefulWidget {
   const CrowdAlertScreen({
@@ -35,6 +40,8 @@ class CrowdAlertScreen extends StatefulWidget {
 
 class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
   late final CrowdAlertController _controller;
+  _ReTripStep _step = _ReTripStep.alert;
+  AlternativePlace? _changedAlternative;
 
   @override
   void initState() {
@@ -118,9 +125,42 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
     }
   }
 
-  Future<void> _switchPlan() async {
-    final switched = await _controller.switchPlan();
+  Future<void> _viewAlternativePlaces() async {
+    final currentAlert = _controller.alert;
+    if (currentAlert != null && currentAlert.alternatives.isNotEmpty) {
+      setState(() {
+        _step = _ReTripStep.alternatives;
+      });
+      return;
+    }
+
+    await _controller.generateRetripAlternatives();
     if (!mounted) return;
+
+    if (_controller.alert?.alternatives.isNotEmpty ?? false) {
+      setState(() {
+        _step = _ReTripStep.alternatives;
+      });
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _controller.errorMessage ?? 'No alternative is ready yet.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _chooseAlternative(AlternativePlace alternative) async {
+    final switched = await _controller.switchToAlternative(alternative);
+    if (!mounted) return;
+
+    setState(() {
+      _changedAlternative = alternative;
+      _step = _ReTripStep.updated;
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -132,31 +172,14 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
         ),
       ),
     );
-
-    if (switched && Navigator.of(context).canPop()) {
-      Navigator.of(context).maybePop();
-    }
   }
 
-  Future<void> _selectAlternative(AlternativePlace alternative) async {
-    _controller.selectAlternative(alternative);
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${alternative.name} selected as your new plan.')),
-    );
-  }
-
-  Future<void> _generateRetripAlternatives() async {
-    await _controller.generateRetripAlternatives();
+  void _startUpdatedRoute() {
+    Navigator.of(context).pushReplacementNamed(AppRoutes.itineraryPlanner);
   }
 
   void _loadInitialAlert() {
     if (widget.initialAlert != null) return;
-    if (widget.autoGenerateOnOpen) {
-      _controller.generateRetripAlternatives();
-      return;
-    }
     _controller.loadAlert();
   }
 
@@ -246,38 +269,66 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                                   scale: scale,
                                 ),
                                 SizedBox(height: 18 * scale),
-                                _AlertMessageCard(
-                                  alert: alert,
-                                  scale: scale,
-                                  onInfoPressed: _showQueueInfo,
-                                ),
-                                SizedBox(height: 18 * scale),
-                                _AlternativesSection(
-                                  alert: alert,
-                                  selectedAlternative:
-                                      _controller.selectedAlternative,
-                                  sourceLabel: _controller.sourceLabel,
-                                  persistenceLabel:
-                                      _controller.persistenceLabel,
-                                  isGenerating: _controller.isGeneratingRetrip,
-                                  scale: scale,
-                                  onGenerate: _generateRetripAlternatives,
-                                  onSelectAlternative: _selectAlternative,
-                                ),
+                                if (_step == _ReTripStep.alert) ...[
+                                  _AlertMessageCard(
+                                    alert: alert,
+                                    sourceLabel: _controller.sourceLabel,
+                                    scale: scale,
+                                    onInfoPressed: _showQueueInfo,
+                                  ),
+                                ] else if (_step ==
+                                    _ReTripStep.alternatives) ...[
+                                  _AlertSummaryBanner(
+                                    alert: alert,
+                                    scale: scale,
+                                  ),
+                                  SizedBox(height: 18 * scale),
+                                  _AlternativesSection(
+                                    alert: alert,
+                                    selectedAlternative:
+                                        _controller.selectedAlternative,
+                                    sourceLabel: _controller.sourceLabel,
+                                    persistenceLabel:
+                                        _controller.persistenceLabel,
+                                    isGenerating:
+                                        _controller.isGeneratingRetrip,
+                                    isSwitching: _controller.isSwitching,
+                                    scale: scale,
+                                    onSelectAlternative: _chooseAlternative,
+                                  ),
+                                ] else ...[
+                                  _UpdatedItinerarySection(
+                                    alert: alert,
+                                    selectedAlternative: _changedAlternative,
+                                    scale: scale,
+                                  ),
+                                ],
                               ],
                             ),
                           ),
-                          Positioned(
-                            left: 18 * scale,
-                            right: 18 * scale,
-                            bottom: navHeight + 12 * scale,
-                            child: _BottomActionButtons(
-                              isSwitching: _controller.isSwitching,
-                              scale: scale,
-                              onKeepOriginal: _keepOriginalPlan,
-                              onSwitchPlan: _switchPlan,
+                          if (_step == _ReTripStep.alert)
+                            Positioned(
+                              left: 18 * scale,
+                              right: 18 * scale,
+                              bottom: navHeight + 12 * scale,
+                              child: _AlertStepActionButtons(
+                                isGenerating: _controller.isGeneratingRetrip,
+                                isSwitching: _controller.isSwitching,
+                                scale: scale,
+                                onKeepOriginal: _keepOriginalPlan,
+                                onViewAlternatives: _viewAlternativePlaces,
+                              ),
                             ),
-                          ),
+                          if (_step == _ReTripStep.updated)
+                            Positioned(
+                              left: 18 * scale,
+                              right: 18 * scale,
+                              bottom: navHeight + 12 * scale,
+                              child: _StartUpdatedRouteButton(
+                                scale: scale,
+                                onPressed: _startUpdatedRoute,
+                              ),
+                            ),
                           Positioned(
                             left: 0,
                             right: 0,
@@ -631,11 +682,13 @@ class _ArrowDot extends StatelessWidget {
 class _AlertMessageCard extends StatelessWidget {
   const _AlertMessageCard({
     required this.alert,
+    required this.sourceLabel,
     required this.scale,
     required this.onInfoPressed,
   });
 
   final CrowdAlert alert;
+  final String sourceLabel;
   final double scale;
   final VoidCallback onInfoPressed;
 
@@ -694,7 +747,9 @@ class _AlertMessageCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      SizedBox(height: 9 * scale),
+                      SizedBox(height: 8 * scale),
+                      _AgentSourceBadge(label: sourceLabel, scale: scale),
+                      SizedBox(height: 8 * scale),
                       Text(
                         alert.alertMessage,
                         maxLines: 2,
@@ -726,6 +781,73 @@ class _AlertMessageCard extends StatelessWidget {
           ),
           SizedBox(height: 16 * scale),
           _OriginalPlanCard(alert: alert, scale: scale),
+        ],
+      ),
+    );
+  }
+}
+
+class _AlertSummaryBanner extends StatelessWidget {
+  const _AlertSummaryBanner({required this.alert, required this.scale});
+
+  final CrowdAlert alert;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(14 * scale),
+      decoration: BoxDecoration(
+        color: _CrowdColors.alertBg,
+        borderRadius: BorderRadius.circular(16 * scale),
+        border: Border.all(color: _CrowdColors.alertBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44 * scale,
+            height: 44 * scale,
+            decoration: const BoxDecoration(
+              color: _CrowdColors.alertRed,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.warning_rounded,
+              color: _CrowdColors.white,
+              size: 28 * scale,
+            ),
+          ),
+          SizedBox(width: 12 * scale),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${alert.originalPlace} 대신 추천해요',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _CrowdColors.deepPurple,
+                    fontSize: 16 * scale,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+                SizedBox(height: 5 * scale),
+                Text(
+                  '${alert.crowdLevel} · ${alert.estimatedWait}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _CrowdColors.textSub,
+                    fontSize: 13.5 * scale,
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -933,8 +1055,8 @@ class _AlternativesSection extends StatelessWidget {
     required this.sourceLabel,
     required this.persistenceLabel,
     required this.isGenerating,
+    required this.isSwitching,
     required this.scale,
-    required this.onGenerate,
     required this.onSelectAlternative,
   });
 
@@ -943,12 +1065,14 @@ class _AlternativesSection extends StatelessWidget {
   final String sourceLabel;
   final String persistenceLabel;
   final bool isGenerating;
+  final bool isSwitching;
   final double scale;
-  final VoidCallback onGenerate;
   final ValueChanged<AlternativePlace> onSelectAlternative;
 
   @override
   Widget build(BuildContext context) {
+    final alternatives = alert.alternatives.take(3).toList(growable: false);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -956,7 +1080,7 @@ class _AlternativesSection extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'AI alternatives ✨',
+                '대안 장소 추천',
                 style: TextStyle(
                   color: _CrowdColors.deepPurple,
                   fontSize: 18 * scale,
@@ -970,7 +1094,7 @@ class _AlternativesSection extends StatelessWidget {
         ),
         SizedBox(height: 4 * scale),
         Text(
-          context.l10n.alternativePlaces,
+          '원래 장소의 핵심 가치를 유지한 Re-Trip 옵션입니다.',
           style: TextStyle(
             color: _CrowdColors.textSub,
             fontSize: 14.2 * scale,
@@ -981,58 +1105,77 @@ class _AlternativesSection extends StatelessWidget {
         SizedBox(height: 8 * scale),
         _PersistenceBadge(label: persistenceLabel, scale: scale),
         SizedBox(height: 10 * scale),
-        SizedBox(
-          height: 44 * scale,
-          width: double.infinity,
-          child: FilledButton.icon(
-            key: const ValueKey('generateRetripAlternativesButton'),
-            onPressed: isGenerating ? null : onGenerate,
-            icon: isGenerating
-                ? SizedBox(
-                    width: 18 * scale,
-                    height: 18 * scale,
-                    child: const CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: _CrowdColors.white,
-                    ),
-                  )
-                : Icon(Icons.travel_explore_rounded, size: 21 * scale),
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                isGenerating
-                    ? context.l10n.generating
-                    : context.l10n.generateRetripAlternatives,
-                style: TextStyle(
-                  fontSize: 15.6 * scale,
-                  fontWeight: FontWeight.w900,
-                ),
+        if (isGenerating)
+          _AlternativesLoadingCard(scale: scale)
+        else if (alternatives.isEmpty)
+          _AlternativesEmptyCard(scale: scale)
+        else
+          ...alternatives.map((alternative) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: 8 * scale),
+              child: _AlternativePlaceCard(
+                alternative: alternative,
+                selected: selectedAlternative?.id == alternative.id,
+                disabled: isSwitching,
+                scale: scale,
+                onSwitch: () => onSelectAlternative(alternative),
               ),
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: _CrowdColors.purple,
-              foregroundColor: _CrowdColors.white,
-              disabledBackgroundColor: _CrowdColors.purpleDark,
-              disabledForegroundColor: _CrowdColors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _AlternativesLoadingCard extends StatelessWidget {
+  const _AlternativesLoadingCard({required this.scale});
+
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 110 * scale,
+      alignment: Alignment.center,
+      decoration: _softCardDecoration(scale),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(color: _CrowdColors.purple),
+          SizedBox(height: 12 * scale),
+          Text(
+            context.l10n.generating,
+            style: TextStyle(
+              color: _CrowdColors.textSub,
+              fontSize: 14 * scale,
+              fontWeight: FontWeight.w800,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AlternativesEmptyCard extends StatelessWidget {
+  const _AlternativesEmptyCard({required this.scale});
+
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(16 * scale),
+      decoration: _softCardDecoration(scale),
+      child: Text(
+        '추천 가능한 대안 장소를 불러오지 못했어요.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: _CrowdColors.textSub,
+          fontSize: 14 * scale,
+          fontWeight: FontWeight.w700,
         ),
-        SizedBox(height: 10 * scale),
-        ...alert.alternatives.map((alternative) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: 8 * scale),
-            child: _AlternativePlaceCard(
-              alternative: alternative,
-              selected: selectedAlternative?.id == alternative.id,
-              scale: scale,
-              onSwitch: () => onSelectAlternative(alternative),
-            ),
-          );
-        }),
-      ],
+      ),
     );
   }
 }
@@ -1120,12 +1263,14 @@ class _AlternativePlaceCard extends StatelessWidget {
   const _AlternativePlaceCard({
     required this.alternative,
     required this.selected,
+    required this.disabled,
     required this.scale,
     required this.onSwitch,
   });
 
   final AlternativePlace alternative;
   final bool selected;
+  final bool disabled;
   final double scale;
   final VoidCallback onSwitch;
 
@@ -1167,6 +1312,7 @@ class _AlternativePlaceCard extends StatelessWidget {
             SizedBox(width: 10 * scale),
             _SwitchButton(
               selected: selected,
+              disabled: disabled,
               scale: scale,
               onPressed: onSwitch,
             ),
@@ -1312,22 +1458,24 @@ class _DiversityScoreBadge extends StatelessWidget {
 class _SwitchButton extends StatelessWidget {
   const _SwitchButton({
     required this.selected,
+    required this.disabled,
     required this.scale,
     required this.onPressed,
   });
 
   final bool selected;
+  final bool disabled;
   final double scale;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 66 * scale,
+      width: 92 * scale,
       height: 45 * scale,
       child: OutlinedButton(
         key: const ValueKey('alternativeSwitchButton'),
-        onPressed: onPressed,
+        onPressed: disabled ? null : onPressed,
         style: OutlinedButton.styleFrom(
           foregroundColor: _CrowdColors.purple,
           backgroundColor: selected
@@ -1345,9 +1493,9 @@ class _SwitchButton extends StatelessWidget {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            selected ? 'Selected' : context.l10n.switchPlan,
+            selected ? '변경 중' : '이 장소로 변경',
             style: TextStyle(
-              fontSize: 14.2 * scale,
+              fontSize: 13.2 * scale,
               fontWeight: FontWeight.w900,
               height: 1,
             ),
@@ -1358,18 +1506,446 @@ class _SwitchButton extends StatelessWidget {
   }
 }
 
-class _BottomActionButtons extends StatelessWidget {
-  const _BottomActionButtons({
+class _UpdatedItinerarySection extends StatelessWidget {
+  const _UpdatedItinerarySection({
+    required this.alert,
+    required this.selectedAlternative,
+    required this.scale,
+  });
+
+  final CrowdAlert alert;
+  final AlternativePlace? selectedAlternative;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _updatedEntries(
+      ItinerarySessionStore.currentPlan,
+      alert,
+      selectedAlternative,
+    );
+    final changedName = selectedAlternative?.name ?? alert.originalPlace;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: EdgeInsets.fromLTRB(
+            18 * scale,
+            18 * scale,
+            18 * scale,
+            20 * scale,
+          ),
+          decoration: _softCardDecoration(scale),
+          child: Column(
+            children: [
+              Container(
+                width: 64 * scale,
+                height: 64 * scale,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFE6A8),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.celebration_rounded,
+                  color: _CrowdColors.alertPink,
+                  size: 38 * scale,
+                ),
+              ),
+              SizedBox(height: 14 * scale),
+              Text(
+                '일정이 변경되었어요!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _CrowdColors.blackNavy,
+                  fontSize: 22 * scale,
+                  fontWeight: FontWeight.w900,
+                  height: 1.12,
+                ),
+              ),
+              SizedBox(height: 8 * scale),
+              Text(
+                '${alert.originalPlace} 대신 $changedName(으)로 이어집니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _CrowdColors.textSub,
+                  fontSize: 14.5 * scale,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 18 * scale),
+        Container(
+          padding: EdgeInsets.fromLTRB(14 * scale, 18 * scale, 14 * scale, 6),
+          decoration: _softCardDecoration(scale),
+          child: Column(
+            children: [
+              for (var i = 0; i < entries.length; i++)
+                _UpdatedTimelineEntryTile(
+                  entry: entries[i],
+                  isFirst: i == 0,
+                  isLast: i == entries.length - 1,
+                  scale: scale,
+                ),
+            ],
+          ),
+        ),
+        SizedBox(height: 82 * scale),
+      ],
+    );
+  }
+
+  List<_UpdatedItineraryEntry> _updatedEntries(
+    ItineraryPlan? plan,
+    CrowdAlert alert,
+    AlternativePlace? selectedAlternative,
+  ) {
+    final changedName = selectedAlternative?.name;
+    if (plan != null && plan.items.isNotEmpty) {
+      return plan.items
+          .map((item) {
+            final changed =
+                selectedAlternative != null &&
+                (item.id == selectedAlternative.id ||
+                    item.placeName == selectedAlternative.name);
+            return _UpdatedItineraryEntry(
+              time: item.time,
+              title: item.placeName,
+              subtitle: _entrySubtitle(item),
+              changed: changed,
+              completed:
+                  !changed && item.order < _changedOrder(plan, changedName),
+            );
+          })
+          .toList(growable: false);
+    }
+
+    final replacement = selectedAlternative?.name ?? '국립고궁박물관';
+    return [
+      const _UpdatedItineraryEntry(
+        time: '10:00',
+        title: '경복궁',
+        subtitle: 'Gyeongbokgung Palace',
+        completed: true,
+      ),
+      const _UpdatedItineraryEntry(
+        time: '12:30',
+        title: '광장시장',
+        subtitle: 'Gwangjang Market',
+        completed: true,
+      ),
+      _UpdatedItineraryEntry(
+        time: alert.scheduledTime,
+        title: replacement,
+        subtitle: selectedAlternative?.description ?? 'National Palace Museum',
+        changed: true,
+      ),
+      const _UpdatedItineraryEntry(
+        time: '16:00',
+        title: '삼청동 카페거리',
+        subtitle: 'Samcheong-dong Cafe Street',
+      ),
+      const _UpdatedItineraryEntry(
+        time: '18:30',
+        title: 'N서울타워',
+        subtitle: 'N Seoul Tower',
+      ),
+    ];
+  }
+
+  int _changedOrder(ItineraryPlan plan, String? changedName) {
+    if (changedName == null) return plan.items.length + 1;
+    for (final item in plan.items) {
+      if (item.placeName == changedName) return item.order;
+    }
+    return plan.items.length + 1;
+  }
+
+  String _entrySubtitle(ItineraryItem item) {
+    if (item.contentId != null) return 'KTO ${item.contentId}';
+    if (item.address != null) return item.address!;
+    return item.aiTip;
+  }
+}
+
+class _UpdatedTimelineEntryTile extends StatelessWidget {
+  const _UpdatedTimelineEntryTile({
+    required this.entry,
+    required this.isFirst,
+    required this.isLast,
+    required this.scale,
+  });
+
+  final _UpdatedItineraryEntry entry;
+  final bool isFirst;
+  final bool isLast;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final dotColor = entry.changed ? _CrowdColors.green : _CrowdColors.purple;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 54 * scale,
+            child: Text(
+              entry.time,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: dotColor,
+                fontSize: 14.5 * scale,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          Column(
+            children: [
+              Container(
+                width: 11 * scale,
+                height: 11 * scale,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: EdgeInsets.symmetric(vertical: 4 * scale),
+                    decoration: BoxDecoration(
+                      color: _CrowdColors.border,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(width: 12 * scale),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 8 * scale : 20 * scale),
+              child: entry.changed
+                  ? _ChangedItineraryCard(entry: entry, scale: scale)
+                  : _PlainItineraryLine(entry: entry, scale: scale),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChangedItineraryCard extends StatelessWidget {
+  const _ChangedItineraryCard({required this.entry, required this.scale});
+
+  final _UpdatedItineraryEntry entry;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(14 * scale),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF9EB),
+        borderRadius: BorderRadius.circular(12 * scale),
+        border: Border.all(color: _CrowdColors.diversityBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _CrowdColors.green,
+              fontSize: 17 * scale,
+              fontWeight: FontWeight.w900,
+              height: 1.12,
+            ),
+          ),
+          SizedBox(height: 5 * scale),
+          Text(
+            entry.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _CrowdColors.deepPurple,
+              fontSize: 12.8 * scale,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
+          ),
+          SizedBox(height: 10 * scale),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: 16 * scale,
+                vertical: 6 * scale,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDFF7EE),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '변경됨',
+                style: TextStyle(
+                  color: _CrowdColors.green,
+                  fontSize: 12 * scale,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlainItineraryLine extends StatelessWidget {
+  const _PlainItineraryLine({required this.entry, required this.scale});
+
+  final _UpdatedItineraryEntry entry;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                entry.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _CrowdColors.blackNavy,
+                  fontSize: 15.5 * scale,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                ),
+              ),
+              SizedBox(height: 4 * scale),
+              Text(
+                entry.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _CrowdColors.textSub,
+                  fontSize: 12 * scale,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (entry.completed)
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: 10 * scale,
+              vertical: 5 * scale,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0EEF7),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '완료',
+              style: TextStyle(
+                color: _CrowdColors.textSub,
+                fontSize: 11 * scale,
+                fontWeight: FontWeight.w800,
+                height: 1,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _StartUpdatedRouteButton extends StatelessWidget {
+  const _StartUpdatedRouteButton({
+    required this.scale,
+    required this.onPressed,
+  });
+
+  final double scale;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54 * scale,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10 * scale),
+        gradient: const LinearGradient(
+          colors: [_CrowdColors.alertPink, _CrowdColors.alertRed],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _CrowdColors.alertRed.withValues(alpha: 0.22),
+            blurRadius: 18 * scale,
+            offset: Offset(0, 8 * scale),
+          ),
+        ],
+      ),
+      child: FilledButton(
+        key: const ValueKey('startUpdatedRouteButton'),
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: _CrowdColors.white,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10 * scale),
+          ),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '변경된 경로로 안내 시작',
+            style: TextStyle(
+              fontSize: 16 * scale,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AlertStepActionButtons extends StatelessWidget {
+  const _AlertStepActionButtons({
+    required this.isGenerating,
     required this.isSwitching,
     required this.scale,
     required this.onKeepOriginal,
-    required this.onSwitchPlan,
+    required this.onViewAlternatives,
   });
 
+  final bool isGenerating;
   final bool isSwitching;
   final double scale;
   final VoidCallback onKeepOriginal;
-  final VoidCallback onSwitchPlan;
+  final VoidCallback onViewAlternatives;
 
   @override
   Widget build(BuildContext context) {
@@ -1392,7 +1968,7 @@ class _BottomActionButtons extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  context.l10n.keepOriginal,
+                  '일정 그대로 유지',
                   style: TextStyle(
                     fontSize: 15.5 * scale,
                     fontWeight: FontWeight.w800,
@@ -1410,19 +1986,21 @@ class _BottomActionButtons extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(13 * scale),
               gradient: const LinearGradient(
-                colors: [_CrowdColors.purple, _CrowdColors.purpleDark],
+                colors: [_CrowdColors.alertPink, _CrowdColors.alertRed],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: _CrowdColors.purple.withValues(alpha: 0.23),
+                  color: _CrowdColors.alertRed.withValues(alpha: 0.22),
                   blurRadius: 16 * scale,
                   offset: Offset(0, 8 * scale),
                 ),
               ],
             ),
             child: FilledButton(
-              key: const ValueKey('switchPlanButton'),
-              onPressed: isSwitching ? null : onSwitchPlan,
+              key: const ValueKey('viewAlternativePlacesButton'),
+              onPressed: isGenerating || isSwitching
+                  ? null
+                  : onViewAlternatives,
               style: FilledButton.styleFrom(
                 foregroundColor: _CrowdColors.white,
                 backgroundColor: Colors.transparent,
@@ -1435,7 +2013,7 @@ class _BottomActionButtons extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  isSwitching ? context.l10n.updating : context.l10n.switchPlan,
+                  isGenerating ? context.l10n.generating : '대안 장소 보기',
                   style: TextStyle(
                     fontSize: 15.5 * scale,
                     fontWeight: FontWeight.w900,
@@ -1696,6 +2274,22 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
+class _UpdatedItineraryEntry {
+  const _UpdatedItineraryEntry({
+    required this.time,
+    required this.title,
+    required this.subtitle,
+    this.changed = false,
+    this.completed = false,
+  });
+
+  final String time;
+  final String title;
+  final String subtitle;
+  final bool changed;
+  final bool completed;
+}
+
 class _MiniTimelinePoint {
   const _MiniTimelinePoint({
     required this.title,
@@ -1743,9 +2337,9 @@ class _CrowdColors {
   static const navMuted = Color(0xFF757B93);
 
   static const purple = Color(0xFF6A00FF);
-  static const purpleDark = Color(0xFF4A12E6);
   static const lime = Color(0xFFCCFF00);
 
+  static const alertPink = Color(0xFFFF1B5C);
   static const alertRed = Color(0xFFFF3B3B);
   static const alertBg = Color(0xFFFFF1F1);
   static const alertBorder = Color(0xFFFFD9D9);
@@ -1761,6 +2355,15 @@ class _CrowdColors {
   static const green = Color(0xFF139528);
   static const diversityBg = Color(0xFFEFF9EB);
   static const diversityBorder = Color(0xFFDDEFD7);
+}
+
+BoxDecoration _softCardDecoration(double scale) {
+  return BoxDecoration(
+    color: _CrowdColors.white,
+    borderRadius: BorderRadius.circular(16 * scale),
+    border: Border.all(color: _CrowdColors.cardBorder),
+    boxShadow: _softShadow(scale, alpha: 0.07, blur: 18, y: 7),
+  );
 }
 
 List<BoxShadow> _softShadow(

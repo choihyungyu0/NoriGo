@@ -7,6 +7,7 @@ import 'package:norigo/features/itinerary/presentation/ai_itinerary_planner_scre
 import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
 import 'package:norigo/features/itinerary/presentation/step3_mobile_mockups_screen.dart';
 import 'package:norigo/features/my/presentation/my_page_screen.dart';
+import 'package:norigo/features/onboarding/presentation/data_location_consent_screen.dart';
 import 'package:norigo/features/onboarding/presentation/interests_alerts_screen.dart';
 import 'package:norigo/features/onboarding/presentation/trip_basics_screen.dart';
 import 'package:norigo/features/splash/presentation/splash_screen.dart';
@@ -20,6 +21,7 @@ class AppRoutes {
   static const tripBasics = '/onboarding/trip-basics';
   static const interests = '/onboarding/interests';
   static const interestsAlerts = '/onboarding/interests-alerts';
+  static const dataLocationConsent = '/onboarding/data-location-consent';
   static const itinerary = '/itinerary';
   static const itineraryPlanner = '/itinerary/planner';
   static const itineraryCrowdAlert = '/itinerary/crowd-alert';
@@ -47,7 +49,8 @@ class AppRouter {
       AppRoutes.tripBasics: (_) => const TripBasicsScreen(),
       AppRoutes.interests: (_) => const InterestsAlertsScreen(),
       AppRoutes.interestsAlerts: (_) => const InterestsAlertsScreen(),
-      AppRoutes.itinerary: (_) => const CrowdAlertScreen(),
+      AppRoutes.dataLocationConsent: (_) => const DataLocationConsentScreen(),
+      AppRoutes.itinerary: (_) => const AiItineraryPlannerScreen(),
       AppRoutes.itineraryPlanner: (_) => const AiItineraryPlannerScreen(),
       AppRoutes.itineraryCrowdAlert: (_) => const CrowdAlertScreen(),
       AppRoutes.step3MobileMockups: (_) => const Step3MobileMockupsScreen(),

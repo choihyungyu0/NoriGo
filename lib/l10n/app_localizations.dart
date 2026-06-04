@@ -1247,13 +1247,13 @@ abstract class AppLocalizations {
   /// No description provided for @discoverSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'AI picks that disperse crowds and reveal local texture'**
+  /// **'Skip the wait, go local.'**
   String get discoverSubtitle;
 
   /// No description provided for @discoverSearchHint.
   ///
   /// In en, this message translates to:
-  /// **'Search quiet cafes, dessert, culture'**
+  /// **'Search destinations, food, cafes, culture questions'**
   String get discoverSearchHint;
 
   /// No description provided for @aiPicks.
@@ -1261,6 +1261,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AI picks'**
   String get aiPicks;
+
+  /// No description provided for @aiPicksForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'AI picks for you'**
+  String get aiPicksForYou;
+
+  /// No description provided for @placeSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Place saved.'**
+  String get placeSaved;
+
+  /// No description provided for @addToItineraryComingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to itinerary coming soon.'**
+  String get addToItineraryComingSoon;
+
+  /// No description provided for @preferencesComingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences are coming soon.'**
+  String get preferencesComingSoon;
+
+  /// No description provided for @discoverQuietCafe.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet cafe'**
+  String get discoverQuietCafe;
+
+  /// No description provided for @discoverDessert.
+  ///
+  /// In en, this message translates to:
+  /// **'Dessert'**
+  String get discoverDessert;
+
+  /// No description provided for @discoverLocalFood.
+  ///
+  /// In en, this message translates to:
+  /// **'Local food'**
+  String get discoverLocalFood;
+
+  /// No description provided for @discoverPhotoSpot.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo spot'**
+  String get discoverPhotoSpot;
+
+  /// No description provided for @discoverCulture.
+  ///
+  /// In en, this message translates to:
+  /// **'Culture'**
+  String get discoverCulture;
+
+  /// No description provided for @mapLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Map'**
+  String get mapLabel;
+
+  /// No description provided for @listLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'List'**
+  String get listLabel;
+
+  /// No description provided for @localFallbackMap.
+  ///
+  /// In en, this message translates to:
+  /// **'Local fallback'**
+  String get localFallbackMap;
+
+  /// No description provided for @basedOnLocalDataLowCrowdInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Based on local data and low-crowd insights'**
+  String get basedOnLocalDataLowCrowdInsights;
+
+  /// No description provided for @basedOnKtoLowCrowdInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Based on KTO and low-crowd insights'**
+  String get basedOnKtoLowCrowdInsights;
+
+  /// No description provided for @seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get seeAll;
+
+  /// No description provided for @personalizedRecommendations.
+  ///
+  /// In en, this message translates to:
+  /// **'Personalized recommendations'**
+  String get personalizedRecommendations;
+
+  /// No description provided for @personalizedRecommendationsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us what you like and we\'ll find more hidden gems for you.'**
+  String get personalizedRecommendationsBody;
+
+  /// No description provided for @tellUsYourPreferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us your preferences'**
+  String get tellUsYourPreferences;
+
+  /// No description provided for @savePlace.
+  ///
+  /// In en, this message translates to:
+  /// **'Save place'**
+  String get savePlace;
+
+  /// No description provided for @savedPlace.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved place'**
+  String get savedPlace;
+
+  /// No description provided for @noHiddenSpotsAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No hidden spots available yet.'**
+  String get noHiddenSpotsAvailable;
+
+  /// No description provided for @noHiddenSpotsMatched.
+  ///
+  /// In en, this message translates to:
+  /// **'No hidden spots matched \"{query}\".'**
+  String noHiddenSpotsMatched(String query);
+
+  /// No description provided for @dataLocationConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Data & Location Consent'**
+  String get dataLocationConsent;
+
+  /// No description provided for @dataUseConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Data use consent'**
+  String get dataUseConsent;
+
+  /// No description provided for @dataUseConsentBody.
+  ///
+  /// In en, this message translates to:
+  /// **'NoriGo uses your trip preferences, saved itineraries, culture scans, and Re-Trip history to improve recommendations.'**
+  String get dataUseConsentBody;
+
+  /// No description provided for @locationUseConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Location use consent'**
+  String get locationUseConsent;
+
+  /// No description provided for @locationUseConsentBody.
+  ///
+  /// In en, this message translates to:
+  /// **'NoriGo uses your current location to find nearby low-crowd spots and better alternatives.'**
+  String get locationUseConsentBody;
+
+  /// No description provided for @agree.
+  ///
+  /// In en, this message translates to:
+  /// **'Agree'**
+  String get agree;
+
+  /// No description provided for @skipForNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip for now'**
+  String get skipForNow;
+
+  /// No description provided for @allowLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow location'**
+  String get allowLocation;
+
+  /// No description provided for @useMyLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Use my location'**
+  String get useMyLocation;
+
+  /// No description provided for @notNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get notNow;
+
+  /// No description provided for @locationPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Location permission denied'**
+  String get locationPermissionDenied;
+
+  /// No description provided for @usingBaseLocationInstead.
+  ///
+  /// In en, this message translates to:
+  /// **'Using base location instead'**
+  String get usingBaseLocationInstead;
+
+  /// No description provided for @consentSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Consent saved.'**
+  String get consentSaved;
+
+  /// No description provided for @consentContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get consentContinue;
 
   /// No description provided for @noCalmPlaces.
   ///

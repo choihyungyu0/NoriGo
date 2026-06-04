@@ -78,6 +78,39 @@ void main() {
     expect(find.text('마이'), findsOneWidget);
   });
 
+  testWidgets('Discover and consent strings exist in English and Korean', (
+    tester,
+  ) async {
+    final controller = _localeController(const Locale('en'));
+    await tester.pumpWidget(
+      _LocalizedHarness(
+        controller: controller,
+        child: const SizedBox(key: ValueKey('l10nProbe')),
+      ),
+    );
+
+    var l10n = AppLocalizations.of(
+      tester.element(find.byKey(const ValueKey('l10nProbe'))),
+    )!;
+    expect(l10n.discoverHiddenSpots, 'Discover hidden spots');
+    expect(l10n.discoverSubtitle, 'Skip the wait, go local.');
+    expect(l10n.discoverQuietCafe, 'Quiet cafe');
+    expect(l10n.dataLocationConsent, 'Data & Location Consent');
+    expect(l10n.locationPermissionDenied, 'Location permission denied');
+
+    await controller.setLocale(const Locale('ko'));
+    await tester.pumpAndSettle();
+
+    l10n = AppLocalizations.of(
+      tester.element(find.byKey(const ValueKey('l10nProbe'))),
+    )!;
+    expect(l10n.discoverHiddenSpots, '숨은 장소 발견');
+    expect(l10n.discoverSubtitle, '기다림은 줄이고, 로컬처럼 이동하세요.');
+    expect(l10n.discoverQuietCafe, '조용한 카페');
+    expect(l10n.dataLocationConsent, '데이터 및 위치 동의');
+    expect(l10n.usingBaseLocationInstead, '기준 위치를 대신 사용합니다');
+  });
+
   testWidgets('My Page language bottom sheet switches locale', (tester) async {
     final controller = _localeController(const Locale('en'));
     await tester.pumpWidget(
@@ -142,7 +175,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('혼잡 알림'), findsOneWidget);
-    expect(find.text('Re-Trip 대안 생성'), findsOneWidget);
+    expect(find.text('대안 장소 보기'), findsOneWidget);
   });
 
   test(

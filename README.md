@@ -9,19 +9,23 @@ This prototype includes:
 
 ## Discover
 
-Discover recommends hidden/local spots with low-crowd context. The Flutter UI
-uses local illustrations under `assets/images/discover/`, `flutter_map` for
-map visualization, and a polished local map fallback so the screen remains
-usable if public map tiles fail.
+Discover recommends hidden/local spots with low-crowd context. If the user
+allows location access, Discover sends the current latitude/longitude to the
+Supabase Edge Function and centers the `flutter_map` map there. If location is
+denied or skipped, Discover uses the onboarding `base_location` and falls back
+to Myeongdong/Seoul coordinates when needed.
 
 The app calls the `discover-recommendations` Supabase Edge Function when
 Supabase is configured. That function can use KTO OpenAPI when
-`KTO_SERVICE_KEY` is available, and it is shaped to incorporate Seoul real-time
-low-crowd/risk data as those tables become available. If the backend or keys are
-unavailable, the Flutter repository falls back to bundled demo recommendations.
+`KTO_SERVICE_KEY` is available and optional Seoul real-time data through Edge
+Functions as those tables become available. KTO, Seoul, and service-role secrets
+stay in Supabase. If the backend or keys are unavailable, the Flutter repository
+falls back to bundled demo recommendations.
 
-OpenStreetMap public tiles are used only for development/demo. Production should
-use a proper tile provider, caching strategy, and attribution policy.
+The map uses `flutter_map` with OpenStreetMap public tiles for development/demo.
+Production should use a proper tile provider, caching strategy, and attribution
+policy. Static Discover illustrations and fallback card assets live under
+`assets/images/discover/`.
 
 Smoke test:
 
@@ -77,6 +81,50 @@ Deploy the functions:
 npx.cmd supabase functions deploy ennoia-culture-guide
 npx.cmd supabase functions deploy ennoia-itinerary
 npx.cmd supabase functions deploy ennoia-retrip
+npx.cmd supabase functions deploy seoul-realtime-risk
+```
+
+## Consent
+
+NoriGo stores data consent and location consent per user in `user_consents`,
+with a local offline copy for app fallback behavior. Data consent covers trip
+preferences, saved itineraries, culture scans, and Re-Trip history for improving
+recommendations. Location consent is requested separately and only uses
+foreground when-in-use location.
+
+The app does not request background location. If the user skips or denies
+location, NoriGo continues to work from the onboarding base location.
+
+## Re-Trip Crowd Flow
+
+The itinerary tab opens the AI itinerary planner. Crowd alerts are opened from
+real itinerary items when Seoul real-time risk says the selected or upcoming
+stop should trigger an alert. The production user flow is split into three app
+screens:
+
+1. `Crowd Alert`: shows the crowded original stop and actions for `대안 장소 보기`
+   or `일정 그대로 유지`.
+2. `대안 장소 추천`: calls the Re-Trip path and shows three alternatives with
+   `이 장소로 변경`.
+3. `일정이 변경되었어요!`: shows the updated itinerary with the replaced stop
+   highlighted and the CTA `변경된 경로로 안내 시작`.
+
+The old one-page Crowd Alert layout that showed the warning, all alternatives,
+and final switch buttons at once is not used as the normal itinerary flow.
+
+The Seoul realtime connector is `supabase/functions/seoul-realtime-risk`. It
+calls Seoul OpenAPI `citydata_ppltn` with the `SEOUL_CITYDATA_API_KEY` Edge
+Function secret, maps official `AREA_NM` values, and returns a risk score to
+Flutter through `SupabaseSeoulRealtimeRiskRepository`. The Re-Trip selection is
+persisted through `retrip_events.selected_alternative_json` and the itinerary
+item replacement path in Supabase when public Supabase config and a signed-in
+session are available. If backend calls fail, the app still shows a local
+fallback result instead of breaking the flow.
+
+Required extra Edge Function secret:
+
+```powershell
+npx.cmd supabase secrets set SEOUL_CITYDATA_API_KEY="your-seoul-citydata-key"
 ```
 
 Run Flutter with only Supabase public config:

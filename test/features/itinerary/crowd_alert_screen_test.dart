@@ -10,7 +10,7 @@ import 'package:norigo/features/itinerary/presentation/crowd_alert_screen.dart';
 void main() {
   setUp(ItinerarySessionStore.resetForTesting);
 
-  testWidgets('CrowdAlertScreen renders alert and alternatives', (
+  testWidgets('CrowdAlertScreen renders the first alert step only', (
     tester,
   ) async {
     await _pumpCrowdAlert(tester);
@@ -27,35 +27,46 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Cafe Arte'), findsWidgets);
-    expect(find.text('Cafe Owall'), findsOneWidget);
-    expect(find.text('Seosullan Small Book Cafe'), findsOneWidget);
-    expect(find.text('Yunsul Bakery'), findsOneWidget);
+    expect(find.text('Cafe Owall'), findsNothing);
+    expect(find.text('Seosullan Small Book Cafe'), findsNothing);
+    expect(find.text('Yunsul Bakery'), findsNothing);
     expect(
       find.byKey(const ValueKey('keepOriginalPlanButton')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('switchPlanButton')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('viewAlternativePlacesButton')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('alternativeSwitchButton')), findsNothing);
+  });
+
+  testWidgets('alert button opens alternatives and selection shows update', (
+    tester,
+  ) async {
+    await _pumpCrowdAlert(tester);
+
+    await tester.tap(find.byKey(const ValueKey('viewAlternativePlacesButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('대안 장소 추천'), findsOneWidget);
+    expect(find.text('Cafe Owall'), findsOneWidget);
+    expect(find.text('Seosullan Small Book Cafe'), findsOneWidget);
+    expect(find.text('Yunsul Bakery'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('alternativeSwitchButton')),
       findsNWidgets(3),
     );
-  });
 
-  testWidgets('alternative Switch button selects a new plan', (tester) async {
-    await _pumpCrowdAlert(tester);
-
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -180),
-    );
-    await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('alternativeSwitchButton')).first,
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text('Cafe Owall selected as your new plan.'), findsOneWidget);
-    expect(find.text('Selected'), findsOneWidget);
+    expect(find.text('Plan updated'), findsOneWidget);
+    expect(find.text('일정이 변경되었어요!'), findsOneWidget);
+    expect(find.text('변경됨'), findsOneWidget);
+    expect(find.text('변경된 경로로 안내 시작'), findsOneWidget);
   });
 
   testWidgets('KTO Re-Trip result renders three enriched alternatives', (
@@ -66,12 +77,11 @@ void main() {
       repository: const _StaticCrowdAlertRepository(_ktoAlert),
     );
 
+    await tester.tap(find.byKey(const ValueKey('viewAlternativePlacesButton')));
+    await tester.pumpAndSettle();
+
     expect(find.text('KTO OpenAPI + ennoia'), findsOneWidget);
-    expect(find.text('Deoksugung Daehanmun'), findsOneWidget);
-    expect(
-      find.text('Deoksugung Daehanmun may become very busy.'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Deoksugung Daehanmun'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('alternativeSwitchButton')),
       findsNWidgets(3),
@@ -120,15 +130,23 @@ void main() {
     expect(find.text('붐빔'), findsOneWidget);
     expect(find.text('85'), findsOneWidget);
     expect(find.text('Bukchon is very crowded.'), findsOneWidget);
+    expect(find.text('대안 장소 보기'), findsOneWidget);
+    expect(find.byKey(const ValueKey('alternativeSwitchButton')), findsNothing);
   });
 
-  testWidgets('bottom Switch plan button shows update message', (tester) async {
+  testWidgets('first-step alternatives button shows stored recommendations', (
+    tester,
+  ) async {
     await _pumpCrowdAlert(tester);
 
-    await tester.tap(find.byKey(const ValueKey('switchPlanButton')));
-    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('viewAlternativePlacesButton')));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Plan updated'), findsOneWidget);
+    expect(find.text('대안 장소 추천'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('alternativeSwitchButton')),
+      findsNWidgets(3),
+    );
   });
 
   testWidgets('Itinerary tab is active in bottom navigation', (tester) async {
@@ -144,16 +162,27 @@ void main() {
   testWidgets('generate retrip alternatives falls back when env is missing', (
     tester,
   ) async {
-    await _pumpCrowdAlert(tester);
-
-    final button = find.byKey(
-      const ValueKey('generateRetripAlternativesButton'),
+    await _pumpCrowdAlert(
+      tester,
+      initialAlert: const CrowdAlert(
+        id: 'seoul-alert',
+        originalPlace: 'Bukchon Hanok Village',
+        scheduledTime: '14:00',
+        crowdLevel: 'Very High',
+        estimatedWait: '40-60 min',
+        alertMessage: 'Bukchon is very crowded.',
+        foreignerQueueTip: 'No incident data was used.',
+        sourceType: 'seoul_realtime_citydata',
+        sourceBadge: 'Seoul Real-time',
+        alternatives: [],
+      ),
     );
-    await tester.ensureVisible(button);
-    await tester.tap(button);
+
+    await tester.tap(find.byKey(const ValueKey('viewAlternativePlacesButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mock ennoia'), findsOneWidget);
+    expect(find.text('Seoul Real-time'), findsOneWidget);
+    expect(find.text('Cafe Owall'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('alternativeSwitchButton')),
       findsNWidgets(3),
@@ -178,13 +207,18 @@ void main() {
 Future<void> _pumpCrowdAlert(
   WidgetTester tester, {
   CrowdAlertRepository repository = const MockCrowdAlertRepository(),
+  CrowdAlert? initialAlert,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 932));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   await tester.pumpWidget(
     MaterialApp(
-      home: CrowdAlertScreen(repository: repository, autoGenerateOnOpen: false),
+      home: CrowdAlertScreen(
+        repository: repository,
+        autoGenerateOnOpen: false,
+        initialAlert: initialAlert,
+      ),
     ),
   );
   await tester.pumpAndSettle();

@@ -598,14 +598,129 @@ class AppLocalizationsEn extends AppLocalizations {
   String get discoverHiddenSpots => 'Discover hidden spots';
 
   @override
-  String get discoverSubtitle =>
-      'AI picks that disperse crowds and reveal local texture';
+  String get discoverSubtitle => 'Skip the wait, go local.';
 
   @override
-  String get discoverSearchHint => 'Search quiet cafes, dessert, culture';
+  String get discoverSearchHint =>
+      'Search destinations, food, cafes, culture questions';
 
   @override
   String get aiPicks => 'AI picks';
+
+  @override
+  String get aiPicksForYou => 'AI picks for you';
+
+  @override
+  String get placeSaved => 'Place saved.';
+
+  @override
+  String get addToItineraryComingSoon => 'Add to itinerary coming soon.';
+
+  @override
+  String get preferencesComingSoon => 'Preferences are coming soon.';
+
+  @override
+  String get discoverQuietCafe => 'Quiet cafe';
+
+  @override
+  String get discoverDessert => 'Dessert';
+
+  @override
+  String get discoverLocalFood => 'Local food';
+
+  @override
+  String get discoverPhotoSpot => 'Photo spot';
+
+  @override
+  String get discoverCulture => 'Culture';
+
+  @override
+  String get mapLabel => 'Map';
+
+  @override
+  String get listLabel => 'List';
+
+  @override
+  String get localFallbackMap => 'Local fallback';
+
+  @override
+  String get basedOnLocalDataLowCrowdInsights =>
+      'Based on local data and low-crowd insights';
+
+  @override
+  String get basedOnKtoLowCrowdInsights =>
+      'Based on KTO and low-crowd insights';
+
+  @override
+  String get seeAll => 'See all';
+
+  @override
+  String get personalizedRecommendations => 'Personalized recommendations';
+
+  @override
+  String get personalizedRecommendationsBody =>
+      'Tell us what you like and we\'ll find more hidden gems for you.';
+
+  @override
+  String get tellUsYourPreferences => 'Tell us your preferences';
+
+  @override
+  String get savePlace => 'Save place';
+
+  @override
+  String get savedPlace => 'Saved place';
+
+  @override
+  String get noHiddenSpotsAvailable => 'No hidden spots available yet.';
+
+  @override
+  String noHiddenSpotsMatched(String query) {
+    return 'No hidden spots matched \"$query\".';
+  }
+
+  @override
+  String get dataLocationConsent => 'Data & Location Consent';
+
+  @override
+  String get dataUseConsent => 'Data use consent';
+
+  @override
+  String get dataUseConsentBody =>
+      'NoriGo uses your trip preferences, saved itineraries, culture scans, and Re-Trip history to improve recommendations.';
+
+  @override
+  String get locationUseConsent => 'Location use consent';
+
+  @override
+  String get locationUseConsentBody =>
+      'NoriGo uses your current location to find nearby low-crowd spots and better alternatives.';
+
+  @override
+  String get agree => 'Agree';
+
+  @override
+  String get skipForNow => 'Skip for now';
+
+  @override
+  String get allowLocation => 'Allow location';
+
+  @override
+  String get useMyLocation => 'Use my location';
+
+  @override
+  String get notNow => 'Not now';
+
+  @override
+  String get locationPermissionDenied => 'Location permission denied';
+
+  @override
+  String get usingBaseLocationInstead => 'Using base location instead';
+
+  @override
+  String get consentSaved => 'Consent saved.';
+
+  @override
+  String get consentContinue => 'Continue';
 
   @override
   String get noCalmPlaces =>
