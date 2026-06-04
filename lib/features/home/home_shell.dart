@@ -3,7 +3,6 @@ import 'package:norigo/app/router.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/discover/discover_screen.dart';
 import 'package:norigo/features/home/home_screen.dart';
-import 'package:norigo/features/itinerary/itinerary_screen.dart';
 import 'package:norigo/features/my/presentation/my_page_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -33,6 +32,11 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   void _selectTab(int index) {
+    if (index == 1) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.itinerary);
+      return;
+    }
+
     if (index == 2) {
       Navigator.of(context).pushReplacementNamed(AppRoutes.scan);
       return;
@@ -50,7 +54,7 @@ class _HomeShellState extends State<HomeShell> {
         onOpenCrowdAlert: () =>
             Navigator.of(context).pushNamed(AppRoutes.itineraryCrowdAlert),
       ),
-      const ItineraryScreen(),
+      const SizedBox.shrink(),
       const SizedBox.shrink(),
       const DiscoverScreen(),
       const MyPageScreen(showBottomNavigation: false),

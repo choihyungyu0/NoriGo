@@ -21,6 +21,7 @@ class AppRoutes {
   static const interests = '/onboarding/interests';
   static const interestsAlerts = '/onboarding/interests-alerts';
   static const itinerary = '/itinerary';
+  static const itineraryPlanner = '/itinerary/planner';
   static const itineraryCrowdAlert = '/itinerary/crowd-alert';
   static const step3MobileMockups = '/spec/step3-mobile-mockups';
   static const step3CrowdAlert = '/step3/crowd-alert';
@@ -46,14 +47,15 @@ class AppRouter {
       AppRoutes.tripBasics: (_) => const TripBasicsScreen(),
       AppRoutes.interests: (_) => const InterestsAlertsScreen(),
       AppRoutes.interestsAlerts: (_) => const InterestsAlertsScreen(),
-      AppRoutes.itinerary: (_) => const AiItineraryPlannerScreen(),
+      AppRoutes.itinerary: (_) => const CrowdAlertScreen(),
+      AppRoutes.itineraryPlanner: (_) => const AiItineraryPlannerScreen(),
       AppRoutes.itineraryCrowdAlert: (_) => const CrowdAlertScreen(),
       AppRoutes.step3MobileMockups: (_) => const Step3MobileMockupsScreen(),
       AppRoutes.step3CrowdAlert: (_) => const Step3CrowdAlertScreen(),
       AppRoutes.step3Alternatives: (_) => const Step3AlternativePlacesScreen(),
       AppRoutes.step3UpdatedItinerary: (_) =>
           const Step3UpdatedItineraryScreen(),
-      AppRoutes.home: (_) => const Step3CrowdAlertScreen(),
+      AppRoutes.home: (_) => const Step3MobileMockupsScreen(),
       AppRoutes.discover: (_) => const HomeShell(initialIndex: 3),
       AppRoutes.scan: (_) => const CultureScanScreen(),
       AppRoutes.cultureScan: (_) => const CultureScanScreen(),

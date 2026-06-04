@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 const _sceneAsset = 'assets/images/itinerary/itinerary_header_bg.png';
-const _itineraryRoute = '/itinerary';
+const _itineraryRoute = '/itinerary/planner';
 const _step3AlternativesRoute = '/step3/alternatives';
 const _step3UpdatedItineraryRoute = '/step3/updated-itinerary';
 

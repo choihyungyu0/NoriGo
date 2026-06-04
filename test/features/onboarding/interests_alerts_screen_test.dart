@@ -124,7 +124,9 @@ void main() {
     expect(find.text('Interests & Alerts'), findsOneWidget);
   });
 
-  testWidgets('Finish setup navigates to itinerary route', (tester) async {
+  testWidgets('Finish setup navigates to itinerary planner route', (
+    tester,
+  ) async {
     Object? routeArguments;
     await tester.binding.setSurfaceSize(const Size(430, 932));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -133,7 +135,7 @@ void main() {
       MaterialApp(
         home: const InterestsAlertsScreen(),
         onGenerateRoute: (settings) {
-          if (settings.name == AppRoutes.itinerary) {
+          if (settings.name == AppRoutes.itineraryPlanner) {
             routeArguments = settings.arguments;
             return MaterialPageRoute<void>(
               builder: (_) => const Scaffold(

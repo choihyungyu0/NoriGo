@@ -90,10 +90,10 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
 
   void _finishSetup() {
     OnboardingPreferencesStore.saveInterestsAlerts(_settings);
-    if (AppRouter.routes.containsKey(AppRoutes.itinerary)) {
+    if (AppRouter.routes.containsKey(AppRoutes.itineraryPlanner)) {
       try {
         Navigator.of(context).pushNamedAndRemoveUntil(
-          AppRoutes.itinerary,
+          AppRoutes.itineraryPlanner,
           (route) => false,
           arguments: OnboardingPreferencesStore.itineraryRequest(),
         );
