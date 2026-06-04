@@ -36,7 +36,15 @@ class NoriGoTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: NoriGoColors.paper,
-      fontFamily: 'Roboto',
+      fontFamily: 'NoriGoSans',
+      fontFamilyFallback: const [
+        'Noto Sans KR',
+        'Malgun Gothic',
+        'NanumGothic',
+        'Roboto',
+        'Arial',
+        'sans-serif',
+      ],
       appBarTheme: const AppBarTheme(
         elevation: 0,
         centerTitle: false,

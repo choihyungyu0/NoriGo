@@ -110,12 +110,14 @@ class _NoriBottomNavigation extends StatelessWidget {
               child: Row(
                 children: [
                   _BottomNavItem(
+                    id: 'home',
                     icon: Icons.home_outlined,
                     label: labels[0],
                     selected: currentIndex == 0,
                     onTap: () => onChanged(0),
                   ),
                   _BottomNavItem(
+                    id: 'itinerary',
                     icon: Icons.calendar_month_outlined,
                     label: labels[1],
                     selected: currentIndex == 1,
@@ -123,12 +125,14 @@ class _NoriBottomNavigation extends StatelessWidget {
                   ),
                   const Expanded(child: SizedBox.shrink()),
                   _BottomNavItem(
+                    id: 'discover',
                     icon: Icons.explore_rounded,
                     label: labels[3],
                     selected: currentIndex == 3,
                     onTap: () => onChanged(3),
                   ),
                   _BottomNavItem(
+                    id: 'my',
                     icon: Icons.person_outline_rounded,
                     label: labels[4],
                     selected: currentIndex == 4,
@@ -199,12 +203,14 @@ class _NoriBottomNavigation extends StatelessWidget {
 
 class _BottomNavItem extends StatelessWidget {
   const _BottomNavItem({
+    required this.id,
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
+  final String id;
   final IconData icon;
   final String label;
   final bool selected;
@@ -215,6 +221,7 @@ class _BottomNavItem extends StatelessWidget {
     final color = selected ? const Color(0xFF5717D9) : const Color(0xFF7A7F93);
     return Expanded(
       child: InkWell(
+        key: ValueKey(selected ? 'bottomNav-$id-selected' : 'bottomNav-$id'),
         onTap: onTap,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

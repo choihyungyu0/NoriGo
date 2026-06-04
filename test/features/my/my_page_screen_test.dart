@@ -1,10 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norigo/features/my/data/my_page_repository.dart';
 import 'package:norigo/features/my/domain/my_page_summary.dart';
 import 'package:norigo/features/my/presentation/my_page_screen.dart';
 
 void main() {
+  testWidgets('My Page image assets are bundled and readable', (tester) async {
+    for (final asset in const [
+      MyPageAssets.headerBackground,
+      MyPageAssets.explorerBadge,
+      MyPageAssets.explorerBackpack,
+    ]) {
+      final data = await rootBundle.load(asset);
+      expect(data.lengthInBytes, greaterThan(1024), reason: asset);
+    }
+  });
+
   testWidgets('My Page renders profile header, stats, menu rows, and assets', (
     tester,
   ) async {

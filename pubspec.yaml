@@ -45,6 +45,7 @@ dependencies:
   intl: ^0.20.2
   flutter_map: ^8.3.0
   latlong2: ^0.9.1
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +79,11 @@ flutter:
     - assets/images/scan/
     - assets/images/splash/
     - assets/ml/
+
+  fonts:
+    - family: NoriGoSans
+      fonts:
+        - asset: assets/fonts/NotoSansKR-VF.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:norigo/app/router.dart';
+import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/features/discover/application/discover_controller.dart';
 import 'package:norigo/features/discover/data/discover_repository.dart';
 import 'package:norigo/features/discover/domain/discover_category.dart';
@@ -95,9 +96,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
               children: [
-                const Text(
-                  'AI picks for you',
-                  style: TextStyle(
+                Text(
+                  context.l10n.aiPicksForYou,
+                  style: const TextStyle(
                     color: _DiscoverColors.deepPurple,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
@@ -123,6 +124,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Future<void> _openPlaceSheet(DiscoverPlace place) {
     final rootContext = context;
+    final l10n = context.l10n;
     return showModalBottomSheet<void>(
       context: rootContext,
       showDragHandle: true,
@@ -138,7 +140,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               onSave: () async {
                 final result = await _controller.savePlace(place);
                 if (!rootContext.mounted || !sheetContext.mounted) return;
-                final message = result.message ?? 'Place saved.';
+                final message = result.message ?? l10n.placeSaved;
                 ScaffoldMessenger.of(rootContext)
                   ..hideCurrentSnackBar()
                   ..showSnackBar(SnackBar(content: Text(message)));
@@ -148,9 +150,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ScaffoldMessenger.of(rootContext)
                   ..hideCurrentSnackBar()
                   ..showSnackBar(
-                    const SnackBar(
-                      content: Text('Add to itinerary coming soon.'),
-                    ),
+                    SnackBar(content: Text(l10n.addToItineraryComingSoon)),
                   );
               },
             ),
@@ -168,7 +168,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text('Preferences are coming soon.')),
+        SnackBar(content: Text(context.l10n.preferencesComingSoon)),
       );
   }
 
@@ -187,98 +187,91 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           bottom: false,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final pageWidth = math.min(constraints.maxWidth, 430.0);
-              final scale = (pageWidth / 430.0).clamp(0.86, 1.0).toDouble();
+              final width = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : MediaQuery.sizeOf(context).width;
+              final scaleBasis = math.min(width, 430.0);
+              final scale = (scaleBasis / 430.0).clamp(0.86, 1.0).toDouble();
               final bottomPadding = 18 * scale;
 
-              return Center(
-                child: SizedBox(
-                  width: pageWidth,
-                  child: RefreshIndicator(
-                    color: _DiscoverColors.purple,
-                    onRefresh: _controller.load,
-                    child: ListView(
-                      key: const ValueKey('discoverScreen'),
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      padding: EdgeInsets.fromLTRB(
-                        20 * scale,
-                        0,
-                        20 * scale,
-                        bottomPadding,
-                      ),
-                      children: [
-                        _HeroHeader(scale: scale),
-                        SizedBox(height: 12 * scale),
-                        _SearchBar(
-                          controller: _searchController,
-                          scale: scale,
-                          onChanged: _onSearchChanged,
-                          onSubmitted: _controller.search,
-                        ),
-                        SizedBox(height: 14 * scale),
-                        _CategoryScroller(
-                          selected: _controller.category,
-                          scale: scale,
-                          onSelected: _controller.selectCategory,
-                        ),
-                        SizedBox(height: 16 * scale),
-                        _DiscoverMapCard(
-                          places: _controller.places,
-                          selectedPlaceId: _controller.selectedPlaceId,
-                          scale: scale,
-                          enableLiveMap: widget.enableLiveMap,
-                          onPlaceSelected: _controller.selectPlace,
-                        ),
-                        SizedBox(height: 18 * scale),
-                        _AiPicksHeader(
-                          scale: scale,
-                          isLocalFallback:
-                              _controller.sourceType == 'local_fallback',
-                          onSeeAll: _showAllPlaces,
-                        ),
-                        SizedBox(height: 10 * scale),
-                        if (_controller.isLoading)
-                          ...List.generate(
-                            3,
-                            (index) => _LoadingPlaceCard(scale: scale),
-                          )
-                        else if (_controller.places.isEmpty)
-                          _EmptyStateCard(
-                            query: _controller.query,
-                            scale: scale,
-                          )
-                        else
-                          ..._controller.places
-                              .take(3)
-                              .map(
-                                (place) => _HiddenSpotCard(
-                                  place: place,
-                                  scale: scale,
-                                  selected:
-                                      _controller.selectedPlaceId == place.id,
-                                  onTap: () {
-                                    _controller.selectPlace(place.id);
-                                    _openPlaceSheet(place);
-                                  },
-                                ),
-                              ),
-                        if (_controller.errorMessage != null) ...[
-                          SizedBox(height: 6 * scale),
-                          _SourceNote(
-                            message: _controller.errorMessage!,
-                            scale: scale,
-                          ),
-                        ],
-                        SizedBox(height: 10 * scale),
-                        _RecommendationBanner(
-                          scale: scale,
-                          onPressed: _openPreferences,
-                        ),
-                      ],
-                    ),
+              return RefreshIndicator(
+                color: _DiscoverColors.purple,
+                onRefresh: _controller.load,
+                child: ListView(
+                  key: const ValueKey('discoverScreen'),
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
                   ),
+                  padding: EdgeInsets.fromLTRB(
+                    22 * scale,
+                    0,
+                    22 * scale,
+                    bottomPadding,
+                  ),
+                  children: [
+                    _HeroHeader(scale: scale),
+                    SizedBox(height: 12 * scale),
+                    _SearchBar(
+                      controller: _searchController,
+                      scale: scale,
+                      onChanged: _onSearchChanged,
+                      onSubmitted: _controller.search,
+                    ),
+                    SizedBox(height: 14 * scale),
+                    _CategoryScroller(
+                      selected: _controller.category,
+                      scale: scale,
+                      onSelected: _controller.selectCategory,
+                    ),
+                    SizedBox(height: 16 * scale),
+                    _DiscoverMapCard(
+                      places: _controller.places,
+                      selectedPlaceId: _controller.selectedPlaceId,
+                      center: _controller.mapCenter,
+                      scale: scale,
+                      enableLiveMap: widget.enableLiveMap,
+                      onPlaceSelected: _controller.selectPlace,
+                    ),
+                    SizedBox(height: 18 * scale),
+                    _AiPicksHeader(
+                      scale: scale,
+                      isLocalFallback:
+                          _controller.sourceType == 'local_fallback',
+                      onSeeAll: _showAllPlaces,
+                    ),
+                    SizedBox(height: 10 * scale),
+                    if (_controller.isLoading)
+                      ...List.generate(
+                        3,
+                        (index) => _LoadingPlaceCard(scale: scale),
+                      )
+                    else if (_controller.places.isEmpty)
+                      _EmptyStateCard(query: _controller.query, scale: scale)
+                    else
+                      ..._controller.places.map(
+                        (place) => _HiddenSpotCard(
+                          place: place,
+                          scale: scale,
+                          selected: _controller.selectedPlaceId == place.id,
+                          onTap: () {
+                            _controller.selectPlace(place.id);
+                            _openPlaceSheet(place);
+                          },
+                        ),
+                      ),
+                    if (_controller.errorMessage != null) ...[
+                      SizedBox(height: 6 * scale),
+                      _SourceNote(
+                        message: _controller.errorMessage!,
+                        scale: scale,
+                      ),
+                    ],
+                    SizedBox(height: 10 * scale),
+                    _RecommendationBanner(
+                      scale: scale,
+                      onPressed: _openPreferences,
+                    ),
+                  ],
                 ),
               );
             },
@@ -355,7 +348,7 @@ class _HeroHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Discover hidden spots',
+                  context.l10n.discoverHiddenSpots,
                   maxLines: 2,
                   style: TextStyle(
                     color: _DiscoverColors.deepPurple,
@@ -366,7 +359,7 @@ class _HeroHeader extends StatelessWidget {
                 ),
                 SizedBox(height: 8 * scale),
                 Text(
-                  'Skip the wait, go local.',
+                  context.l10n.discoverSubtitle,
                   style: TextStyle(
                     color: _DiscoverColors.muted,
                     fontSize: 18 * scale,
@@ -448,10 +441,10 @@ class _TopBar extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             IconButton(
-              tooltip: 'Notifications',
+              tooltip: context.l10n.notifications,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Notifications coming soon.')),
+                  SnackBar(content: Text(context.l10n.notificationsPending)),
                 );
               },
               icon: Icon(
@@ -571,7 +564,7 @@ class _SearchBar extends StatelessWidget {
         onSubmitted: onSubmitted,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
-          hintText: 'Search destinations, food, cafes, culture questions',
+          hintText: context.l10n.discoverSearchHint,
           hintStyle: TextStyle(
             color: _DiscoverColors.muted,
             fontSize: 15.5 * scale,
@@ -608,6 +601,7 @@ class _CategoryScroller extends StatelessWidget {
     return SizedBox(
       height: 56 * scale,
       child: ListView.separated(
+        key: const ValueKey('discoverCategoryScroller'),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: DiscoverCategory.values.length,
@@ -641,9 +635,7 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = selected && category == DiscoverCategory.quietCafe
-        ? 'Quiet cafe\nactive'
-        : category.label;
+    final label = _categoryLabel(context, category);
 
     return InkWell(
       borderRadius: BorderRadius.circular(8 * scale),
@@ -681,7 +673,7 @@ class _CategoryChip extends StatelessWidget {
             Flexible(
               child: Text(
                 label,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: selected
@@ -700,15 +692,25 @@ class _CategoryChip extends StatelessWidget {
   }
 
   double _chipWidth(DiscoverCategory category, bool selected) {
-    if (selected && category == DiscoverCategory.quietCafe) return 116;
     return switch (category) {
-      DiscoverCategory.quietCafe => 108,
+      DiscoverCategory.quietCafe => 112,
       DiscoverCategory.dessert => 88,
       DiscoverCategory.localFood => 116,
       DiscoverCategory.photoSpot => 116,
       DiscoverCategory.culture => 100,
     };
   }
+}
+
+String _categoryLabel(BuildContext context, DiscoverCategory category) {
+  final l10n = context.l10n;
+  return switch (category) {
+    DiscoverCategory.quietCafe => l10n.discoverQuietCafe,
+    DiscoverCategory.dessert => l10n.discoverDessert,
+    DiscoverCategory.localFood => l10n.discoverLocalFood,
+    DiscoverCategory.photoSpot => l10n.discoverPhotoSpot,
+    DiscoverCategory.culture => l10n.discoverCulture,
+  };
 }
 
 IconData _categoryIcon(DiscoverCategory category) {
@@ -725,6 +727,7 @@ class _DiscoverMapCard extends StatefulWidget {
   const _DiscoverMapCard({
     required this.places,
     required this.selectedPlaceId,
+    required this.center,
     required this.scale,
     required this.enableLiveMap,
     required this.onPlaceSelected,
@@ -732,6 +735,7 @@ class _DiscoverMapCard extends StatefulWidget {
 
   final List<DiscoverPlace> places;
   final String? selectedPlaceId;
+  final DiscoverMapCenter center;
   final double scale;
   final bool enableLiveMap;
   final ValueChanged<String> onPlaceSelected;
@@ -742,10 +746,22 @@ class _DiscoverMapCard extends StatefulWidget {
 
 class _DiscoverMapCardState extends State<_DiscoverMapCard> {
   bool _showMap = true;
+  bool _tileFailed = false;
+
+  @override
+  void didUpdateWidget(covariant _DiscoverMapCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enableLiveMap != widget.enableLiveMap ||
+        oldWidget.center.latitude != widget.center.latitude ||
+        oldWidget.center.longitude != widget.center.longitude) {
+      _tileFailed = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final scale = widget.scale;
+    final useLiveMap = _showMap && widget.enableLiveMap && !_tileFailed;
     return Container(
       height: 154 * scale,
       decoration: BoxDecoration(
@@ -765,18 +781,16 @@ class _DiscoverMapCardState extends State<_DiscoverMapCard> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: _showMap && widget.enableLiveMap
+              child: useLiveMap
                   ? _FlutterMapLayer(
                       places: widget.places,
                       selectedPlaceId: widget.selectedPlaceId,
+                      center: widget.center,
                       onPlaceSelected: widget.onPlaceSelected,
+                      onTileError: _handleTileError,
                     )
-                  : const _LocalMapLayer(),
+                  : _LocalMapLayer(showFallbackLabel: _showMap),
             ),
-            if (_showMap && widget.enableLiveMap)
-              const Positioned.fill(
-                child: IgnorePointer(child: _LocalMapLayer()),
-              ),
             if (!_showMap)
               _CompactMapList(
                 places: widget.places,
@@ -798,18 +812,27 @@ class _DiscoverMapCardState extends State<_DiscoverMapCard> {
       ),
     );
   }
+
+  void _handleTileError() {
+    if (_tileFailed || !mounted) return;
+    setState(() => _tileFailed = true);
+  }
 }
 
 class _FlutterMapLayer extends StatelessWidget {
   const _FlutterMapLayer({
     required this.places,
     required this.selectedPlaceId,
+    required this.center,
     required this.onPlaceSelected,
+    required this.onTileError,
   });
 
   final List<DiscoverPlace> places;
   final String? selectedPlaceId;
+  final DiscoverMapCenter center;
   final ValueChanged<String> onPlaceSelected;
+  final VoidCallback onTileError;
 
   @override
   Widget build(BuildContext context) {
@@ -832,10 +855,11 @@ class _FlutterMapLayer extends StatelessWidget {
         .toList(growable: false);
 
     return FlutterMap(
-      options: const MapOptions(
-        initialCenter: LatLng(37.5665, 126.9780),
+      key: const ValueKey('discoverFlutterMap'),
+      options: MapOptions(
+        initialCenter: LatLng(center.latitude, center.longitude),
         initialZoom: 12.2,
-        interactionOptions: InteractionOptions(
+        interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
         ),
       ),
@@ -843,6 +867,7 @@ class _FlutterMapLayer extends StatelessWidget {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.example.norigo',
+          errorTileCallback: (_, _, _) => onTileError(),
         ),
         MarkerLayer(markers: markers),
         const Positioned(
@@ -865,30 +890,33 @@ class _FlutterMapLayer extends StatelessWidget {
 }
 
 class _LocalMapLayer extends StatelessWidget {
-  const _LocalMapLayer();
+  const _LocalMapLayer({this.showFallbackLabel = false});
+
+  final bool showFallbackLabel;
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
+      key: const ValueKey('discoverFallbackMap'),
       painter: _MapPainter(),
       child: Stack(
-        children: const [
-          Positioned(
+        children: [
+          const Positioned(
             left: 52,
             top: 38,
             child: _PaintedMapPin(icon: Icons.local_cafe_outlined),
           ),
-          Positioned(
+          const Positioned(
             left: 150,
             bottom: 26,
             child: _PaintedMapPin(icon: Icons.account_balance_outlined),
           ),
-          Positioned(
+          const Positioned(
             right: 96,
             top: 48,
             child: _PaintedMapPin(icon: Icons.camera_alt_outlined),
           ),
-          Positioned(
+          const Positioned(
             right: 176,
             top: 32,
             child: _PaintedMapPin(
@@ -896,11 +924,36 @@ class _LocalMapLayer extends StatelessWidget {
               green: true,
             ),
           ),
-          Positioned(
+          const Positioned(
             right: 198,
             bottom: 40,
             child: _PaintedMapPin(icon: Icons.icecream_outlined, green: true),
           ),
+          if (showFallbackLabel)
+            Positioned(
+              left: 10,
+              bottom: 8,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: _DiscoverColors.white.withValues(alpha: 0.86),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    context.l10n.localFallbackMap,
+                    style: const TextStyle(
+                      color: _DiscoverColors.muted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1130,13 +1183,13 @@ class _MapModeToggle extends StatelessWidget {
       child: Row(
         children: [
           _ToggleSegment(
-            label: 'Map',
+            label: context.l10n.mapLabel,
             selected: showMap,
             scale: scale,
             onTap: () => onChanged(true),
           ),
           _ToggleSegment(
-            label: 'List',
+            label: context.l10n.listLabel,
             selected: !showMap,
             scale: scale,
             onTap: () => onChanged(false),
@@ -1213,7 +1266,7 @@ class _AiPicksHeader extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      'AI picks for you',
+                      context.l10n.aiPicksForYou,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1235,8 +1288,8 @@ class _AiPicksHeader extends StatelessWidget {
               SizedBox(height: 6 * scale),
               Text(
                 isLocalFallback
-                    ? 'Based on local data and low-crowd insights'
-                    : 'Based on KTO and low-crowd insights',
+                    ? context.l10n.basedOnLocalDataLowCrowdInsights
+                    : context.l10n.basedOnKtoLowCrowdInsights,
                 style: TextStyle(
                   color: _DiscoverColors.muted,
                   fontSize: 13.5 * scale,
@@ -1257,7 +1310,7 @@ class _AiPicksHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'See all',
+                context.l10n.seeAll,
                 style: TextStyle(
                   fontSize: 15 * scale,
                   fontWeight: FontWeight.w900,
@@ -1368,6 +1421,7 @@ class _PlaceImage extends StatelessWidget {
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _LocalImageFallback(
           asset: localImageAsset,
+          category: place.category,
           width: width,
           height: height,
         ),
@@ -1375,6 +1429,7 @@ class _PlaceImage extends StatelessWidget {
     }
     return _LocalImageFallback(
       asset: localImageAsset,
+      category: place.category,
       width: width,
       height: height,
     );
@@ -1384,11 +1439,13 @@ class _PlaceImage extends StatelessWidget {
 class _LocalImageFallback extends StatelessWidget {
   const _LocalImageFallback({
     required this.asset,
+    required this.category,
     required this.width,
     required this.height,
   });
 
   final String? asset;
+  final DiscoverCategory category;
   final double width;
   final double height;
 
@@ -1401,36 +1458,64 @@ class _LocalImageFallback extends StatelessWidget {
         width: width,
         height: height,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) =>
-            _GradientImageFallback(width: width, height: height),
+        errorBuilder: (_, _, _) => _GradientImageFallback(
+          category: category,
+          width: width,
+          height: height,
+        ),
       );
     }
-    return _GradientImageFallback(width: width, height: height);
+    return _GradientImageFallback(
+      category: category,
+      width: width,
+      height: height,
+    );
   }
 }
 
 class _GradientImageFallback extends StatelessWidget {
-  const _GradientImageFallback({required this.width, required this.height});
+  const _GradientImageFallback({
+    required this.category,
+    required this.width,
+    required this.height,
+  });
 
+  final DiscoverCategory category;
   final double width;
   final double height;
 
   @override
   Widget build(BuildContext context) {
+    final colors = _placeholderColors(category);
     return Container(
       width: width,
       height: height,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFE8F8DF), Color(0xFFF4EDFF)],
-        ),
-      ),
-      child: const Icon(
-        Icons.landscape_outlined,
-        color: _DiscoverColors.purple,
+      decoration: BoxDecoration(gradient: LinearGradient(colors: colors)),
+      child: Icon(
+        _categoryIcon(category),
+        color: _placeholderIconColor(category),
       ),
     );
   }
+}
+
+List<Color> _placeholderColors(DiscoverCategory category) {
+  return switch (category) {
+    DiscoverCategory.quietCafe => const [Color(0xFFE8F8DF), Color(0xFFF4EDFF)],
+    DiscoverCategory.dessert => const [Color(0xFFFFF0F6), Color(0xFFFFF6D8)],
+    DiscoverCategory.localFood => const [Color(0xFFE8F7FF), Color(0xFFEAF8DF)],
+    DiscoverCategory.photoSpot => const [Color(0xFFE9F2FF), Color(0xFFFFF0E5)],
+    DiscoverCategory.culture => const [Color(0xFFF4EDFF), Color(0xFFEAF7FF)],
+  };
+}
+
+Color _placeholderIconColor(DiscoverCategory category) {
+  return switch (category) {
+    DiscoverCategory.localFood => _DiscoverColors.green,
+    DiscoverCategory.dessert => _DiscoverColors.orange,
+    DiscoverCategory.photoSpot => _DiscoverColors.blue,
+    _ => _DiscoverColors.purple,
+  };
 }
 
 class _PlaceCopy extends StatelessWidget {
@@ -1747,8 +1832,8 @@ class _EmptyStateCard extends StatelessWidget {
       ),
       child: Text(
         query.isEmpty
-            ? 'No hidden spots available yet.'
-            : 'No hidden spots matched "$query".',
+            ? context.l10n.noHiddenSpotsAvailable
+            : context.l10n.noHiddenSpotsMatched(query),
         style: TextStyle(
           color: _DiscoverColors.deepPurple,
           fontSize: 14 * scale,
@@ -1839,7 +1924,7 @@ class _RecommendationBanner extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'Personalized recommendations',
+                          context.l10n.personalizedRecommendations,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1851,7 +1936,7 @@ class _RecommendationBanner extends StatelessWidget {
                         ),
                         SizedBox(height: 8 * scale),
                         Text(
-                          "Tell us what you like and we'll find more hidden gems for you.",
+                          context.l10n.personalizedRecommendationsBody,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1883,7 +1968,7 @@ class _RecommendationBanner extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              'Tell us your preferences',
+                              context.l10n.tellUsYourPreferences,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -2011,7 +2096,9 @@ class _PlaceDetailSheet extends StatelessWidget {
                 ? Icons.bookmark_rounded
                 : Icons.bookmark_border_rounded,
           ),
-          label: Text(place.isSaved ? 'Saved place' : 'Save place'),
+          label: Text(
+            place.isSaved ? context.l10n.savedPlace : context.l10n.savePlace,
+          ),
           style: FilledButton.styleFrom(
             backgroundColor: _DiscoverColors.purple,
             shape: RoundedRectangleBorder(

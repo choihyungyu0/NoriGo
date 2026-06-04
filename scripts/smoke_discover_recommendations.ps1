@@ -18,16 +18,53 @@ $authorizationToken = if ([string]::IsNullOrWhiteSpace($AccessToken)) {
 }
 
 $endpoint = $SupabaseUrl.TrimEnd("/") + "/functions/v1/discover-recommendations"
-$categories = @("quiet_cafe", "dessert", "local_food", "photo_spot", "culture")
-
-foreach ($category in $categories) {
-  $body = @{
-    user_language = "English"
+$cases = @(
+  @{
+    category = "quiet_cafe"
+    base_location = "Hongdae, Seoul"
+    current_lat = 37.5563
+    current_lng = 126.9236
+    query = ""
+  },
+  @{
+    category = "dessert"
+    base_location = "Myeongdong, Seoul"
+    current_lat = 37.5636
+    current_lng = 126.9820
+    query = ""
+  },
+  @{
+    category = "local_food"
     base_location = "Myeongdong, Seoul"
     current_lat = $null
     current_lng = $null
-    category = $category
     query = ""
+  },
+  @{
+    category = "photo_spot"
+    base_location = "Myeongdong, Seoul"
+    current_lat = $null
+    current_lng = $null
+    query = "hanok"
+  },
+  @{
+    category = "culture"
+    base_location = "Myeongdong, Seoul"
+    current_lat = $null
+    current_lng = $null
+    query = ""
+  }
+)
+
+foreach ($case in $cases) {
+  $category = $case.category
+  $body = @{
+    user_language = "English"
+    base_location = $case.base_location
+    current_lat = $case.current_lat
+    current_lng = $case.current_lng
+    category = $category
+    query = $case.query
     limit = 10
   } | ConvertTo-Json -Depth 8 -Compress
 
@@ -71,7 +108,7 @@ const body = process.env.NORIGO_DISCOVER_BODY;
   $response = $responseText | ConvertFrom-Json
   $places = @($response.places)
   $names = @($places | Select-Object -First 3 | ForEach-Object { $_.name })
-  $contentIdCount = @($places | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.kto_content_id) }).Count
+  $ktoImageCount = @($places | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.image_url) }).Count
   $coordinateCount = @($places | Where-Object {
     $_.latitude -ne $null -and $_.longitude -ne $null -and
     [double]$_.latitude -ne 0 -and [double]$_.longitude -ne 0
@@ -84,6 +121,7 @@ const body = process.env.NORIGO_DISCOVER_BODY;
   Write-Host "source_badge: $($response.source_badge)"
   Write-Host "place count: $($places.Count)"
   Write-Host "first 3 place names: $($names -join ', ')"
-  Write-Host "KTO content id count: $contentIdCount"
-  Write-Host "map coordinate count: $coordinateCount"
+  Write-Host "KTO image count: $ktoImageCount"
+  Write-Host "coordinate count: $coordinateCount"
+  Write-Host "used_current_location: $($response.used_current_location)"
 }
