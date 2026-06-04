@@ -23,6 +23,7 @@ type DiscoverPlace = {
   category: DiscoverCategory;
   tags: string[];
   image_url: string;
+  local_image_asset?: string;
   latitude: number;
   longitude: number;
   walking_minutes: number;
@@ -65,6 +66,7 @@ const fallbackPlaces: DiscoverPlace[] = [
     category: "quiet_cafe",
     tags: ["Quiet", "Local pick", "Photo-friendly"],
     image_url: "",
+    local_image_asset: "assets/images/discover/spot_garden_cafe.png",
     latitude: 37.5629,
     longitude: 126.9247,
     walking_minutes: 5,
@@ -87,6 +89,7 @@ const fallbackPlaces: DiscoverPlace[] = [
     category: "dessert",
     tags: ["Local pick", "Sweet spot", "Quiet"],
     image_url: "",
+    local_image_asset: "assets/images/discover/spot_dessert.png",
     latitude: 37.5563,
     longitude: 126.9062,
     walking_minutes: 7,
@@ -109,6 +112,7 @@ const fallbackPlaces: DiscoverPlace[] = [
     category: "culture",
     tags: ["Cultural space", "Quiet", "Local pick"],
     image_url: "",
+    local_image_asset: "assets/images/discover/spot_bookstore.png",
     latitude: 37.5798,
     longitude: 126.9694,
     walking_minutes: 9,
@@ -120,6 +124,52 @@ const fallbackPlaces: DiscoverPlace[] = [
     review_count: 74,
     kto_content_id: "",
     seoul_area_name: "SEOCHON",
+    source_type: "local_fallback",
+    source_badge: "Demo fallback",
+  },
+  {
+    id: "market-bowl",
+    name: "Market Bowl",
+    subtitle: "local food counter",
+    description: "A simple market lunch counter with steady local traffic.",
+    category: "local_food",
+    tags: ["Local food", "High local ratio", "Low crowd"],
+    image_url: "",
+    local_image_asset: "assets/images/discover/spot_dessert.png",
+    latitude: 37.5702,
+    longitude: 126.9995,
+    walking_minutes: 8,
+    diversity_score: 86,
+    local_visit_ratio: 72,
+    crowd_level: "Low crowd",
+    risk_score: 24,
+    rating: 4.5,
+    review_count: 88,
+    kto_content_id: "",
+    seoul_area_name: "GWANGJANG",
+    source_type: "local_fallback",
+    source_badge: "Demo fallback",
+  },
+  {
+    id: "hanok-frame",
+    name: "Hanok Frame",
+    subtitle: "quiet photo lane",
+    description: "A soft morning photo spot away from the main tour flow.",
+    category: "photo_spot",
+    tags: ["Photo-friendly", "Quiet", "Culture"],
+    image_url: "",
+    local_image_asset: "assets/images/discover/spot_garden_cafe.png",
+    latitude: 37.5815,
+    longitude: 126.9849,
+    walking_minutes: 6,
+    diversity_score: 89,
+    local_visit_ratio: 64,
+    crowd_level: "Low crowd",
+    risk_score: 21,
+    rating: 4.7,
+    review_count: 112,
+    kto_content_id: "",
+    seoul_area_name: "BUKCHON",
     source_type: "local_fallback",
     source_badge: "Demo fallback",
   },
@@ -138,10 +188,11 @@ Deno.serve(async (request) => {
     const category = normalizeCategory(body.category);
     const limit = clampLimit(body.limit);
     const query = (body.query ?? "").trim();
+    const location = resolveLocation(body);
     const ktoServiceKey = Deno.env.get("KTO_SERVICE_KEY") ?? "";
 
     if (!ktoServiceKey) {
-      return json(localResponse(category, query, limit), 200);
+      return json(localResponse(category, query, limit, location.usedCurrentLocation), 200);
     }
 
     const ktoPlaces = await fetchKtoPlaces({
@@ -149,18 +200,23 @@ Deno.serve(async (request) => {
       query,
       limit,
       serviceKey: ktoServiceKey,
+      centerLat: location.latitude,
+      centerLng: location.longitude,
     });
 
     if (ktoPlaces.length === 0) {
-      return json(localResponse(category, query, limit), 200);
+      return json(localResponse(category, query, limit, location.usedCurrentLocation), 200);
     }
 
+    const places = withCuratedFallback(ktoPlaces, category, query, limit);
+    const supplemented = places.length > ktoPlaces.length;
     return json(
       {
         category,
-        source_type: "kto_openapi",
-        source_badge: "KTO OpenAPI",
-        places: ktoPlaces,
+        source_type: supplemented ? "kto_openapi_plus_local" : "kto_openapi",
+        source_badge: supplemented ? "KTO + local fallback" : "KTO OpenAPI",
+        used_current_location: location.usedCurrentLocation,
+        places,
       },
       200,
     );
@@ -180,6 +236,8 @@ async function fetchKtoPlaces(options: {
   query: string;
   limit: number;
   serviceKey: string;
+  centerLat: number;
+  centerLng: number;
 }): Promise<DiscoverPlace[]> {
   const keywords = options.query
     ? [options.query, ...categoryKeywords[options.category]]
@@ -215,6 +273,12 @@ async function fetchKtoPlaces(options: {
       }
 
       const scoreSeed = places.length + keyword.length;
+      const distance = distanceKm(
+        options.centerLat,
+        options.centerLng,
+        latitude,
+        longitude,
+      );
       places.push({
         id: `kto-${row.contentid ?? slug(name)}`,
         name,
@@ -225,9 +289,10 @@ async function fetchKtoPlaces(options: {
         category: options.category,
         tags: tagsForCategory(options.category),
         image_url: cleanText(row.firstimage) || cleanText(row.firstimage2),
+        local_image_asset: "",
         latitude,
         longitude,
-        walking_minutes: 5 + (scoreSeed % 5),
+        walking_minutes: walkingMinutes(distance, scoreSeed),
         diversity_score: 86 + (scoreSeed % 8),
         local_visit_ratio: 61 + (scoreSeed % 18),
         crowd_level: "Low crowd",
@@ -239,39 +304,67 @@ async function fetchKtoPlaces(options: {
         source_type: "kto_openapi",
         source_badge: "KTO OpenAPI",
       });
-      if (places.length >= options.limit) return places;
+      if (places.length >= options.limit) {
+        return places.sort((a, b) =>
+          distanceKm(options.centerLat, options.centerLng, a.latitude, a.longitude) -
+          distanceKm(options.centerLat, options.centerLng, b.latitude, b.longitude)
+        );
+      }
     }
   }
 
-  return places.slice(0, options.limit);
+  return places
+    .sort((a, b) =>
+      distanceKm(options.centerLat, options.centerLng, a.latitude, a.longitude) -
+      distanceKm(options.centerLat, options.centerLng, b.latitude, b.longitude)
+    )
+    .slice(0, options.limit);
 }
 
 function localResponse(
   category: DiscoverCategory,
   query: string,
   limit: number,
+  usedCurrentLocation = false,
 ) {
-  const normalizedQuery = query.toLowerCase();
-  const filtered = fallbackPlaces.filter((place) => {
-    const categoryMatch =
-      place.category === category ||
-      place.tags.some((tag) =>
-        tag.toLowerCase().includes(category.replace("_", " ")),
-      );
-    const queryMatch =
-      normalizedQuery.length === 0 ||
-      place.name.toLowerCase().includes(normalizedQuery) ||
-      place.subtitle.toLowerCase().includes(normalizedQuery) ||
-      place.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery));
-    return categoryMatch && queryMatch;
-  });
-  const places = filtered.length > 0 ? filtered : fallbackPlaces;
+  const places = withCuratedFallback([], category, query, limit);
   return {
     category,
     source_type: "local_fallback",
     source_badge: "Demo fallback",
-    places: places.slice(0, limit),
+    used_current_location: usedCurrentLocation,
+    places,
   };
+}
+
+function withCuratedFallback(
+  preferred: DiscoverPlace[],
+  category: DiscoverCategory,
+  query: string,
+  limit: number,
+) {
+  const normalizedQuery = query.toLowerCase();
+  const categoryText = category.replace("_", " ");
+  const filtered = fallbackPlaces.filter((place) => {
+    const categoryMatch =
+      place.category === category ||
+      place.tags.some((tag) => tag.toLowerCase().includes(categoryText));
+    const queryMatch =
+      normalizedQuery.length === 0 ||
+      place.name.toLowerCase().includes(normalizedQuery) ||
+      place.subtitle.toLowerCase().includes(normalizedQuery) ||
+      place.description.toLowerCase().includes(normalizedQuery) ||
+      place.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery));
+    return categoryMatch && queryMatch;
+  });
+  const target = Math.max(3, limit);
+  const places: DiscoverPlace[] = [];
+  for (const place of [...preferred, ...filtered, ...fallbackPlaces]) {
+    if (places.length >= target) break;
+    if (places.some((item) => item.id === place.id)) continue;
+    places.push(place);
+  }
+  return places.slice(0, target);
 }
 
 function json(body: unknown, status: number) {
@@ -301,6 +394,83 @@ function normalizeCategory(value?: string): DiscoverCategory {
 function clampLimit(value?: number) {
   if (!Number.isFinite(value ?? NaN)) return 10;
   return Math.min(Math.max(Math.trunc(value ?? 10), 3), 10);
+}
+
+function resolveLocation(body: DiscoverRequest) {
+  const currentLat = toNumber(body.current_lat);
+  const currentLng = toNumber(body.current_lng);
+  if (isValidCoordinate(currentLat, currentLng)) {
+    return {
+      latitude: currentLat,
+      longitude: currentLng,
+      usedCurrentLocation: true,
+    };
+  }
+
+  const base = baseCoordinates(body.base_location ?? "");
+  return {
+    latitude: base.latitude,
+    longitude: base.longitude,
+    usedCurrentLocation: false,
+  };
+}
+
+function baseCoordinates(baseLocation: string) {
+  const normalized = baseLocation.toLowerCase();
+  if (normalized.includes("hongdae") || normalized.includes("홍대")) {
+    return { latitude: 37.5563, longitude: 126.9236 };
+  }
+  if (normalized.includes("myeongdong") || normalized.includes("명동")) {
+    return { latitude: 37.5636, longitude: 126.9820 };
+  }
+  if (normalized.includes("gangnam") || normalized.includes("강남")) {
+    return { latitude: 37.4979, longitude: 127.0276 };
+  }
+  if (normalized.includes("gwanghwamun") || normalized.includes("광화문")) {
+    return { latitude: 37.5759, longitude: 126.9768 };
+  }
+  if (normalized.includes("bukchon") || normalized.includes("북촌")) {
+    return { latitude: 37.5815, longitude: 126.9849 };
+  }
+  return { latitude: 37.5665, longitude: 126.9780 };
+}
+
+function isValidCoordinate(lat: number | null, lng: number | null) {
+  return (
+    lat !== null &&
+    lng !== null &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180 &&
+    lat !== 0 &&
+    lng !== 0
+  );
+}
+
+function walkingMinutes(distance: number, seed: number) {
+  if (!Number.isFinite(distance)) return 5 + (seed % 5);
+  return Math.min(Math.max(Math.round(distance * 12), 4), 28);
+}
+
+function distanceKm(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+) {
+  const earthRadiusKm = 6371;
+  const dLat = radians(toLat - fromLat);
+  const dLng = radians(toLng - fromLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(radians(fromLat)) *
+      Math.cos(radians(toLat)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function radians(value: number) {
+  return (value * Math.PI) / 180;
 }
 
 function tagsForCategory(category: DiscoverCategory) {

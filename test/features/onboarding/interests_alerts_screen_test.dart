@@ -124,7 +124,7 @@ void main() {
     expect(find.text('Interests & Alerts'), findsOneWidget);
   });
 
-  testWidgets('Finish setup navigates to itinerary planner route', (
+  testWidgets('Finish setup navigates to data and location consent route', (
     tester,
   ) async {
     Object? routeArguments;
@@ -135,11 +135,11 @@ void main() {
       MaterialApp(
         home: const InterestsAlertsScreen(),
         onGenerateRoute: (settings) {
-          if (settings.name == AppRoutes.itineraryPlanner) {
+          if (settings.name == AppRoutes.dataLocationConsent) {
             routeArguments = settings.arguments;
             return MaterialPageRoute<void>(
               builder: (_) => const Scaffold(
-                body: Placeholder(key: ValueKey('itineraryRoute')),
+                body: Placeholder(key: ValueKey('consentRoute')),
               ),
               settings: settings,
             );
@@ -152,7 +152,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('finishSetupButton')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('itineraryRoute')), findsOneWidget);
+    expect(find.byKey(const ValueKey('consentRoute')), findsOneWidget);
     expect(routeArguments, isA<ItineraryAgentRequest>());
   });
 }

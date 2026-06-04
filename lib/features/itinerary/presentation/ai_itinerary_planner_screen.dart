@@ -292,7 +292,6 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
               final scale = (pageWidth / 430.0).clamp(0.86, 1.06).toDouble();
               final safeBottom = MediaQuery.paddingOf(context).bottom;
               final navHeight = 76 * scale + safeBottom;
-              final saveButtonBottom = navHeight + 12 * scale;
 
               return Center(
                 child: SizedBox(
@@ -335,84 +334,86 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                         );
                       }
 
-                      return Stack(
+                      return Column(
                         children: [
-                          SingleChildScrollView(
-                            physics: const BouncingScrollPhysics(),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(
+                                20 * scale,
+                                0,
+                                20 * scale,
+                                18 * scale,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _ItineraryHeader(
+                                    plan: plan,
+                                    logoAsset: widget.logoAsset,
+                                    headerAsset: widget.headerAsset,
+                                    scale: scale,
+                                  ),
+                                  _ControlsRow(
+                                    dateLabel: plan.dateLabel,
+                                    scale: scale,
+                                    onWhyPressed: _showRouteReason,
+                                  ),
+                                  SizedBox(height: 12 * scale),
+                                  _EnnoiaPlannerActionRow(
+                                    sourceLabel: _controller.sourceLabel,
+                                    isGenerating:
+                                        _controller.isGeneratingEnnoia,
+                                    scale: scale,
+                                    onGenerate: _generateWithEnnoia,
+                                  ),
+                                  SizedBox(height: 14 * scale),
+                                  _TimeChipRow(
+                                    times: plan.items
+                                        .map((item) => item.time)
+                                        .take(5)
+                                        .toList(growable: false),
+                                    selectedIndex: _selectedTimeIndex,
+                                    scale: scale,
+                                    onSelected: (index) {
+                                      setState(() {
+                                        _selectedTimeIndex = index;
+                                      });
+                                    },
+                                  ),
+                                  SizedBox(height: 16 * scale),
+                                  _ItineraryTimeline(
+                                    items: plan.items,
+                                    riskByItemId: _riskByItemId,
+                                    scale: scale,
+                                    onCrowdAlert:
+                                        _checkAndOpenCrowdAlertForItem,
+                                  ),
+                                  SizedBox(height: 12 * scale),
+                                  _RouteSummaryCard(plan: plan, scale: scale),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
                             padding: EdgeInsets.fromLTRB(
                               20 * scale,
                               0,
                               20 * scale,
-                              navHeight + 92 * scale,
+                              10 * scale,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _ItineraryHeader(
-                                  plan: plan,
-                                  logoAsset: widget.logoAsset,
-                                  headerAsset: widget.headerAsset,
-                                  scale: scale,
-                                ),
-                                _ControlsRow(
-                                  dateLabel: plan.dateLabel,
-                                  scale: scale,
-                                  onWhyPressed: _showRouteReason,
-                                ),
-                                SizedBox(height: 12 * scale),
-                                _EnnoiaPlannerActionRow(
-                                  sourceLabel: _controller.sourceLabel,
-                                  isGenerating: _controller.isGeneratingEnnoia,
-                                  scale: scale,
-                                  onGenerate: _generateWithEnnoia,
-                                ),
-                                SizedBox(height: 14 * scale),
-                                _TimeChipRow(
-                                  times: plan.items
-                                      .map((item) => item.time)
-                                      .take(5)
-                                      .toList(growable: false),
-                                  selectedIndex: _selectedTimeIndex,
-                                  scale: scale,
-                                  onSelected: (index) {
-                                    setState(() {
-                                      _selectedTimeIndex = index;
-                                    });
-                                  },
-                                ),
-                                SizedBox(height: 16 * scale),
-                                _ItineraryTimeline(
-                                  items: plan.items,
-                                  riskByItemId: _riskByItemId,
-                                  scale: scale,
-                                  onCrowdAlert: _checkAndOpenCrowdAlertForItem,
-                                ),
-                                SizedBox(height: 12 * scale),
-                                _RouteSummaryCard(plan: plan, scale: scale),
-                              ],
-                            ),
-                          ),
-                          Positioned(
-                            left: 20 * scale,
-                            right: 20 * scale,
-                            bottom: saveButtonBottom,
                             child: _SavePlanButton(
                               isSaving: _controller.isSaving,
                               scale: scale,
                               onPressed: _savePlan,
                             ),
                           ),
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: _BottomNavigation(
-                              selectedIndex: 1,
-                              scale: scale,
-                              height: navHeight,
-                              safeBottom: safeBottom,
-                              onChanged: _handleBottomNavigation,
-                            ),
+                          _BottomNavigation(
+                            selectedIndex: 1,
+                            scale: scale,
+                            height: navHeight,
+                            safeBottom: safeBottom,
+                            onChanged: _handleBottomNavigation,
                           ),
                         ],
                       );

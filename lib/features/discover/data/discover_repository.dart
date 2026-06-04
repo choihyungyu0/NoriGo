@@ -14,6 +14,10 @@ abstract class DiscoverRepository {
     required DiscoverCategory category,
     String query = '',
     int limit = 10,
+    String userLanguage = 'English',
+    String baseLocation = 'Myeongdong, Seoul',
+    double? currentLat,
+    double? currentLng,
   });
 
   Future<DiscoverSaveResult> savePlace(DiscoverPlace place);
@@ -47,20 +51,28 @@ class SupabaseDiscoverRepository extends DiscoverRepository {
     required DiscoverCategory category,
     String query = '',
     int limit = 10,
+    String userLanguage = 'English',
+    String baseLocation = 'Myeongdong, Seoul',
+    double? currentLat,
+    double? currentLng,
   }) async {
     if (!config.isConfigured) {
       return fallbackRepository.fetchRecommendations(
         category: category,
         query: query,
         limit: limit,
+        userLanguage: userLanguage,
+        baseLocation: baseLocation,
+        currentLat: currentLat,
+        currentLng: currentLng,
       );
     }
 
     final requestBody = {
-      'user_language': 'English',
-      'base_location': 'Myeongdong, Seoul',
-      'current_lat': null,
-      'current_lng': null,
+      'user_language': userLanguage,
+      'base_location': baseLocation,
+      'current_lat': currentLat,
+      'current_lng': currentLng,
       'category': category.apiValue,
       'query': query,
       'limit': limit,
@@ -120,14 +132,23 @@ class SupabaseDiscoverRepository extends DiscoverRepository {
       return fallbackRepository.savePlace(place);
     }
 
+    final userId = SupabaseAuthSession.userId;
+    if (userId == null) {
+      return fallbackRepository.savePlace(place);
+    }
+
     try {
       final response = await _post(
         Uri.parse('${_baseUrl()}/rest/v1/saved_places'),
-        place.toSavedPlaceJson(SupabaseAuthSession.userId),
+        place.toSavedPlaceJson(userId),
         prefer: 'return=minimal',
       );
       if (_isSuccess(response.statusCode)) {
-        return const DiscoverSaveResult(saved: true, localOnly: false);
+        return const DiscoverSaveResult(
+          saved: true,
+          localOnly: false,
+          message: 'Place saved.',
+        );
       }
       return DiscoverSaveResult(
         saved: true,
@@ -316,6 +337,10 @@ class LocalDiscoverRepository extends DiscoverRepository {
     required DiscoverCategory category,
     String query = '',
     int limit = 10,
+    String userLanguage = 'English',
+    String baseLocation = 'Myeongdong, Seoul',
+    double? currentLat,
+    double? currentLng,
   }) async {
     final normalizedQuery = query.trim().toLowerCase();
     final filtered = _places
@@ -338,9 +363,7 @@ class LocalDiscoverRepository extends DiscoverRepository {
         })
         .toList(growable: false);
 
-    final places = filtered.isEmpty && normalizedQuery.isEmpty
-        ? _places.take(3).toList(growable: false)
-        : filtered.take(limit).toList(growable: false);
+    final places = _withMinimumPlaces(filtered, limit);
 
     return DiscoverRecommendationResult.localFallback(
       category: category,
@@ -355,5 +378,24 @@ class LocalDiscoverRepository extends DiscoverRepository {
       localOnly: true,
       message: 'Saved locally for this session.',
     );
+  }
+
+  static List<DiscoverPlace> _withMinimumPlaces(
+    List<DiscoverPlace> preferred,
+    int limit,
+  ) {
+    final targetCount = limit < 3 ? 3 : limit;
+    final places = <DiscoverPlace>[];
+    for (final place in preferred) {
+      if (places.length >= targetCount) break;
+      if (places.any((item) => item.id == place.id)) continue;
+      places.add(place);
+    }
+    for (final place in _places) {
+      if (places.length >= targetCount || places.length >= 3) break;
+      if (places.any((item) => item.id == place.id)) continue;
+      places.add(place);
+    }
+    return places;
   }
 }
