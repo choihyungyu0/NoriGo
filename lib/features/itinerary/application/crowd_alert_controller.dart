@@ -56,6 +56,19 @@ class CrowdAlertController extends ChangeNotifier {
     );
   }
 
+  String get persistenceLabel {
+    final alert = _alert;
+    if (alert == null) return 'Local mock only';
+    if (alert.persisted) return 'Saved to Supabase';
+
+    final sourceType = alert.sourceType.trim().toLowerCase();
+    if (sourceType.contains('mock') || sourceType.contains('fallback')) {
+      return 'Local mock only';
+    }
+
+    return 'Generated, but not saved to Supabase.';
+  }
+
   bool get hasActualItem => _retripContext != null;
 
   RetripAgentRequest get currentRequest {

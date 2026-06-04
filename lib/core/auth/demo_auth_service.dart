@@ -22,13 +22,8 @@ class DemoAuthService {
     if (!config.isConfigured) return false;
     if (_initialized) return true;
 
-    try {
-      await Supabase.initialize(url: config.url, anonKey: config.anonKey);
-      _initialized = true;
-      return true;
-    } catch (_) {
-      return _initialized;
-    }
+    _initialized = true;
+    return true;
   }
 
   Future<bool> ensureDemoSession() async {

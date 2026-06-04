@@ -92,9 +92,11 @@ class _InterestsAlertsScreenState extends State<InterestsAlertsScreen> {
     OnboardingPreferencesStore.saveInterestsAlerts(_settings);
     if (AppRouter.routes.containsKey(AppRoutes.itinerary)) {
       try {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil(AppRoutes.itinerary, (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.itinerary,
+          (route) => false,
+          arguments: OnboardingPreferencesStore.itineraryRequest(),
+        );
         return;
       } on FlutterError {
         _showSnackBar(context.l10n.setupCompletePending);
