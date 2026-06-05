@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
+import 'package:norigo/core/widgets/nori_bottom_navigation.dart';
 import 'package:norigo/features/itinerary/application/crowd_alert_controller.dart';
 import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
 import 'package:norigo/features/itinerary/data/crowd_alert_repository.dart';
@@ -200,8 +201,7 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
             builder: (context, constraints) {
               final pageWidth = math.min(constraints.maxWidth, 560.0);
               final scale = (pageWidth / 430.0).clamp(0.86, 1.06).toDouble();
-              final safeBottom = MediaQuery.paddingOf(context).bottom;
-              final navHeight = 76 * scale + safeBottom;
+              final navHeight = NoriBottomNavigation.heightFor(context);
               final actionHeight = 58 * scale;
 
               return Center(
@@ -333,11 +333,9 @@ class _CrowdAlertScreenState extends State<CrowdAlertScreen> {
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            child: _BottomNavigation(
-                              selectedIndex: 1,
-                              scale: scale,
-                              height: navHeight,
-                              safeBottom: safeBottom,
+                            child: NoriBottomNavigation(
+                              key: const ValueKey('crowdAlertBottomNavigation'),
+                              currentIndex: 1,
                               onChanged: _handleBottomNavigation,
                             ),
                           ),
@@ -2029,106 +2027,6 @@ class _AlertStepActionButtons extends StatelessWidget {
   }
 }
 
-class _BottomNavigation extends StatelessWidget {
-  const _BottomNavigation({
-    required this.selectedIndex,
-    required this.scale,
-    required this.height,
-    required this.safeBottom,
-    required this.onChanged,
-  });
-
-  final int selectedIndex;
-  final double scale;
-  final double height;
-  final double safeBottom;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      _BottomNavData('Home', Icons.home_outlined),
-      _BottomNavData('Itinerary', Icons.calendar_month_rounded),
-      _BottomNavData('Scan', Icons.crop_free_rounded),
-      _BottomNavData('Discover', Icons.explore_outlined),
-      _BottomNavData('My', Icons.person_outline_rounded),
-    ];
-
-    return Container(
-      key: const ValueKey('crowdAlertBottomNavigation'),
-      height: height,
-      decoration: BoxDecoration(
-        color: _CrowdColors.white,
-        border: const Border(top: BorderSide(color: _CrowdColors.cardBorder)),
-        boxShadow: [
-          BoxShadow(
-            color: _CrowdColors.shadow.withValues(alpha: 0.12),
-            blurRadius: 18 * scale,
-            offset: Offset(0, -6 * scale),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(top: 5 * scale, bottom: safeBottom),
-        child: Row(
-          children: List.generate(items.length, (index) {
-            final item = items[index];
-            final selected = index == selectedIndex;
-            final label = _crowdBottomNavLabel(context, index);
-
-            return Expanded(
-              child: InkWell(
-                onTap: () => onChanged(index),
-                child: Column(
-                  key: ValueKey(
-                    selected ? 'active-nav-${item.label}' : 'nav-${item.label}',
-                  ),
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 170),
-                      width: selected ? 52 * scale : 0,
-                      height: 2.5 * scale,
-                      margin: EdgeInsets.only(bottom: 7 * scale),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? _CrowdColors.purple
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                    Icon(
-                      item.icon,
-                      color: selected
-                          ? _CrowdColors.purple
-                          : _CrowdColors.navMuted,
-                      size: 27 * scale,
-                    ),
-                    SizedBox(height: 4 * scale),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: selected
-                            ? _CrowdColors.purple
-                            : _CrowdColors.navMuted,
-                        fontSize: 11.4 * scale,
-                        fontWeight: selected
-                            ? FontWeight.w800
-                            : FontWeight.w500,
-                        height: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-}
-
 class _PlaceImagePlaceholder extends StatelessWidget {
   const _PlaceImagePlaceholder({
     required this.icon,
@@ -2304,24 +2202,6 @@ class _MiniTimelinePoint {
   final bool selected;
 }
 
-class _BottomNavData {
-  const _BottomNavData(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
-}
-
-String _crowdBottomNavLabel(BuildContext context, int index) {
-  final l10n = context.l10n;
-  return switch (index) {
-    0 => l10n.home,
-    1 => l10n.itinerary,
-    2 => l10n.scan,
-    3 => l10n.discover,
-    _ => l10n.my,
-  };
-}
-
 String _crowdSourceLabel(BuildContext context, String label) {
   if (label == 'KTO OpenAPI + ennoia') return context.l10n.ktoOpenApiEnnoia;
   return label;
@@ -2334,7 +2214,6 @@ class _CrowdColors {
   static const deepPurple = Color(0xFF24104F);
   static const blackNavy = Color(0xFF111333);
   static const textSub = Color(0xFF60667F);
-  static const navMuted = Color(0xFF757B93);
 
   static const purple = Color(0xFF6A00FF);
   static const lime = Color(0xFFCCFF00);

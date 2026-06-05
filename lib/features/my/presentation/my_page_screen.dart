@@ -6,6 +6,7 @@ import 'package:norigo/app/router.dart';
 import 'package:norigo/core/localization/app_locale_controller.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
 import 'package:norigo/core/services/supabase_auth_session.dart';
+import 'package:norigo/core/widgets/nori_bottom_navigation.dart';
 import 'package:norigo/features/my/application/my_page_controller.dart';
 import 'package:norigo/features/my/data/my_page_repository.dart';
 import 'package:norigo/features/my/domain/my_page_summary.dart';
@@ -200,7 +201,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
             key: const ValueKey('myPageScreen'),
             backgroundColor: _MyColors.white,
             bottomNavigationBar: widget.showBottomNavigation
-                ? _MyBottomNavigation(onChanged: _handleBottomNavigation)
+                ? NoriBottomNavigation(
+                    currentIndex: 4,
+                    onChanged: _handleBottomNavigation,
+                  )
                 : null,
             body: SafeArea(
               bottom: false,
@@ -245,17 +249,6 @@ String _languageDisplayLabel(BuildContext context, String language) {
   final locale = AppLocaleController.localeForUserLanguage(language);
   if (locale.languageCode == 'ko') return context.l10n.koreanNative;
   return context.l10n.english;
-}
-
-String _bottomNavLabel(BuildContext context, int index) {
-  final l10n = context.l10n;
-  return switch (index) {
-    0 => l10n.home,
-    1 => l10n.itinerary,
-    2 => l10n.scan,
-    3 => l10n.discover,
-    _ => l10n.my,
-  };
 }
 
 class _MyPageContent extends StatelessWidget {
@@ -1696,122 +1689,6 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _MyBottomNavigation extends StatelessWidget {
-  const _MyBottomNavigation({required this.onChanged});
-
-  final ValueChanged<int> onChanged;
-
-  static const _items = [
-    _BottomNavData('Home', Icons.home_outlined),
-    _BottomNavData('Itinerary', Icons.calendar_month_outlined),
-    _BottomNavData('Scan', Icons.crop_free_rounded),
-    _BottomNavData('Discover', Icons.explore_outlined),
-    _BottomNavData('My', Icons.person_rounded),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final safeBottom = MediaQuery.paddingOf(context).bottom;
-    return Container(
-      height: 86 + safeBottom,
-      decoration: BoxDecoration(
-        color: _MyColors.white,
-        border: const Border(top: BorderSide(color: _MyColors.border)),
-        boxShadow: [
-          BoxShadow(
-            color: _MyColors.shadow.withValues(alpha: 0.10),
-            blurRadius: 18,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Center(
-        child: SizedBox(
-          width: math.min(MediaQuery.sizeOf(context).width, 430),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(6, 8, 6, safeBottom),
-            child: Row(
-              children: List.generate(_items.length, (index) {
-                final item = _items[index];
-                final selected = index == 4;
-                final isScan = index == 2;
-                final label = _bottomNavLabel(context, index);
-                return Expanded(
-                  child: InkWell(
-                    onTap: () => onChanged(index),
-                    child: Transform.translate(
-                      offset: Offset(0, isScan ? -14 : 0),
-                      child: Column(
-                        key: ValueKey(
-                          selected
-                              ? 'active-nav-${item.label}'
-                              : 'nav-${item.label}',
-                        ),
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (isScan)
-                            Container(
-                              width: 58,
-                              height: 58,
-                              decoration: BoxDecoration(
-                                color: _MyColors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _MyColors.shadow.withValues(
-                                      alpha: 0.10,
-                                    ),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                item.icon,
-                                color: selected
-                                    ? _MyColors.purple
-                                    : _MyColors.navMuted,
-                                size: 28,
-                              ),
-                            )
-                          else
-                            Icon(
-                              item.icon,
-                              color: selected
-                                  ? _MyColors.purple
-                                  : _MyColors.navMuted,
-                              size: 29,
-                            ),
-                          const SizedBox(height: 5),
-                          Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: selected
-                                  ? _MyColors.purple
-                                  : _MyColors.navMuted,
-                              fontSize: 12.5,
-                              fontWeight: selected
-                                  ? FontWeight.w900
-                                  : FontWeight.w600,
-                              height: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _LogoFallback extends StatelessWidget {
   const _LogoFallback();
 
@@ -1912,13 +1789,6 @@ class _MenuItemData {
   final IconData icon;
   final String label;
   final Color color;
-}
-
-class _BottomNavData {
-  const _BottomNavData(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
 }
 
 enum _MyMenuAction {

@@ -328,18 +328,7 @@ class _HeroHeader extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            child: _MockStatusBar(scale: scale),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 44 * scale,
-            child: _TopBar(scale: scale),
-          ),
+          Positioned(left: 0, right: 0, top: 0, child: _TopBar(scale: scale)),
           Positioned(
             left: 0,
             right: 112 * scale,
@@ -369,47 +358,6 @@ class _HeroHeader extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MockStatusBar extends StatelessWidget {
-  const _MockStatusBar({required this.scale});
-
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34 * scale,
-      child: Row(
-        children: [
-          SizedBox(width: 10 * scale),
-          Text(
-            '9:41',
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 20 * scale,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-          const Spacer(),
-          Icon(
-            Icons.signal_cellular_alt,
-            size: 21 * scale,
-            color: Colors.black,
-          ),
-          SizedBox(width: 6 * scale),
-          Icon(Icons.wifi_rounded, size: 22 * scale, color: Colors.black),
-          SizedBox(width: 6 * scale),
-          Icon(
-            Icons.battery_full_rounded,
-            size: 24 * scale,
-            color: Colors.black,
           ),
         ],
       ),

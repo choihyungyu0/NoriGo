@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
+import 'package:norigo/core/widgets/nori_bottom_navigation.dart';
 import 'package:norigo/features/crowd/application/seoul_realtime_risk_controller.dart';
 import 'package:norigo/features/crowd/data/seoul_realtime_risk_repository.dart';
 import 'package:norigo/features/crowd/domain/seoul_realtime_risk.dart';
@@ -290,8 +291,6 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
             builder: (context, constraints) {
               final pageWidth = math.min(constraints.maxWidth, 560.0);
               final scale = (pageWidth / 430.0).clamp(0.86, 1.06).toDouble();
-              final safeBottom = MediaQuery.paddingOf(context).bottom;
-              final navHeight = 76 * scale + safeBottom;
 
               return Center(
                 child: SizedBox(
@@ -408,11 +407,8 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
                               onPressed: _savePlan,
                             ),
                           ),
-                          _BottomNavigation(
-                            selectedIndex: 1,
-                            scale: scale,
-                            height: navHeight,
-                            safeBottom: safeBottom,
+                          NoriBottomNavigation(
+                            currentIndex: 1,
                             onChanged: _handleBottomNavigation,
                           ),
                         ],
@@ -1718,118 +1714,6 @@ class _SavePlanButton extends StatelessWidget {
   }
 }
 
-class _BottomNavigation extends StatelessWidget {
-  const _BottomNavigation({
-    required this.selectedIndex,
-    required this.scale,
-    required this.height,
-    required this.safeBottom,
-    required this.onChanged,
-  });
-
-  final int selectedIndex;
-  final double scale;
-  final double height;
-  final double safeBottom;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      _BottomNavData('Home', Icons.home_outlined),
-      _BottomNavData('Itinerary', Icons.calendar_month_rounded),
-      _BottomNavData('Scan', Icons.crop_free_rounded),
-      _BottomNavData('Discover', Icons.explore_outlined),
-      _BottomNavData('My', Icons.person_outline_rounded),
-    ];
-
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: _PlannerColors.white,
-        border: const Border(top: BorderSide(color: _PlannerColors.border)),
-        boxShadow: [
-          BoxShadow(
-            color: _PlannerColors.shadow.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, -6),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(top: 6 * scale, bottom: safeBottom),
-        child: Row(
-          children: List.generate(items.length, (index) {
-            final data = items[index];
-            final selected = index == selectedIndex;
-            final isScan = index == 2;
-            final label = _plannerBottomNavLabel(context, index);
-
-            return Expanded(
-              child: InkWell(
-                onTap: () => onChanged(index),
-                child: Transform.translate(
-                  offset: Offset(0, isScan ? -10 * scale : 0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (!isScan)
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 160),
-                          width: selected ? 54 * scale : 0,
-                          height: 3,
-                          margin: EdgeInsets.only(bottom: 7 * scale),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? _PlannerColors.purple
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      Container(
-                        width: isScan ? 52 * scale : null,
-                        height: isScan ? 52 * scale : null,
-                        decoration: isScan
-                            ? BoxDecoration(
-                                color: _PlannerColors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: _cardShadow(),
-                              )
-                            : null,
-                        child: Icon(
-                          data.icon,
-                          color: selected
-                              ? _PlannerColors.purple
-                              : _PlannerColors.navMuted,
-                          size: (isScan ? 28 : 26) * scale,
-                        ),
-                      ),
-                      SizedBox(height: 4 * scale),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: selected
-                              ? _PlannerColors.purple
-                              : _PlannerColors.navMuted,
-                          fontSize: 11.5 * scale,
-                          fontWeight: selected
-                              ? FontWeight.w800
-                              : FontWeight.w500,
-                          height: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
-}
-
 class _HeaderImageFallback extends StatelessWidget {
   const _HeaderImageFallback();
 
@@ -2010,24 +1894,6 @@ class _RouteOverviewPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _BottomNavData {
-  const _BottomNavData(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
-}
-
-String _plannerBottomNavLabel(BuildContext context, int index) {
-  final l10n = context.l10n;
-  return switch (index) {
-    0 => l10n.home,
-    1 => l10n.itinerary,
-    2 => l10n.scan,
-    3 => l10n.discover,
-    _ => l10n.my,
-  };
-}
-
 String _plannerSourceLabel(BuildContext context, String label) {
   if (label == 'KTO OpenAPI + ennoia') return context.l10n.ktoOpenApiEnnoia;
   return label;
@@ -2044,7 +1910,6 @@ class _PlannerColors {
 
   static const textMain = Color(0xFF41465F);
   static const textSub = Color(0xFF616783);
-  static const navMuted = Color(0xFF747A91);
 
   static const border = Color(0xFFE5E1EE);
   static const timelineLine = Color(0xFFDADDE6);

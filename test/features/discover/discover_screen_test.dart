@@ -42,6 +42,7 @@ void main() {
     expect(box.size.width, closeTo(430, 0.1));
     expect(find.text('Discover hidden spots'), findsOneWidget);
     expect(find.text('Skip the wait, go local.'), findsOneWidget);
+    expect(find.text('9:41'), findsNothing);
   });
 
   testWidgets('category chips are horizontally scrollable', (tester) async {

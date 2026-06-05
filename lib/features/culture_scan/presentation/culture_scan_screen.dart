@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:norigo/app/router.dart';
 import 'package:norigo/core/localization/app_locale_controller.dart';
 import 'package:norigo/core/localization/l10n_extension.dart';
+import 'package:norigo/core/widgets/nori_bottom_navigation.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
@@ -307,8 +308,8 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
       ),
       child: Scaffold(
         backgroundColor: _ScanColors.white,
-        bottomNavigationBar: _ScanBottomNavigation(
-          selectedIndex: 2,
+        bottomNavigationBar: NoriBottomNavigation(
+          currentIndex: 2,
           onChanged: _handleBottomNavigation,
         ),
         body: Stack(
@@ -1985,159 +1986,6 @@ String _cultureSourceLabel(BuildContext context, String label) {
   return label;
 }
 
-String _scanBottomNavLabel(BuildContext context, int index) {
-  final l10n = context.l10n;
-  return switch (index) {
-    0 => l10n.home,
-    1 => l10n.itinerary,
-    2 => l10n.scan,
-    3 => l10n.discover,
-    _ => l10n.my,
-  };
-}
-
-class _ScanBottomNavigation extends StatelessWidget {
-  const _ScanBottomNavigation({
-    required this.selectedIndex,
-    required this.onChanged,
-  });
-
-  final int selectedIndex;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final pageWidth = math.min(constraints.maxWidth, 560.0);
-        final scale = (pageWidth / 430.0).clamp(0.84, 1.08).toDouble();
-        final safeBottom = MediaQuery.paddingOf(context).bottom;
-
-        final height = 78 * scale + safeBottom;
-
-        return SizedBox(
-          height: height,
-          child: ColoredBox(
-            color: _ScanColors.white,
-            child: Center(
-              child: SizedBox(
-                width: pageWidth,
-                height: height,
-                child: Padding(
-                  padding: EdgeInsets.only(top: 6 * scale, bottom: safeBottom),
-                  child: Row(
-                    children: List.generate(_ScanNavData.items.length, (index) {
-                      final item = _ScanNavData.items[index];
-                      return Expanded(
-                        child: _ScanNavItem(
-                          key: ValueKey(
-                            selectedIndex == index
-                                ? 'active-nav-${item.label}'
-                                : 'nav-${item.label}',
-                          ),
-                          item: item,
-                          label: _scanBottomNavLabel(context, index),
-                          selected: selectedIndex == index,
-                          scale: scale,
-                          onTap: () => onChanged(index),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ScanNavItem extends StatelessWidget {
-  const _ScanNavItem({
-    required this.item,
-    required this.label,
-    required this.selected,
-    required this.scale,
-    required this.onTap,
-    super.key,
-  });
-
-  final _ScanNavData item;
-  final String label;
-  final bool selected;
-  final double scale;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? _ScanColors.purple : _ScanColors.navMuted;
-    final isScan = item.label == 'Scan';
-
-    return InkWell(
-      onTap: onTap,
-      child: Transform.translate(
-        offset: Offset(0, isScan ? -8 * scale : 0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isScan)
-              Container(
-                width: 52 * scale,
-                height: 52 * scale,
-                decoration: BoxDecoration(
-                  color: _ScanColors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _ScanColors.shadow.withValues(alpha: 0.12),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Icon(item.icon, color: color, size: 29 * scale),
-              )
-            else
-              SizedBox(
-                height: 42 * scale,
-                child: Icon(item.icon, color: color, size: 27 * scale),
-              ),
-            SizedBox(height: 3 * scale),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 11.5 * scale,
-                height: 1,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ScanNavData {
-  const _ScanNavData(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
-
-  static const items = [
-    _ScanNavData('Home', Icons.home_outlined),
-    _ScanNavData('Itinerary', Icons.calendar_month_outlined),
-    _ScanNavData('Scan', Icons.crop_free_rounded),
-    _ScanNavData('Discover', Icons.explore_outlined),
-    _ScanNavData('My', Icons.person_outline_rounded),
-  ];
-}
-
 class _ScanColors {
   const _ScanColors._();
 
@@ -2145,7 +1993,6 @@ class _ScanColors {
   static const deepText = Color(0xFF24104F);
   static const bodyText = Color(0xFF17192F);
   static const muted = Color(0xFF5E6576);
-  static const navMuted = Color(0xFF747A91);
   static const purple = Color(0xFF6A00FF);
   static const purpleDark = Color(0xFF3912D8);
   static const limeDeep = Color(0xFF8CCB00);
