@@ -414,6 +414,21 @@ class AppLocalizationsKo extends AppLocalizations {
       '지원되는 여행 상황을 식별하지 못했습니다. 가장 가까운 상황을 선택해 주세요.';
 
   @override
+  String get scanObjectNotFoundTitle => '대상을 찾지 못했어요';
+
+  @override
+  String get scanObjectNotFoundBody => '대상이 화면 중앙에 보이도록 더 밝고 선명하게 비춰주세요.';
+
+  @override
+  String get scanObjectNotFoundManualPrompt => '직접 상황을 선택할까요?';
+
+  @override
+  String get scanObjectNotFoundAction => '다시 비추기';
+
+  @override
+  String get scanObjectNotFoundManualAction => '직접 선택하기';
+
+  @override
   String get noCameraDetected => '카메라가 감지되지 않았습니다. 안내 미리보기를 표시합니다.';
 
   @override

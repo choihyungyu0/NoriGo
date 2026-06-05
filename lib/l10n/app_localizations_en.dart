@@ -420,6 +420,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'I couldn’t identify a supported travel situation. Please choose the closest situation.';
 
   @override
+  String get scanObjectNotFoundTitle => 'I couldn’t find the object';
+
+  @override
+  String get scanObjectNotFoundBody =>
+      'Point the camera at the object again in brighter light, keeping it near the center of the screen.';
+
+  @override
+  String get scanObjectNotFoundManualPrompt => 'Choose the situation manually?';
+
+  @override
+  String get scanObjectNotFoundAction => 'Try again';
+
+  @override
+  String get scanObjectNotFoundManualAction => 'Choose manually';
+
+  @override
   String get noCameraDetected => 'No camera detected. Showing guide preview.';
 
   @override

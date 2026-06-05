@@ -33,18 +33,22 @@ void main() {
     expect(find.text('변경된 경로로 안내 시작'), findsOneWidget);
   });
 
-  testWidgets('home route opens the first Step 3 screen and routes forward', (
+  testWidgets('Step 3 route opens the first mockup screen and routes forward', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(430, 932));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      MaterialApp(initialRoute: AppRoutes.home, routes: AppRouter.routes),
+      MaterialApp(
+        initialRoute: AppRoutes.step3CrowdAlert,
+        routes: AppRouter.routes,
+      ),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('혼잡도 알림'), findsOneWidget);
+    expect(find.text('9:41'), findsNothing);
     expect(find.text('대안 장소 추천'), findsNothing);
     expect(find.text('일정이 변경되었어요!'), findsNothing);
 

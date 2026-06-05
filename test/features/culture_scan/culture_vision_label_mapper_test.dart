@@ -79,4 +79,30 @@ void main() {
     expect(result.finalDecision, 'manual_required');
     expect(result.requiresManualSelection, isTrue);
   });
+
+  test('low confidence allowed label exposes confidence_too_low for debug', () {
+    final mapping = mapCultureVisionLabelsForDebug(
+      const [
+        CultureVisionObservedLabel(label: 'Kiosk terminal', confidence: 0.42),
+      ],
+      const CultureVisionRequest(
+        currentLocation: 'Korean restaurant',
+        userLanguage: 'English',
+        hintPlaceType: 'restaurant',
+      ),
+    );
+
+    expect(mapping.result.detectedObjectSource, 'no_match');
+    expect(mapping.finalDecision, 'confidence_too_low');
+  });
+
+  test('unsupported labels expose no_allowlist_match for debug', () {
+    final mapping = mapCultureVisionLabelsForDebug(const [
+      CultureVisionObservedLabel(label: 'Tissue', confidence: 0.91),
+      CultureVisionObservedLabel(label: 'Paper', confidence: 0.87),
+    ], templeRequest);
+
+    expect(mapping.result.detectedObjectSource, 'no_match');
+    expect(mapping.finalDecision, 'no_allowlist_match');
+  });
 }

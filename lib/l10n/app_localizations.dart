@@ -902,6 +902,36 @@ abstract class AppLocalizations {
   /// **'I couldn’t identify a supported travel situation. Please choose the closest situation.'**
   String get unsupportedTravelSituation;
 
+  /// No description provided for @scanObjectNotFoundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'I couldn’t find the object'**
+  String get scanObjectNotFoundTitle;
+
+  /// No description provided for @scanObjectNotFoundBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Point the camera at the object again in brighter light, keeping it near the center of the screen.'**
+  String get scanObjectNotFoundBody;
+
+  /// No description provided for @scanObjectNotFoundManualPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the situation manually?'**
+  String get scanObjectNotFoundManualPrompt;
+
+  /// No description provided for @scanObjectNotFoundAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get scanObjectNotFoundAction;
+
+  /// No description provided for @scanObjectNotFoundManualAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose manually'**
+  String get scanObjectNotFoundManualAction;
+
   /// No description provided for @noCameraDetected.
   ///
   /// In en, this message translates to:

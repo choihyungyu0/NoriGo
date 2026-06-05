@@ -3,9 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
+import 'package:norigo/features/culture_scan/application/culture_capture_quality.dart';
 import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
 import 'package:norigo/features/culture_scan/application/culture_vision_classifier.dart';
+import 'package:norigo/features/culture_scan/application/culture_vision_label_mapper.dart';
 import 'package:norigo/features/culture_scan/data/culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
@@ -104,6 +106,7 @@ void main() {
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
       repository: repository,
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
     );
 
     await controller.initializeCamera();
@@ -120,6 +123,7 @@ void main() {
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
       repository: repository,
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
     );
 
     await controller.initializeCamera();
@@ -157,6 +161,7 @@ void main() {
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
       repository: repository,
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
     );
 
     await controller.initializeCamera();
@@ -188,6 +193,7 @@ void main() {
         cameraService: const _CapturingCameraService(),
         repository: repository,
         visionClassifier: const _FakeLocalVisionClassifier(),
+        captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
       );
 
       await controller.initializeCamera();
@@ -204,7 +210,34 @@ void main() {
   );
 
   test(
-    'unsupported local labels require manual selection and keep diagnostics',
+    'custom classifier no-match falls through to local ML Kit classifier',
+    () async {
+      final repository = _RecordingCultureScanRepository(
+        uploadResult: 'user-1/scan.jpg',
+      );
+      final controller = CultureScanController(
+        cameraService: const _CapturingCameraService(),
+        repository: repository,
+        callBellClassifier: const _NoMatchCallBellClassifier(),
+        visionClassifier: const _FakeLocalVisionClassifier(),
+        captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
+      );
+
+      await controller.initializeCamera();
+      final draft = await controller.prepareVisionScan(
+        controller.defaultRequest,
+      );
+
+      expect(draft.visionResult.detectedObject, 'kiosk_ordering');
+      expect(draft.visionResult.sourceType, 'vision_ai');
+      expect(repository.detectCount, 0);
+
+      controller.dispose();
+    },
+  );
+
+  test(
+    'unsupported local labels try server vision and keep diagnostics',
     () async {
       final repository = _RecordingCultureScanRepository(
         uploadResult: 'user-1/tissue.jpg',
@@ -213,6 +246,7 @@ void main() {
         cameraService: const _CapturingCameraService(),
         repository: repository,
         visionClassifier: const _NoMatchLocalVisionClassifier(),
+        captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
       );
 
       await controller.initializeCamera();
@@ -224,7 +258,7 @@ void main() {
       expect(draft.visionResult.detectedObjectSource, 'no_match');
       expect(draft.visionResult.finalDecision, 'manual_required');
       expect(draft.visionResult.requiresManualSelection, isTrue);
-      expect(repository.detectCount, 0);
+      expect(repository.detectCount, 1);
       expect(repository.runCount, 0);
       expect(
         controller.lastVisionDiagnostics?['detected_object_source'],
@@ -238,6 +272,101 @@ void main() {
       controller.dispose();
     },
   );
+
+  test(
+    'model_missing final decision is reported when custom tflite is absent',
+    () async {
+      final noMatchRequest = const CultureVisionRequest(
+        currentLocation: 'Korean restaurant',
+        userLanguage: 'English',
+        hintPlaceType: 'restaurant',
+      );
+      final controller = CultureScanController(
+        cameraService: const _CapturingCameraService(),
+        repository: _RecordingCultureScanRepository(
+          visionResult: CultureVisionResult.noMatch(noMatchRequest),
+        ),
+        callBellClassifier: const _MissingModelCallBellClassifier(),
+        visionClassifier: const _NullLocalVisionClassifier(),
+        captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
+        initialRequest: CultureScanRequest.defaultTemple().copyWith(
+          currentLocation: 'Korean restaurant',
+          placeType: 'restaurant',
+        ),
+      );
+
+      await controller.initializeCamera();
+      await controller.prepareVisionScan(controller.defaultRequest);
+
+      final report = controller.lastVisionDebugReport;
+      expect(report, isNotNull);
+      expect(report?.finalDecision, 'model_missing');
+      expect(report?.customModelLoaded, isFalse);
+      expect(report?.labelsFileLoaded, isFalse);
+      expect(report?.customModelExpectedPath, contains('call_bell_labeler'));
+
+      controller.dispose();
+    },
+  );
+
+  test('vision debug report includes capture metadata', () async {
+    final noMatchRequest = const CultureVisionRequest(
+      currentLocation: 'Korean restaurant',
+      userLanguage: 'English',
+      hintPlaceType: 'restaurant',
+    );
+    final controller = CultureScanController(
+      cameraService: const _FilePathCapturingCameraService(),
+      repository: _RecordingCultureScanRepository(
+        visionResult: CultureVisionResult.noMatch(noMatchRequest),
+      ),
+      callBellClassifier: const _DebugNoMatchCallBellClassifier(),
+      visionClassifier: const _NullLocalVisionClassifier(),
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
+      initialRequest: CultureScanRequest.defaultTemple().copyWith(
+        currentLocation: 'Korean restaurant',
+        placeType: 'restaurant',
+      ),
+    );
+
+    await controller.initializeCamera();
+    await controller.prepareVisionScan(controller.defaultRequest);
+
+    final report = controller.lastVisionDebugReport;
+    expect(report, isNotNull);
+    expect(report?.captureSucceeded, isTrue);
+    expect(report?.capturedImagePath, 'camera_scan.jpg');
+    expect(report?.capturedImageFileSizeBytes, 3);
+    expect(report?.capturedImageSource, 'raw_camera_xfile');
+    expect(report?.customLabels.single.text, 'restaurant_call_bell');
+
+    controller.dispose();
+  });
+
+  test('new vision scan clears stale guide result', () async {
+    final repository = _RecordingCultureScanRepository(
+      uploadResult: 'user-1/tissue.jpg',
+    );
+    final controller = CultureScanController(
+      cameraService: const _CapturingCameraService(),
+      repository: repository,
+      visionClassifier: const _NoMatchLocalVisionClassifier(),
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
+    );
+
+    await controller.initializeCamera();
+    await controller.runCultureGuide(controller.defaultRequest);
+
+    expect(controller.guide, isNotNull);
+
+    final draft = await controller.prepareVisionScan(controller.defaultRequest);
+
+    expect(draft.visionResult.requiresManualSelection, isTrue);
+    expect(controller.guide, isNull);
+    expect(controller.result, isNull);
+
+    controller.dispose();
+  });
 
   test(
     'server context-only vision result is treated as no match after capture',
@@ -257,6 +386,7 @@ void main() {
         cameraService: const _CapturingCameraService(),
         repository: repository,
         visionClassifier: const _NullLocalVisionClassifier(),
+        captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
         initialRequest: CultureScanRequest.defaultTemple().copyWith(
           currentLocation: 'Korean restaurant',
           placeType: 'restaurant',
@@ -270,6 +400,45 @@ void main() {
 
       expect(repository.detectCount, 1);
       expect(draft.visionResult.detectedObject, 'unsupported');
+      expect(draft.visionResult.sourceType, 'vision_no_match');
+      expect(draft.visionResult.detectedObjectSource, 'no_match');
+      expect(draft.visionResult.requiresManualSelection, isTrue);
+
+      controller.dispose();
+    },
+  );
+
+  test(
+    'unusable capture is treated as no match before vision detect',
+    () async {
+      final repository = _RecordingCultureScanRepository(
+        uploadResult: 'user-1/dark.jpg',
+        visionResult: const CultureVisionResult(
+          detectedObject: 'restaurant_call_bell',
+          placeType: 'restaurant',
+          confidence: 0.99,
+          alternatives: [],
+          needsConfirmation: true,
+          sourceType: 'vision_ai',
+          sourceBadge: 'Vision AI',
+          detectedObjectSource: 'vision_provider',
+          finalDecision: 'auto_confirm_possible',
+        ),
+      );
+      final controller = CultureScanController(
+        cameraService: const _CapturingCameraService(),
+        repository: repository,
+        captureQualityAnalyzer: const _BlockedCaptureQualityAnalyzer(),
+      );
+
+      await controller.initializeCamera();
+      final draft = await controller.prepareVisionScan(
+        controller.defaultRequest,
+      );
+
+      expect(repository.uploadCount, 0);
+      expect(repository.detectCount, 0);
+      expect(draft.imagePath, isNull);
       expect(draft.visionResult.sourceType, 'vision_no_match');
       expect(draft.visionResult.detectedObjectSource, 'no_match');
       expect(draft.visionResult.requiresManualSelection, isTrue);
@@ -330,6 +499,42 @@ class _CapturingCameraService implements CultureCameraService {
         extension: 'jpg',
       ),
     );
+  }
+}
+
+class _FilePathCapturingCameraService implements CultureCameraService {
+  const _FilePathCapturingCameraService();
+
+  @override
+  Future<CultureCameraSession> initialize() async {
+    return CultureCameraSession(
+      preview: const SizedBox.shrink(),
+      capturePreview: () async => CultureImageCapture(
+        bytes: Uint8List.fromList([1, 2, 3]),
+        contentType: 'image/jpeg',
+        extension: 'jpg',
+        filePath: r'C:\tmp\camera_scan.jpg',
+      ),
+    );
+  }
+}
+
+class _AlwaysUsableCaptureQualityAnalyzer
+    extends CultureCaptureQualityAnalyzer {
+  const _AlwaysUsableCaptureQualityAnalyzer();
+
+  @override
+  Future<CultureCaptureQuality> analyze(CultureImageCapture capture) async {
+    return const CultureCaptureQuality.usable();
+  }
+}
+
+class _BlockedCaptureQualityAnalyzer extends CultureCaptureQualityAnalyzer {
+  const _BlockedCaptureQualityAnalyzer();
+
+  @override
+  Future<CultureCaptureQuality> analyze(CultureImageCapture capture) async {
+    return const CultureCaptureQuality.tooDarkOrBlank();
   }
 }
 
@@ -430,6 +635,93 @@ class _FakeLocalVisionClassifier extends CultureVisionClassifier {
       sourceBadge: 'Vision AI',
       detectedObjectSource: 'mlkit_auto',
       finalDecision: 'auto_confirm_possible',
+    );
+  }
+}
+
+class _NoMatchCallBellClassifier extends CultureVisionClassifier {
+  const _NoMatchCallBellClassifier();
+
+  @override
+  Future<CultureVisionResult?> classify(
+    CultureImageCapture capture,
+    CultureVisionRequest request,
+  ) async {
+    return CultureVisionResult.noMatch(
+      request,
+      rawLabels: const [
+        CultureVisionLabelDiagnostic(
+          label: 'not_restaurant_call_bell',
+          confidence: 0.88,
+        ),
+      ],
+    );
+  }
+}
+
+class _MissingModelCallBellClassifier extends CultureVisionClassifier
+    implements CultureVisionDebugProbe {
+  const _MissingModelCallBellClassifier();
+
+  @override
+  Future<CultureVisionResult?> classify(
+    CultureImageCapture capture,
+    CultureVisionRequest request,
+  ) async {
+    return null;
+  }
+
+  @override
+  Future<CultureVisionClassifierDebugResult> classifyForDebug(
+    CultureImageCapture capture,
+    CultureVisionRequest request, {
+    double? suggestThreshold,
+  }) async {
+    return const CultureVisionClassifierDebugResult(
+      result: null,
+      ran: true,
+      expectedModelPath: 'assets/ml/call_bell_labeler.tflite',
+      modelLoaded: false,
+      labelsFileLoaded: false,
+      finalDecision: 'model_missing',
+      errorMessage: 'model asset missing',
+    );
+  }
+}
+
+class _DebugNoMatchCallBellClassifier extends CultureVisionClassifier
+    implements CultureVisionDebugProbe {
+  const _DebugNoMatchCallBellClassifier();
+
+  @override
+  Future<CultureVisionResult?> classify(
+    CultureImageCapture capture,
+    CultureVisionRequest request,
+  ) async {
+    return CultureVisionResult.noMatch(request);
+  }
+
+  @override
+  Future<CultureVisionClassifierDebugResult> classifyForDebug(
+    CultureImageCapture capture,
+    CultureVisionRequest request, {
+    double? suggestThreshold,
+  }) async {
+    return CultureVisionClassifierDebugResult(
+      result: CultureVisionResult.noMatch(request),
+      ran: true,
+      expectedModelPath: 'assets/ml/call_bell_labeler.tflite',
+      modelLoaded: true,
+      labelsFileLoaded: true,
+      modelVersionOrHash: 'test-hash',
+      labels: const [
+        CultureVisionObservedLabel(
+          label: 'restaurant_call_bell',
+          confidence: 0.52,
+          index: 1,
+        ),
+      ],
+      finalDecision: 'confidence_too_low',
     );
   }
 }

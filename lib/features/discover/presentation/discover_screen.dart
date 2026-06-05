@@ -11,6 +11,7 @@ import 'package:norigo/features/discover/application/discover_controller.dart';
 import 'package:norigo/features/discover/data/discover_repository.dart';
 import 'package:norigo/features/discover/domain/discover_category.dart';
 import 'package:norigo/features/discover/domain/discover_place.dart';
+import 'package:norigo/features/discover/domain/discover_recommendation_result.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
 const _headerAsset = 'assets/images/discover/discover_header_bg.png';
@@ -259,7 +260,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           },
                         ),
                       ),
-                    if (_controller.errorMessage != null) ...[
+                    if (_controller.errorMessage != null &&
+                        _controller.state == DiscoverLoadState.error) ...[
                       SizedBox(height: 6 * scale),
                       _SourceNote(
                         message: _controller.errorMessage!,

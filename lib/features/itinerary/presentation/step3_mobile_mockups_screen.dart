@@ -374,8 +374,7 @@ class _CrowdAlertPhone extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
       child: Column(
         children: [
-          const _PhoneStatusBar(),
-          const SizedBox(height: 17),
+          if (framed) ...[const _PhoneStatusBar(), const SizedBox(height: 17)],
           const Text(
             '혼잡도 알림',
             style: TextStyle(
@@ -628,8 +627,7 @@ class _AlternativePlacesPhone extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
       child: Column(
         children: [
-          const _PhoneStatusBar(),
-          const SizedBox(height: 17),
+          if (framed) ...[const _PhoneStatusBar(), const SizedBox(height: 17)],
           const Text(
             '대안 장소 추천',
             style: TextStyle(
@@ -971,8 +969,7 @@ class _UpdatedItineraryPhone extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 18),
       child: Column(
         children: [
-          const _PhoneStatusBar(),
-          const SizedBox(height: 17),
+          if (framed) ...[const _PhoneStatusBar(), const SizedBox(height: 17)],
           const Text(
             '일정이 변경되었어요!',
             style: TextStyle(

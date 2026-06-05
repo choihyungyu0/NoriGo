@@ -16,6 +16,11 @@ import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
 import 'package:norigo/features/itinerary/domain/retrip_context.dart';
 
 const _logoAsset = 'assets/images/splash/norigo_logo_full.png';
+const _fallbackCafeAsset = 'assets/images/discover/spot_garden_cafe.png';
+const _fallbackDessertAsset = 'assets/images/discover/spot_dessert.png';
+const _fallbackCultureAsset = 'assets/images/discover/spot_bookstore.png';
+const _fallbackOriginalAsset =
+    'assets/images/itinerary/itinerary_header_bg.png';
 
 enum _ReTripStep { alert, alternatives, updated }
 
@@ -876,6 +881,7 @@ class _OriginalPlanCard extends StatelessWidget {
             height: compact ? 120 * scale : 112 * scale,
             radius: 10 * scale,
             imageUrl: alert.originalImageUrl,
+            fallbackAssetPath: _fallbackOriginalAsset,
           );
           final details = _OriginalPlanDetails(alert: alert, scale: scale);
 
@@ -1292,11 +1298,13 @@ class _AlternativePlaceCard extends StatelessWidget {
           final compact = constraints.maxWidth < 380;
           final content = [
             _PlaceImagePlaceholder(
-              icon: Icons.local_cafe_rounded,
+              icon: _alternativeIcon(alternative),
               width: compact ? 92 * scale : 105 * scale,
               height: 56 * scale,
               radius: 8 * scale,
+              imageAssetPath: alternative.imageAssetPath,
               imageUrl: alternative.imageUrl,
+              fallbackAssetPath: _fallbackAssetForAlternative(alternative),
             ),
             SizedBox(width: 12 * scale),
             Expanded(
@@ -2033,18 +2041,24 @@ class _PlaceImagePlaceholder extends StatelessWidget {
     required this.width,
     required this.height,
     required this.radius,
+    this.imageAssetPath,
     this.imageUrl,
+    this.fallbackAssetPath,
   });
 
   final IconData icon;
   final double width;
   final double height;
   final double radius;
+  final String? imageAssetPath;
   final String? imageUrl;
+  final String? fallbackAssetPath;
 
   @override
   Widget build(BuildContext context) {
-    final url = imageUrl;
+    final assetPath = imageAssetPath;
+    final url = _normalizedImageUrl(imageUrl);
+    final fallback = _fallbackImage(icon, fallbackAssetPath);
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: Container(
@@ -2058,19 +2072,74 @@ class _PlaceImagePlaceholder extends StatelessWidget {
           ),
         ),
         alignment: Alignment.center,
-        child: url == null || url.isEmpty
-            ? Icon(icon, color: _CrowdColors.purple, size: 32)
+        child: assetPath != null && assetPath.isNotEmpty
+            ? Image.asset(
+                assetPath,
+                width: width,
+                height: height,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => fallback,
+              )
+            : url == null || url.isEmpty
+            ? fallback
             : Image.network(
                 url,
                 width: width,
                 height: height,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) =>
-                    Icon(icon, color: _CrowdColors.purple, size: 32),
+                errorBuilder: (_, _, _) => fallback,
               ),
       ),
     );
   }
+
+  Widget _fallbackImage(IconData icon, String? assetPath) {
+    if (assetPath != null && assetPath.isNotEmpty) {
+      return Image.asset(
+        assetPath,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) =>
+            Icon(icon, color: _CrowdColors.purple, size: 32),
+      );
+    }
+    return Icon(icon, color: _CrowdColors.purple, size: 32);
+  }
+}
+
+String? _normalizedImageUrl(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  if (trimmed.startsWith('http://')) {
+    return 'https://${trimmed.substring('http://'.length)}';
+  }
+  return trimmed;
+}
+
+IconData _alternativeIcon(AlternativePlace alternative) {
+  final value = '${alternative.name} ${alternative.description}'.toLowerCase();
+  if (value.contains('museum') || value.contains('palace')) {
+    return Icons.account_balance_rounded;
+  }
+  if (value.contains('book')) return Icons.menu_book_rounded;
+  if (value.contains('dessert') || value.contains('bakery')) {
+    return Icons.cake_rounded;
+  }
+  return Icons.local_cafe_rounded;
+}
+
+String _fallbackAssetForAlternative(AlternativePlace alternative) {
+  final value = '${alternative.name} ${alternative.description}'.toLowerCase();
+  if (value.contains('dessert') || value.contains('bakery')) {
+    return _fallbackDessertAsset;
+  }
+  if (value.contains('museum') ||
+      value.contains('palace') ||
+      value.contains('book')) {
+    return _fallbackCultureAsset;
+  }
+  return _fallbackCafeAsset;
 }
 
 class _DashedLine extends StatelessWidget {

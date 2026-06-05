@@ -14,6 +14,7 @@ import 'package:norigo/features/culture_scan/domain/culture_guide.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
 import 'package:norigo/features/culture_scan/domain/culture_vision_result.dart';
+import 'package:norigo/features/culture_scan/domain/vision_debug_report.dart';
 
 const _scanBackgroundAsset = 'assets/images/scan/bulguksa_stone_stack_bg.png';
 
@@ -29,6 +30,8 @@ class CultureScanScreen extends StatefulWidget {
 class _CultureScanScreenState extends State<CultureScanScreen> {
   late final CultureScanController _controller;
   late final bool _ownsController;
+  bool _visionDebugEnabled = false;
+  int _visionDebugTriggerCount = 0;
 
   @override
   void initState() {
@@ -73,6 +76,21 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _handleVisionDebugLongPress() {
+    if (_visionDebugEnabled) return;
+    _visionDebugTriggerCount++;
+    if (_visionDebugTriggerCount >= 5) {
+      setState(() => _visionDebugEnabled = true);
+      _showSnack('Vision Debug enabled.');
+    }
+  }
+
+  void _enableVisionDebugFromScanHold() {
+    if (_visionDebugEnabled) return;
+    setState(() => _visionDebugEnabled = true);
+    _showSnack('Vision Debug enabled.');
+  }
+
   Future<void> _scanCulture() async {
     if (_controller.scanStatus == CultureScanStatus.scanning) return;
     final baseRequest = _controller.defaultRequest;
@@ -82,13 +100,22 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     CultureScanRequest? request;
     if (draft.visionResult.requiresManualSelection) {
       if (draft.visionResult.detectedObjectSource == 'no_match') {
-        _showSnack(context.l10n.unsupportedTravelSituation);
+        final action = await _showObjectNotFoundSheet();
+        if (!mounted || action != _ObjectNotFoundAction.manualSelect) {
+          return;
+        }
+        final selection = await _showCultureScanSheet();
+        if (!mounted) return;
+        request = selection
+            ?.toRequest(_controller.selectedLanguage)
+            .copyWith(imagePath: draft.imagePath);
+      } else {
+        final selection = await _showCultureScanSheet();
+        if (!mounted) return;
+        request = selection
+            ?.toRequest(_controller.selectedLanguage)
+            .copyWith(imagePath: draft.imagePath);
       }
-      final selection = await _showCultureScanSheet();
-      if (!mounted) return;
-      request = selection
-          ?.toRequest(_controller.selectedLanguage)
-          .copyWith(imagePath: draft.imagePath);
     } else {
       final useVision = await _showVisionConfirmationSheet(draft);
       if (!mounted) return;
@@ -279,6 +306,47 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
     );
   }
 
+  Future<_ObjectNotFoundAction?> _showObjectNotFoundSheet() {
+    return showModalBottomSheet<_ObjectNotFoundAction>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: _ScanColors.white,
+      builder: (context) => const _ObjectNotFoundSheet(),
+    );
+  }
+
+  Future<void> _showVisionDebugSheet() async {
+    final action = await showModalBottomSheet<_VisionDebugAction>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: _ScanColors.white,
+      builder: (context) => _VisionDebugSheet(
+        report: _controller.lastVisionDebugReport,
+        thumbnailBytes: _controller.lastVisionDebugThumbnailBytes,
+        currentSuggestThreshold: _controller.visionDebugSuggestThreshold,
+        onThresholdChanged: _controller.updateVisionDebugSuggestThreshold,
+      ),
+    );
+    if (!mounted) return;
+    if (action == _VisionDebugAction.copy ||
+        action == _VisionDebugAction.share) {
+      final json =
+          _controller.lastVisionDebugReport?.toPrettyJson() ??
+          '{"finalDecision":"no_report"}';
+      await Clipboard.setData(ClipboardData(text: json));
+      if (!mounted) return;
+      _showSnack(
+        action == _VisionDebugAction.share
+            ? 'Debug JSON copied for sharing.'
+            : 'Debug JSON copied.',
+      );
+    } else if (action == _VisionDebugAction.retake) {
+      await _scanCulture();
+    }
+  }
+
   Future<void> _handlePhraseTap(CultureGuide guide) async {
     final phrase = guide.koreanSource.trim();
     if (phrase.isEmpty) {
@@ -365,6 +433,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                     key: const ValueKey('guidePill'),
                                     scale: scale,
                                     onTap: _handleGuideTap,
+                                    onLongPress: _handleVisionDebugLongPress,
                                   ),
                                 ],
                               ),
@@ -380,6 +449,17 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                     context,
                                     _controller.friendlyMessage!,
                                   ),
+                                  scale: scale,
+                                ),
+                              ),
+                            if (_visionDebugEnabled)
+                              Positioned(
+                                left: 18 * scale,
+                                right: 18 * scale,
+                                top: 76 * scale,
+                                child: _VisionDebugEntryPoint(
+                                  report: _controller.lastVisionDebugReport,
+                                  onTap: _showVisionDebugSheet,
                                   scale: scale,
                                 ),
                               ),
@@ -400,6 +480,7 @@ class _CultureScanScreenState extends State<CultureScanScreen> {
                                 scanStatus: _controller.scanStatus,
                                 onLanguageTap: _selectLanguage,
                                 onScanCulture: _scanCulture,
+                                onScanLongPress: _enableVisionDebugFromScanHold,
                               ),
                             ),
                           ],
@@ -453,6 +534,72 @@ class _CameraFallbackNotice extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _VisionDebugEntryPoint extends StatelessWidget {
+  const _VisionDebugEntryPoint({
+    required this.report,
+    required this.onTap,
+    required this.scale,
+  });
+
+  final VisionDebugReport? report;
+  final VoidCallback onTap;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final decision = report?.finalDecision ?? 'no_report';
+    final confidence = report?.visionConfidence;
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            key: const ValueKey('visionDebugEntryPoint'),
+            padding: EdgeInsets.symmetric(
+              horizontal: 12 * scale,
+              vertical: 8 * scale,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.62),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.bug_report_rounded,
+                  color: _ScanColors.white,
+                  size: 15 * scale,
+                ),
+                SizedBox(width: 7 * scale),
+                Flexible(
+                  child: Text(
+                    confidence == null
+                        ? 'Vision Debug: $decision'
+                        : 'Vision Debug: $decision ${_formatPercent(confidence)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _ScanColors.white,
+                      fontSize: 11.5 * scale,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -713,10 +860,16 @@ class _LocationPill extends StatelessWidget {
 }
 
 class _GuidePill extends StatelessWidget {
-  const _GuidePill({required this.scale, required this.onTap, super.key});
+  const _GuidePill({
+    required this.scale,
+    required this.onTap,
+    required this.onLongPress,
+    super.key,
+  });
 
   final double scale;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -727,6 +880,7 @@ class _GuidePill extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(32 * scale),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: _GlassBox(
             radius: 32 * scale,
             padding: EdgeInsets.symmetric(
@@ -1275,6 +1429,7 @@ class _BottomScanControls extends StatelessWidget {
     required this.scanStatus,
     required this.onLanguageTap,
     required this.onScanCulture,
+    required this.onScanLongPress,
   });
 
   final double scale;
@@ -1282,6 +1437,7 @@ class _BottomScanControls extends StatelessWidget {
   final CultureScanStatus scanStatus;
   final VoidCallback onLanguageTap;
   final VoidCallback onScanCulture;
+  final VoidCallback onScanLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -1314,6 +1470,7 @@ class _BottomScanControls extends StatelessWidget {
               scale: scale,
               isScanning: isScanning,
               onPressed: isScanning ? null : onScanCulture,
+              onLongPress: onScanLongPress,
             ),
             SizedBox(width: sideWidth),
           ],
@@ -1390,11 +1547,13 @@ class _ScanButton extends StatelessWidget {
     required this.scale,
     required this.isScanning,
     required this.onPressed,
+    required this.onLongPress,
   });
 
   final double scale;
   final bool isScanning;
   final VoidCallback? onPressed;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -1428,6 +1587,7 @@ class _ScanButton extends StatelessWidget {
                   child: FilledButton(
                     key: const ValueKey('scanCultureButton'),
                     onPressed: onPressed,
+                    onLongPress: onLongPress,
                     style: FilledButton.styleFrom(
                       backgroundColor: _ScanColors.white,
                       foregroundColor: _ScanColors.purple,
@@ -1613,6 +1773,551 @@ class _CultureScanContextSheetState extends State<_CultureScanContextSheet> {
   }
 }
 
+enum _ObjectNotFoundAction { retry, manualSelect }
+
+class _ObjectNotFoundSheet extends StatelessWidget {
+  const _ObjectNotFoundSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(22, 2, 22, 22 + bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F4FF),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.center_focus_strong_rounded,
+                color: _ScanColors.purple,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              context.l10n.scanObjectNotFoundTitle,
+              style: const TextStyle(
+                color: _ScanColors.deepText,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              context.l10n.scanObjectNotFoundBody,
+              style: const TextStyle(
+                color: _ScanColors.bodyText,
+                fontSize: 15.5,
+                height: 1.38,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              context.l10n.scanObjectNotFoundManualPrompt,
+              style: const TextStyle(
+                color: _ScanColors.deepText,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton.icon(
+                key: const ValueKey('objectNotFoundSheetButton'),
+                onPressed: () =>
+                    Navigator.of(context).pop(_ObjectNotFoundAction.retry),
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: Text(context.l10n.scanObjectNotFoundAction),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _ScanColors.purple,
+                  foregroundColor: _ScanColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton.icon(
+                key: const ValueKey('objectNotFoundManualButton'),
+                onPressed: () => Navigator.of(
+                  context,
+                ).pop(_ObjectNotFoundAction.manualSelect),
+                icon: const Icon(Icons.tune_rounded),
+                label: Text(context.l10n.scanObjectNotFoundManualAction),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _ScanColors.purple,
+                  side: const BorderSide(color: _ScanColors.purple),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _VisionDebugAction { copy, share, retake }
+
+class _VisionDebugSheet extends StatefulWidget {
+  const _VisionDebugSheet({
+    required this.report,
+    required this.thumbnailBytes,
+    required this.currentSuggestThreshold,
+    required this.onThresholdChanged,
+  });
+
+  final VisionDebugReport? report;
+  final Uint8List? thumbnailBytes;
+  final double currentSuggestThreshold;
+  final ValueChanged<double> onThresholdChanged;
+
+  @override
+  State<_VisionDebugSheet> createState() => _VisionDebugSheetState();
+}
+
+class _VisionDebugSheetState extends State<_VisionDebugSheet> {
+  late double _threshold;
+
+  @override
+  void initState() {
+    super.initState();
+    _threshold = widget.currentSuggestThreshold;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final report = widget.report;
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.88,
+        child: SingleChildScrollView(
+          key: const ValueKey('visionDebugSheet'),
+          padding: EdgeInsets.fromLTRB(18, 2, 18, 18 + bottom),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.bug_report_rounded,
+                    color: _ScanColors.purple,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Vision Debug',
+                      style: TextStyle(
+                        color: _ScanColors.deepText,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    report?.finalDecision ?? 'no_report',
+                    style: const TextStyle(
+                      color: _ScanColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (widget.thumbnailBytes != null &&
+                  widget.thumbnailBytes!.isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(
+                    widget.thumbnailBytes!,
+                    height: 132,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    filterQuality: FilterQuality.medium,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 132,
+                      alignment: Alignment.center,
+                      color: const Color(0xFFF1EEF9),
+                      child: const Text(
+                        'Thumbnail unavailable',
+                        style: TextStyle(
+                          color: _ScanColors.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+              _VisionDebugSection(
+                title: 'Model status',
+                children: [
+                  _VisionDebugInfoRow(
+                    label: 'Model loaded',
+                    value: _formatBool(report?.customModelLoaded),
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Labels loaded',
+                    value: _formatBool(report?.labelsFileLoaded),
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Model asset',
+                    value: report?.customModelExpectedPath ?? 'unknown',
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Model hash',
+                    value: report?.modelVersionOrHash ?? 'unknown',
+                  ),
+                ],
+              ),
+              _VisionDebugSection(
+                title: 'Capture',
+                children: [
+                  _VisionDebugInfoRow(
+                    label: 'Succeeded',
+                    value: _formatBool(report?.captureSucceeded),
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Source',
+                    value: report?.capturedImageSource ?? 'unknown',
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Path',
+                    value: report?.capturedImagePath ?? 'none',
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Size',
+                    value: _formatDebugImageSize(report),
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'File bytes',
+                    value: _formatFileSize(report?.capturedImageFileSizeBytes),
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Rotation',
+                    value:
+                        report?.capturedImageRotation?.toString() ?? 'unknown',
+                  ),
+                ],
+              ),
+              _VisionDebugSection(
+                title: 'Decision',
+                children: [
+                  _VisionDebugInfoRow(
+                    label: 'Final decision',
+                    value: report?.finalDecision ?? 'no_report',
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Object',
+                    value: report?.mappedDetectedObject ?? 'none',
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Place',
+                    value: report?.mappedPlaceType ?? 'none',
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Source',
+                    value: report?.detectedObjectSource ?? 'none',
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Confidence',
+                    value: report?.visionConfidence == null
+                        ? 'none'
+                        : _formatPercent(report!.visionConfidence!),
+                  ),
+                  _VisionDebugInfoRow(
+                    label: 'Thresholds',
+                    value:
+                        'auto ${_formatPercent(report?.thresholdAuto ?? 0.80)} / '
+                        'suggest ${_formatPercent(_threshold)}',
+                  ),
+                ],
+              ),
+              _VisionDebugThresholdPicker(
+                value: _threshold,
+                onChanged: (value) {
+                  setState(() => _threshold = value);
+                  widget.onThresholdChanged(value);
+                },
+              ),
+              _VisionDebugLabelSection(
+                title: 'Custom labels',
+                labels: report?.customLabels ?? const [],
+              ),
+              _VisionDebugLabelSection(
+                title: 'Base labels',
+                labels: report?.baseLabels ?? const [],
+              ),
+              _VisionDebugSection(
+                title: 'Server vision',
+                children: [
+                  SelectableText(
+                    report?.serverVisionResult?.toString() ?? 'none',
+                    style: const TextStyle(
+                      color: _ScanColors.bodyText,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+              if (report?.errorMessage != null)
+                _VisionDebugSection(
+                  title: 'Error',
+                  children: [
+                    SelectableText(
+                      report!.errorMessage!,
+                      style: const TextStyle(
+                        color: _ScanColors.bodyText,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('copyVisionDebugJsonButton'),
+                      onPressed: () =>
+                          Navigator.of(context).pop(_VisionDebugAction.copy),
+                      icon: const Icon(Icons.copy_rounded),
+                      label: const Text('Copy JSON'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _ScanColors.purple,
+                        side: const BorderSide(color: _ScanColors.purple),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const ValueKey('shareVisionDebugJsonButton'),
+                      onPressed: () =>
+                          Navigator.of(context).pop(_VisionDebugAction.share),
+                      icon: const Icon(Icons.ios_share_rounded),
+                      label: const Text('Share JSON'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _ScanColors.purple,
+                        side: const BorderSide(color: _ScanColors.purple),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton.icon(
+                  key: const ValueKey('visionDebugRetakeButton'),
+                  onPressed: () =>
+                      Navigator.of(context).pop(_VisionDebugAction.retake),
+                  icon: const Icon(Icons.camera_alt_rounded),
+                  label: const Text('Retake'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _ScanColors.purple,
+                    foregroundColor: _ScanColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VisionDebugThresholdPicker extends StatelessWidget {
+  const _VisionDebugThresholdPicker({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const thresholds = [0.50, 0.60, 0.70, 0.80];
+
+    return _VisionDebugSection(
+      title: 'Suggest threshold',
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: thresholds
+              .map(
+                (threshold) => ChoiceChip(
+                  key: ValueKey(
+                    'visionDebugThreshold${(threshold * 100).round()}',
+                  ),
+                  label: Text(_formatPercent(threshold)),
+                  selected: (value - threshold).abs() < 0.001,
+                  onSelected: (_) => onChanged(threshold),
+                ),
+              )
+              .toList(growable: false),
+        ),
+      ],
+    );
+  }
+}
+
+class _VisionDebugLabelSection extends StatelessWidget {
+  const _VisionDebugLabelSection({required this.title, required this.labels});
+
+  final String title;
+  final List<VisionDebugLabel> labels;
+
+  @override
+  Widget build(BuildContext context) {
+    return _VisionDebugSection(
+      title: title,
+      children: [
+        if (labels.isEmpty)
+          const Text(
+            'none',
+            style: TextStyle(
+              color: _ScanColors.muted,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+        else
+          ...labels
+              .take(12)
+              .map(
+                (label) => _VisionDebugInfoRow(
+                  label: label.index == null
+                      ? label.text
+                      : '#${label.index} ${label.text}',
+                  value: _formatPercent(label.confidence),
+                ),
+              ),
+      ],
+    );
+  }
+}
+
+class _VisionDebugSection extends StatelessWidget {
+  const _VisionDebugSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F6FF),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2DAFF)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: _ScanColors.deepText,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...children,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VisionDebugInfoRow extends StatelessWidget {
+  const _VisionDebugInfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: _ScanColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: const TextStyle(
+                color: _ScanColors.bodyText,
+                fontSize: 12,
+                height: 1.3,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _VisionConfirmationSheet extends StatelessWidget {
   const _VisionConfirmationSheet({required this.draft});
 
@@ -1747,9 +2452,7 @@ class _VisionConfirmationSheet extends StatelessWidget {
 
   String _confirmationTitle(BuildContext context, CultureVisionResult vision) {
     if (vision.detectedObjectSource == 'mlkit_custom_call_bell') {
-      return vision.confidence >= 0.8
-          ? context.l10n.iFoundRestaurantCallBell
-          : context.l10n.callBellConfirmation;
+      return context.l10n.callBellConfirmation;
     }
     return vision.confidence >= 0.75
         ? context.l10n.iFoundThisSituation
@@ -1984,6 +2687,30 @@ String _cultureSourceLabel(BuildContext context, String label) {
   if (label == 'Local guide') return context.l10n.localGuide;
   if (label.contains('Demo fallback')) return context.l10n.demoFallback;
   return label;
+}
+
+String _formatBool(bool? value) {
+  if (value == null) return 'unknown';
+  return value ? 'yes' : 'no';
+}
+
+String _formatPercent(double value) {
+  return '${(value * 100).round()}%';
+}
+
+String _formatFileSize(int? bytes) {
+  if (bytes == null) return 'unknown';
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+String _formatDebugImageSize(VisionDebugReport? report) {
+  if (report == null) return 'unknown';
+  final width = report.capturedImageWidth;
+  final height = report.capturedImageHeight;
+  if (width == null || height == null) return 'unknown';
+  return '${width}x$height';
 }
 
 class _ScanColors {

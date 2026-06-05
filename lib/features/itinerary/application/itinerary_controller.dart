@@ -61,6 +61,13 @@ class ItineraryController extends ChangeNotifier {
     }
   }
 
+  void refreshFromSession() {
+    final sessionPlan = ItinerarySessionStore.currentPlan;
+    if (sessionPlan == null || identical(_plan, sessionPlan)) return;
+    _plan = sessionPlan;
+    _safeNotifyListeners();
+  }
+
   Future<bool> savePlan() async {
     final currentPlan = _plan;
     if (currentPlan == null) {

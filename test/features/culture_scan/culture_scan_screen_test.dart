@@ -1,12 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norigo/app/theme.dart';
 import 'package:norigo/features/culture_scan/application/culture_camera_service.dart';
+import 'package:norigo/features/culture_scan/application/culture_capture_quality.dart';
 import 'package:norigo/features/culture_scan/application/culture_image_capture.dart';
 import 'package:norigo/features/culture_scan/application/culture_scan_controller.dart';
 import 'package:norigo/features/culture_scan/application/culture_vision_classifier.dart';
+import 'package:norigo/features/culture_scan/application/culture_vision_label_mapper.dart';
 import 'package:norigo/features/culture_scan/data/culture_scan_repository.dart';
 import 'package:norigo/features/culture_scan/domain/culture_guide_result.dart';
 import 'package:norigo/features/culture_scan/domain/culture_scan_request.dart';
@@ -49,6 +50,8 @@ void main() {
     expect(find.text('Flash On'), findsNothing);
     expect(find.text('Flash Off'), findsNothing);
     expect(find.text('Scan Culture'), findsOneWidget);
+    expect(find.textContaining('Vision Debug'), findsNothing);
+    expect(find.byKey(const ValueKey('visionDebugEntryPoint')), findsNothing);
     expect(find.byKey(const ValueKey('active-nav-Scan')), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -155,8 +158,9 @@ void main() {
   ) async {
     _setScanSurface(tester);
     final controller = CultureScanController(
-      cameraService: const _UnavailableCameraService(),
+      cameraService: const _CapturingCameraService(),
       repository: const _ConfirmationVisionRepository(),
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
     );
 
     await tester.pumpWidget(
@@ -200,8 +204,9 @@ void main() {
   ) async {
     _setScanSurface(tester);
     final controller = CultureScanController(
-      cameraService: const _UnavailableCameraService(),
+      cameraService: const _CapturingCameraService(),
       repository: const _LowConfidenceVisionRepository(),
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
     );
 
     await tester.pumpWidget(
@@ -224,13 +229,14 @@ void main() {
   });
 
   testWidgets(
-    'unsupported scan requires manual selection before culture guide runs',
+    'unsupported scan shows not-found guidance before culture guide runs',
     (tester) async {
       _setScanSurface(tester);
       final repository = _NoMatchVisionRepository();
       final controller = CultureScanController(
-        cameraService: const _UnavailableCameraService(),
+        cameraService: const _CapturingCameraService(),
         repository: repository,
+        captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
       );
 
       await tester.pumpWidget(
@@ -244,39 +250,45 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('scanCultureButton')));
       await tester.pumpAndSettle();
 
+      expect(find.text('I couldn’t find the object'), findsOneWidget);
       expect(
         find.text(
-          'I couldn’t identify a supported travel situation. Please choose the closest situation.',
+          'Point the camera at the object again in brighter light, keeping it near the center of the screen.',
         ),
         findsOneWidget,
       );
-      expect(find.text('Scan context'), findsOneWidget);
+      expect(find.text('Choose the situation manually?'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('objectNotFoundManualButton')),
+        findsOneWidget,
+      );
+      expect(find.text('Scan context'), findsNothing);
       expect(repository.runCount, 0);
       expect(repository.lastRequest, isNull);
 
-      await tester.tap(
-        find.byKey(const ValueKey('runCultureGuideFromSheetButton')),
-      );
+      await tester.tap(find.byKey(const ValueKey('objectNotFoundSheetButton')));
       await tester.pumpAndSettle();
 
-      expect(repository.runCount, 1);
-      expect(repository.lastRequest?.detectedObjectSource, 'manual');
-      expect(repository.lastRequest?.detectedObject, isNot('unsupported'));
+      expect(repository.runCount, 0);
+      expect(repository.lastRequest, isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());
       controller.dispose();
     },
   );
 
-  testWidgets('custom call bell confidence 0.85 triggers confirmation', (
+  testWidgets('object not found manual action opens context sheet', (
     tester,
   ) async {
     _setScanSurface(tester);
+    final repository = _NoMatchVisionRepository();
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
-      repository: _NoMatchVisionRepository(),
-      callBellClassifier: _FixedCustomCallBellClassifier(
-        _customCallBellResult(0.85),
+      repository: repository,
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
+      initialRequest: CultureScanRequest.defaultTemple().copyWith(
+        currentLocation: 'Korean restaurant',
+        placeType: 'restaurant',
       ),
     );
 
@@ -291,9 +303,47 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('scanCultureButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('I found a restaurant call bell'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('objectNotFoundManualButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scan context'), findsOneWidget);
+    expect(find.text('Stone stack'), findsOneWidget);
+    expect(repository.runCount, 0);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
+
+  testWidgets('custom call bell confidence 0.91 triggers confirmation', (
+    tester,
+  ) async {
+    _setScanSurface(tester);
+    final controller = CultureScanController(
+      cameraService: const _CapturingCameraService(),
+      repository: _NoMatchVisionRepository(),
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
+      callBellClassifier: _FixedCustomCallBellClassifier(
+        _customCallBellResult(0.91),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NoriGoTheme.light(),
+        home: CultureScanScreen(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('scanCultureButton')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This may be a restaurant call bell. Is that right?'),
+      findsOneWidget,
+    );
     expect(find.text('Restaurant call bell'), findsOneWidget);
-    expect(find.textContaining('confidence 85%'), findsOneWidget);
+    expect(find.textContaining('confidence 91%'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     controller.dispose();
@@ -306,6 +356,7 @@ void main() {
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
       repository: _NoMatchVisionRepository(),
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
       callBellClassifier: _FixedCustomCallBellClassifier(
         _customCallBellResult(0.65),
       ),
@@ -332,7 +383,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('custom call bell confidence 0.40 opens manual selection', (
+  testWidgets('custom call bell no-match shows not-found guidance', (
     tester,
   ) async {
     _setScanSurface(tester);
@@ -340,6 +391,7 @@ void main() {
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
       repository: repository,
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
       callBellClassifier: _FixedCustomCallBellClassifier(
         CultureVisionResult.noMatch(
           const CultureVisionRequest(
@@ -363,7 +415,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('I found a restaurant call bell'), findsNothing);
-    expect(find.text('Scan context'), findsOneWidget);
+    expect(find.text('I couldn’t find the object'), findsOneWidget);
+    expect(find.text('Scan context'), findsNothing);
     expect(repository.runCount, 0);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -378,6 +431,7 @@ void main() {
     final controller = CultureScanController(
       cameraService: const _CapturingCameraService(),
       repository: repository,
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
       callBellClassifier: _FixedCustomCallBellClassifier(
         _customCallBellResult(0.86),
       ),
@@ -411,8 +465,9 @@ void main() {
       final controller = CultureScanController(
         cameraService: const _CapturingCameraService(),
         repository: repository,
+        captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
         callBellClassifier: _FixedCustomCallBellClassifier(
-          _customCallBellResult(0.85),
+          _customCallBellResult(0.91),
         ),
       );
 
@@ -435,12 +490,115 @@ void main() {
         repository.lastRequest?.detectedObjectSource,
         'mlkit_custom_call_bell_confirmed',
       );
-      expect(repository.lastRequest?.visionConfidence, 0.85);
+      expect(repository.lastRequest?.visionConfidence, 0.91);
 
       await tester.pumpWidget(const SizedBox.shrink());
       controller.dispose();
     },
   );
+
+  testWidgets('guide long press unlocks hidden vision debug panel', (
+    tester,
+  ) async {
+    _setScanSurface(tester);
+    final controller = CultureScanController(
+      cameraService: const _UnavailableCameraService(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NoriGoTheme.light(),
+        home: CultureScanScreen(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    for (var i = 0; i < 5; i++) {
+      await tester.longPress(find.byKey(const ValueKey('guidePill')));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('visionDebugEntryPoint')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
+
+  testWidgets('vision debug sheet shows labels and copies finalDecision JSON', (
+    tester,
+  ) async {
+    _setScanSurface(tester);
+    String? copiedDebugJson;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          final arguments = Map<String, Object?>.from(call.arguments as Map);
+          copiedDebugJson = arguments['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final controller = CultureScanController(
+      cameraService: const _CapturingCameraService(),
+      repository: _NoMatchVisionRepository(),
+      captureQualityAnalyzer: const _AlwaysUsableCaptureQualityAnalyzer(),
+      callBellClassifier: const _DebugNoMatchClassifier(
+        label: 'restaurant_call_bell',
+        confidence: 0.52,
+        finalDecision: 'confidence_too_low',
+        index: 1,
+      ),
+      visionClassifier: const _DebugNoMatchClassifier(
+        label: 'Tissue',
+        confidence: 0.91,
+        finalDecision: 'no_allowlist_match',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NoriGoTheme.light(),
+        home: CultureScanScreen(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    await controller.prepareVisionScan(controller.defaultRequest);
+    await tester.pump();
+
+    await tester.longPress(find.byKey(const ValueKey('scanCultureButton')));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byKey(const ValueKey('visionDebugEntryPoint')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('visionDebugEntryPoint')));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.byKey(const ValueKey('visionDebugSheet')), findsOneWidget);
+    expect(find.text('Custom labels'), findsOneWidget);
+    expect(find.text('Base labels'), findsOneWidget);
+    expect(find.textContaining('restaurant_call_bell'), findsOneWidget);
+    expect(find.text('Tissue'), findsOneWidget);
+
+    final copyButton = tester.widget<OutlinedButton>(
+      find.byKey(const ValueKey('copyVisionDebugJsonButton')),
+    );
+    copyButton.onPressed!();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(copiedDebugJson, contains('"finalDecision"'));
+    expect(copiedDebugJson, contains('confidence_too_low'));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
 
   testWidgets('result screen shows Vision AI badge with guide source', (
     tester,
@@ -525,6 +683,16 @@ class _CapturingCameraService implements CultureCameraService {
   }
 }
 
+class _AlwaysUsableCaptureQualityAnalyzer
+    extends CultureCaptureQualityAnalyzer {
+  const _AlwaysUsableCaptureQualityAnalyzer();
+
+  @override
+  Future<CultureCaptureQuality> analyze(CultureImageCapture capture) async {
+    return const CultureCaptureQuality.usable();
+  }
+}
+
 class _VisionBadgeRepository extends CultureScanRepository {
   const _VisionBadgeRepository();
 
@@ -566,6 +734,58 @@ class _FixedCustomCallBellClassifier extends CultureVisionClassifier {
   }
 }
 
+class _DebugNoMatchClassifier extends CultureVisionClassifier
+    implements CultureVisionDebugProbe {
+  const _DebugNoMatchClassifier({
+    required this.label,
+    required this.confidence,
+    required this.finalDecision,
+    this.index,
+  });
+
+  final String label;
+  final double confidence;
+  final String finalDecision;
+  final int? index;
+
+  @override
+  Future<CultureVisionResult?> classify(
+    CultureImageCapture capture,
+    CultureVisionRequest request,
+  ) async {
+    return CultureVisionResult.noMatch(
+      request,
+      rawLabels: [
+        CultureVisionLabelDiagnostic(label: label, confidence: confidence),
+      ],
+    );
+  }
+
+  @override
+  Future<CultureVisionClassifierDebugResult> classifyForDebug(
+    CultureImageCapture capture,
+    CultureVisionRequest request, {
+    double? suggestThreshold,
+  }) async {
+    return CultureVisionClassifierDebugResult(
+      result: await classify(capture, request),
+      ran: true,
+      expectedModelPath: 'assets/ml/call_bell_labeler.tflite',
+      modelLoaded: true,
+      labelsFileLoaded: true,
+      modelVersionOrHash: 'test-hash',
+      labels: [
+        CultureVisionObservedLabel(
+          label: label,
+          confidence: confidence,
+          index: index,
+        ),
+      ],
+      finalDecision: finalDecision,
+    );
+  }
+}
+
 CultureVisionResult _customCallBellResult(double confidence) {
   return CultureVisionResult(
     detectedObject: 'restaurant_call_bell',
@@ -583,9 +803,7 @@ CultureVisionResult _customCallBellResult(double confidence) {
     sourceType: 'vision_ai',
     sourceBadge: 'Custom call bell',
     detectedObjectSource: 'mlkit_custom_call_bell',
-    finalDecision: confidence >= 0.8
-        ? 'auto_confirm_possible'
-        : 'needs_confirmation',
+    finalDecision: 'needs_confirmation',
   );
 }
 

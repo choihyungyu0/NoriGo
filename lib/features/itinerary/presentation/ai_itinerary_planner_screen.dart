@@ -56,14 +56,20 @@ class _AiItineraryPlannerScreenState extends State<AiItineraryPlannerScreen> {
     _riskController = SeoulRealtimeRiskController(
       repository: widget.seoulRealtimeRiskRepository,
     );
+    ItinerarySessionStore.notifier.addListener(_syncPlanFromSession);
     _loadInitialPlan();
   }
 
   @override
   void dispose() {
+    ItinerarySessionStore.notifier.removeListener(_syncPlanFromSession);
     _controller.dispose();
     _riskController.dispose();
     super.dispose();
+  }
+
+  void _syncPlanFromSession() {
+    _controller.refreshFromSession();
   }
 
   Future<void> _savePlan() async {

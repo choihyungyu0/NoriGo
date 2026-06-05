@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_item.dart';
 import 'package:norigo/features/itinerary/domain/itinerary_plan.dart';
@@ -6,11 +7,14 @@ class ItinerarySessionStore {
   const ItinerarySessionStore._();
 
   static ItineraryPlan? _currentPlan;
+  static final ValueNotifier<ItineraryPlan?> notifier =
+      ValueNotifier<ItineraryPlan?>(null);
 
   static ItineraryPlan? get currentPlan => _currentPlan;
 
   static void savePlan(ItineraryPlan plan) {
     _currentPlan = plan;
+    notifier.value = plan;
   }
 
   static void replaceItem({
@@ -40,11 +44,12 @@ class ItinerarySessionStore {
         })
         .toList(growable: false);
 
-    _currentPlan = plan.copyWith(items: items);
+    savePlan(plan.copyWith(items: items));
   }
 
   static void resetForTesting() {
     _currentPlan = null;
+    notifier.value = null;
   }
 
   static ItineraryCrowdLevel _crowdLevelFromLabel(String label) {

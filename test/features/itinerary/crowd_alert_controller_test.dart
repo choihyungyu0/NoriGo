@@ -82,6 +82,14 @@ void main() {
   test('Switch plan updates the in-memory itinerary', () async {
     final plan = _plan();
     final item = plan.items.first;
+    var sessionNotifications = 0;
+    void countSessionNotification() => sessionNotifications++;
+    ItinerarySessionStore.notifier.addListener(countSessionNotification);
+    addTearDown(
+      () => ItinerarySessionStore.notifier.removeListener(
+        countSessionNotification,
+      ),
+    );
     ItinerarySessionStore.savePlan(plan);
     final controller = CrowdAlertController(
       repository: _StaticCrowdAlertRepository(_alert(item)),
@@ -97,6 +105,11 @@ void main() {
       ItinerarySessionStore.currentPlan?.items.first.placeName,
       'Seoul Museum of Art',
     );
+    expect(
+      ItinerarySessionStore.notifier.value?.items.first.placeName,
+      'Seoul Museum of Art',
+    );
+    expect(sessionNotifications, greaterThanOrEqualTo(2));
   });
 
   test('DB failure does not crash while selecting a replacement', () async {

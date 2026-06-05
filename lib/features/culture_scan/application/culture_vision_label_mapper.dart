@@ -19,7 +19,28 @@ class CultureVisionObservedLabel {
   }
 }
 
+class CultureVisionLabelMappingResult {
+  const CultureVisionLabelMappingResult({
+    required this.result,
+    required this.finalDecision,
+  });
+
+  final CultureVisionResult result;
+  final String finalDecision;
+}
+
+const cultureVisionAutoThreshold = 0.80;
+const cultureVisionSuggestThreshold = 0.60;
+const cultureVisionMinimumThreshold = 0.50;
+
 CultureVisionResult mapCultureVisionLabels(
+  List<CultureVisionObservedLabel> labels,
+  CultureVisionRequest request,
+) {
+  return mapCultureVisionLabelsForDebug(labels, request).result;
+}
+
+CultureVisionLabelMappingResult mapCultureVisionLabelsForDebug(
   List<CultureVisionObservedLabel> labels,
   CultureVisionRequest request,
 ) {
@@ -27,7 +48,10 @@ CultureVisionResult mapCultureVisionLabels(
       .map((label) => label.toDiagnostic())
       .toList(growable: false);
   if (labels.isEmpty) {
-    return CultureVisionResult.noMatch(request, rawLabels: diagnostics);
+    return CultureVisionLabelMappingResult(
+      result: CultureVisionResult.noMatch(request, rawLabels: diagnostics),
+      finalDecision: 'no_labels',
+    );
   }
 
   final contextText = [
@@ -37,18 +61,24 @@ CultureVisionResult mapCultureVisionLabels(
   final scored =
       _allowedObjects
           .map((object) => _scoreObject(object, labels, contextText))
-          .where((item) => item.visualConfidence >= 0.5)
+          .where((item) => item.visualConfidence > 0)
           .toList(growable: false)
         ..sort((a, b) => b.score.compareTo(a.score));
 
   if (scored.isEmpty) {
-    return CultureVisionResult.noMatch(request, rawLabels: diagnostics);
+    return CultureVisionLabelMappingResult(
+      result: CultureVisionResult.noMatch(request, rawLabels: diagnostics),
+      finalDecision: 'no_allowlist_match',
+    );
   }
 
   final best = scored.first;
   final confidence = best.score.clamp(0, 0.94).toDouble();
-  if (confidence < 0.5) {
-    return CultureVisionResult.noMatch(request, rawLabels: diagnostics);
+  if (confidence < cultureVisionMinimumThreshold) {
+    return CultureVisionLabelMappingResult(
+      result: CultureVisionResult.noMatch(request, rawLabels: diagnostics),
+      finalDecision: 'confidence_too_low',
+    );
   }
 
   final alternatives = scored
@@ -63,22 +93,29 @@ CultureVisionResult mapCultureVisionLabels(
       )
       .toList(growable: false);
 
-  final source = confidence >= 0.75 ? 'mlkit_auto' : 'mlkit_suggested';
-  final decision = confidence >= 0.75
+  final source = confidence >= cultureVisionAutoThreshold
+      ? 'mlkit_auto'
+      : 'mlkit_suggested';
+  final decision = confidence >= cultureVisionAutoThreshold
       ? 'auto_confirm_possible'
       : 'needs_confirmation';
 
-  return CultureVisionResult(
-    detectedObject: best.object.key,
-    placeType: best.object.placeType,
-    confidence: confidence,
-    alternatives: alternatives,
-    needsConfirmation: true,
-    sourceType: 'vision_ai',
-    sourceBadge: 'Vision AI',
-    detectedObjectSource: source,
-    finalDecision: decision,
-    rawLabels: diagnostics,
+  return CultureVisionLabelMappingResult(
+    result: CultureVisionResult(
+      detectedObject: best.object.key,
+      placeType: best.object.placeType,
+      confidence: confidence,
+      alternatives: alternatives,
+      needsConfirmation: true,
+      sourceType: 'vision_ai',
+      sourceBadge: 'Vision AI',
+      detectedObjectSource: source,
+      finalDecision: decision,
+      rawLabels: diagnostics,
+    ),
+    finalDecision: decision == 'needs_confirmation'
+        ? 'needs_confirmation'
+        : 'confirmed',
   );
 }
 

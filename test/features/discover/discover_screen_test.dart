@@ -113,6 +113,23 @@ void main() {
     }
   });
 
+  testWidgets('local fallback does not expose backend status errors', (
+    tester,
+  ) async {
+    final controller = DiscoverController(
+      repository: _FakeDiscoverRepository(
+        fallbackErrorMessage: 'Discover backend returned 404.',
+      ),
+    );
+
+    await tester.pumpWidget(_TestApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    expect(controller.state, DiscoverLoadState.localFallback);
+    expect(controller.places, isNotEmpty);
+    expect(find.text('Discover backend returned 404.'), findsNothing);
+  });
+
   test('local fallback returns distinct card image assets', () async {
     final result = await const LocalDiscoverRepository().fetchRecommendations(
       category: DiscoverCategory.quietCafe,
@@ -275,16 +292,19 @@ class _FakeLocationService extends CurrentLocationService {
 }
 
 class _FakeDiscoverRepository extends DiscoverRepository {
-  _FakeDiscoverRepository({DiscoverSaveResult? saveResult})
-    : saveResult =
-          saveResult ??
-          const DiscoverSaveResult(
-            saved: true,
-            localOnly: false,
-            message: 'Place saved.',
-          );
+  _FakeDiscoverRepository({
+    DiscoverSaveResult? saveResult,
+    this.fallbackErrorMessage,
+  }) : saveResult =
+           saveResult ??
+           const DiscoverSaveResult(
+             saved: true,
+             localOnly: false,
+             message: 'Place saved.',
+           );
 
   final DiscoverSaveResult saveResult;
+  final String? fallbackErrorMessage;
   final categories = <DiscoverCategory>[];
   final queries = <String>[];
   final userLanguages = <String>[];
@@ -323,6 +343,7 @@ class _FakeDiscoverRepository extends DiscoverRepository {
     return DiscoverRecommendationResult.localFallback(
       category: category,
       places: places,
+      errorMessage: fallbackErrorMessage,
     );
   }
 

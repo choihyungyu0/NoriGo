@@ -47,6 +47,22 @@ build/ml/call_bell_metrics.json
 Store dataset backups in Google Drive or external storage. The test split must
 be real photos only, not screenshots, mockups, or generated images.
 
+Validate the local dataset before training:
+
+```powershell
+python tools/ml/validate_call_bell_dataset.py
+```
+
+If the test split is empty, training still exports a prototype model and skips
+test metrics. Add real camera photos to `test/` before trusting service quality.
+
+Prototype status:
+
+- The current call bell model is prototype only.
+- The test split must be filled with real photos before final evaluation.
+- AI-generated images are useful for bootstrapping, but real camera photos are
+  required for validation.
+
 Only these runtime files belong in Flutter assets:
 
 ```text
@@ -54,7 +70,7 @@ assets/ml/call_bell_labeler.tflite
 assets/ml/call_bell_labels.txt
 ```
 
-Copy the trained model into the Flutter assets folder only after it is real:
+Copy the trained model into the Flutter assets folder for prototype QA:
 
 ```powershell
 Copy-Item build/ml/call_bell_labeler.tflite assets/ml/call_bell_labeler.tflite
