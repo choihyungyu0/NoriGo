@@ -33,6 +33,7 @@ class ItinerarySessionStore {
             contentId: alternative.contentId,
             contentTypeId: alternative.contentTypeId,
             address: alternative.address,
+            imageAssetPath: alternative.imageAssetPath,
             imageUrl: alternative.imageUrl,
             aiTip: alternative.recommendationCopy ?? alternative.description,
             cultureTip: alternative.description,

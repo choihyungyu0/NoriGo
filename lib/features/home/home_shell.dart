@@ -32,6 +32,11 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   void _selectTab(int index) {
+    if (index == 0) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      return;
+    }
+
     if (index == 1) {
       Navigator.of(context).pushReplacementNamed(AppRoutes.itinerary);
       return;

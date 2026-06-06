@@ -201,6 +201,10 @@ void main() {
       'Seosullan Small Book Cafe',
       'Yunsul Bakery',
     ]);
+    expect(
+      alert.alternatives.map((place) => place.imageAssetPath),
+      everyElement(isNotEmpty),
+    );
   });
 }
 
