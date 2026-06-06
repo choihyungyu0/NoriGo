@@ -42,6 +42,7 @@ class MockCrowdAlertRepository implements CrowdAlertRepository {
         walkingTime: '5 min walk',
         diversityScore: 92,
         crowdLevel: 'Low',
+        imageAssetPath: 'assets/images/discover/spot_garden_cafe.png',
       ),
       AlternativePlace(
         id: 'seosullan-small-book-cafe',
@@ -50,6 +51,7 @@ class MockCrowdAlertRepository implements CrowdAlertRepository {
         walkingTime: '7 min walk',
         diversityScore: 88,
         crowdLevel: 'Low',
+        imageAssetPath: 'assets/images/discover/spot_bookstore.png',
       ),
       AlternativePlace(
         id: 'yunsul-bakery',
@@ -58,6 +60,7 @@ class MockCrowdAlertRepository implements CrowdAlertRepository {
         walkingTime: '8 min walk',
         diversityScore: 90,
         crowdLevel: 'Low',
+        imageAssetPath: 'assets/images/discover/spot_dessert.png',
       ),
     ],
   );

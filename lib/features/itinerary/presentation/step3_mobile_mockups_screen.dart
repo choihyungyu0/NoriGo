@@ -2,13 +2,135 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:norigo/features/itinerary/application/itinerary_session_store.dart';
+import 'package:norigo/features/itinerary/data/mock_itinerary_repository.dart';
+import 'package:norigo/features/itinerary/domain/alternative_place.dart';
 
 const _sceneAsset = 'assets/images/itinerary/itinerary_header_bg.png';
 const _itineraryRoute = '/itinerary/planner';
 const _step3AlternativesRoute = '/step3/alternatives';
 const _step3UpdatedItineraryRoute = '/step3/updated-itinerary';
+const _step3OriginalItemId = 'bukchon-hanok-village';
 
 void _emptyCallback() {}
+
+const _step3AlternativeOptions = [
+  _Step3AlternativeOption(
+    place: AlternativePlace(
+      id: 'cheongun-hanok-cafe',
+      name: '청운 한옥 카페',
+      description: '한옥에서 전통차를 즐길 수 있는 조용한 카페입니다.',
+      walkingTime: '도보 8분',
+      diversityScore: 92,
+      crowdLevel: 'Low',
+      imageAssetPath: 'assets/images/discover/spot_garden_cafe.png',
+      recommendationCopy: '한옥에서 전통차를 즐기며 혼잡한 북촌 동선을 피할 수 있어요.',
+    ),
+    category: '쉼',
+    crowdLabel: '혼잡도 20%',
+    englishName: 'Cheongun Hanok Cafe',
+    icon: Icons.local_cafe_rounded,
+  ),
+  _Step3AlternativeOption(
+    place: AlternativePlace(
+      id: 'national-palace-museum',
+      name: '국립고궁박물관',
+      description: '조선 왕실의 유물을 전시한 실내 박물관입니다.',
+      walkingTime: '도보 12분',
+      diversityScore: 88,
+      crowdLevel: 'Low',
+      imageAssetPath: 'assets/images/discover/spot_bookstore.png',
+      recommendationCopy: '실내 전시라 이동 피로가 적고, 같은 역사 문화권 안에서 일정을 이어갈 수 있어요.',
+    ),
+    category: '역사/문화',
+    crowdLabel: '혼잡도 15%',
+    englishName: 'National Palace Museum',
+    icon: Icons.account_balance_rounded,
+  ),
+  _Step3AlternativeOption(
+    place: AlternativePlace(
+      id: 'gyedong-book-cafe-street',
+      name: '계동길 북카페거리',
+      description: '아기자기한 북카페들이 모인 한적한 거리입니다.',
+      walkingTime: '도보 10분',
+      diversityScore: 90,
+      crowdLevel: 'Low',
+      imageAssetPath: 'assets/images/discover/spot_bookstore.png',
+      recommendationCopy: '작은 북카페가 이어져 있어 쉬어가기 좋고, 골목 분위기는 그대로 느낄 수 있어요.',
+    ),
+    category: '카페',
+    crowdLabel: '혼잡도 25%',
+    englishName: 'Gyedong-gil Book Cafe Street',
+    icon: Icons.menu_book_rounded,
+  ),
+];
+
+class _Step3AlternativeOption {
+  const _Step3AlternativeOption({
+    required this.place,
+    required this.category,
+    required this.crowdLabel,
+    required this.englishName,
+    required this.icon,
+  });
+
+  final AlternativePlace place;
+  final String category;
+  final String crowdLabel;
+  final String englishName;
+  final IconData icon;
+}
+
+AlternativePlace _selectedStep3AlternativeFrom(BuildContext context) {
+  final arguments = ModalRoute.of(context)?.settings.arguments;
+  if (arguments is AlternativePlace) return arguments;
+  return _step3AlternativeOptions[1].place;
+}
+
+_Step3AlternativeOption _step3OptionFor(AlternativePlace alternative) {
+  for (final option in _step3AlternativeOptions) {
+    if (option.place.id == alternative.id ||
+        option.place.name == alternative.name) {
+      return option;
+    }
+  }
+  return _Step3AlternativeOption(
+    place: alternative,
+    category: '대안',
+    crowdLabel: alternative.crowdLevel.toLowerCase().contains('low')
+        ? '혼잡도 낮음'
+        : alternative.crowdLevel,
+    englishName: alternative.description,
+    icon: Icons.place_rounded,
+  );
+}
+
+void _replaceStep3ItineraryItem(AlternativePlace alternative) {
+  if (ItinerarySessionStore.currentPlan == null) {
+    ItinerarySessionStore.savePlan(MockItineraryRepository.mockPlan);
+  }
+
+  final originalItemId = _findStep3OriginalItemId() ?? _step3OriginalItemId;
+  ItinerarySessionStore.replaceItem(
+    originalItemId: originalItemId,
+    alternative: alternative,
+  );
+}
+
+String? _findStep3OriginalItemId() {
+  final plan = ItinerarySessionStore.currentPlan;
+  if (plan == null || plan.items.isEmpty) return null;
+
+  for (final item in plan.items) {
+    final normalized = '${item.id} ${item.placeName}'.toLowerCase();
+    if (normalized.contains('bukchon') || normalized.contains('북촌')) {
+      return item.id;
+    }
+  }
+
+  if (plan.items.length > 1) return plan.items[1].id;
+  return plan.items.first.id;
+}
 
 class Step3MobileMockupsScreen extends StatelessWidget {
   const Step3MobileMockupsScreen({super.key});
@@ -64,8 +186,12 @@ class Step3AlternativePlacesScreen extends StatelessWidget {
     return _Step3FlowScaffold(
       child: _AlternativePlacesPhone(
         framed: false,
-        onAlternativeSelected: () =>
-            Navigator.of(context).pushNamed(_step3UpdatedItineraryRoute),
+        onAlternativeSelected: (alternative) {
+          _replaceStep3ItineraryItem(alternative);
+          Navigator.of(
+            context,
+          ).pushNamed(_step3UpdatedItineraryRoute, arguments: alternative);
+        },
       ),
     );
   }
@@ -76,9 +202,12 @@ class Step3UpdatedItineraryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selectedAlternative = _selectedStep3AlternativeFrom(context);
+
     return _Step3FlowScaffold(
       child: _UpdatedItineraryPhone(
         framed: false,
+        selectedAlternative: selectedAlternative,
         onStartGuide: () =>
             Navigator.of(context).pushReplacementNamed(_itineraryRoute),
       ),
@@ -514,10 +643,8 @@ class _BukchonImageCard extends StatelessWidget {
               _sceneAsset,
               fit: BoxFit.cover,
               alignment: Alignment.bottomCenter,
-              errorBuilder: (_, _, _) => const _PhotoFallback(
-                icon: Icons.holiday_village_rounded,
-                colors: [Color(0xFF29384D), Color(0xFF6D8B80)],
-              ),
+              errorBuilder: (_, _, _) =>
+                  const _PhotoFallback(icon: Icons.holiday_village_rounded),
             ),
             DecoratedBox(
               decoration: BoxDecoration(
@@ -619,7 +746,7 @@ class _AlternativePlacesPhone extends StatelessWidget {
   });
 
   final bool framed;
-  final VoidCallback? onAlternativeSelected;
+  final ValueChanged<AlternativePlace>? onAlternativeSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -653,38 +780,14 @@ class _AlternativePlacesPhone extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               physics: const BouncingScrollPhysics(),
               children: [
-                _AlternativeCard(
-                  title: '청운 한옥 카페',
-                  category: '쉼',
-                  description: '한옥에서 전통차를 즐길 수 있는 조용한 카페입니다.',
-                  walk: '도보 8분',
-                  crowd: '혼잡도 20%',
-                  icon: Icons.local_cafe_rounded,
-                  photoColors: const [Color(0xFF4A3321), Color(0xFFD19C55)],
-                  onPressed: onAlternativeSelected ?? _emptyCallback,
-                ),
-                const SizedBox(height: 12),
-                _AlternativeCard(
-                  title: '국립고궁박물관',
-                  category: '역사/문화',
-                  description: '조선 왕실의 유물을 전시한 실내 박물관입니다.',
-                  walk: '도보 12분',
-                  crowd: '혼잡도 15%',
-                  icon: Icons.account_balance_rounded,
-                  photoColors: const [Color(0xFF6C5133), Color(0xFFE7D4B0)],
-                  onPressed: onAlternativeSelected ?? _emptyCallback,
-                ),
-                const SizedBox(height: 12),
-                _AlternativeCard(
-                  title: '계동길 북카페거리',
-                  category: '카페',
-                  description: '아기자기한 북카페들이 모인 한적한 거리입니다.',
-                  walk: '도보 10분',
-                  crowd: '혼잡도 25%',
-                  icon: Icons.menu_book_rounded,
-                  photoColors: const [Color(0xFF3A2415), Color(0xFFC07A24)],
-                  onPressed: onAlternativeSelected ?? _emptyCallback,
-                ),
+                for (final option in _step3AlternativeOptions) ...[
+                  _AlternativeCard(
+                    option: option,
+                    onPressed: () => onAlternativeSelected?.call(option.place),
+                  ),
+                  if (option != _step3AlternativeOptions.last)
+                    const SizedBox(height: 12),
+                ],
               ],
             ),
           ),
@@ -697,28 +800,15 @@ class _AlternativePlacesPhone extends StatelessWidget {
 }
 
 class _AlternativeCard extends StatelessWidget {
-  const _AlternativeCard({
-    required this.title,
-    required this.category,
-    required this.description,
-    required this.walk,
-    required this.crowd,
-    required this.icon,
-    required this.photoColors,
-    required this.onPressed,
-  });
+  const _AlternativeCard({required this.option, required this.onPressed});
 
-  final String title;
-  final String category;
-  final String description;
-  final String walk;
-  final String crowd;
-  final IconData icon;
-  final List<Color> photoColors;
+  final _Step3AlternativeOption option;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final place = option.place;
+
     return Container(
       decoration: BoxDecoration(
         color: _MockupColors.white,
@@ -739,14 +829,14 @@ class _AlternativeCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SmallPlacePhoto(icon: icon, colors: photoColors),
+                _SmallPlacePhoto(option: option),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        place.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -762,12 +852,12 @@ class _AlternativeCard extends StatelessWidget {
                         runSpacing: 5,
                         children: [
                           const _GreenTag(label: '조용해요'),
-                          _GreenTag(label: category),
+                          _GreenTag(label: option.category),
                         ],
                       ),
                       const SizedBox(height: 7),
                       Text(
-                        description,
+                        place.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -782,12 +872,12 @@ class _AlternativeCard extends StatelessWidget {
                         children: [
                           _MetricText(
                             icon: Icons.directions_walk_rounded,
-                            label: walk,
+                            label: place.walkingTime,
                           ),
                           const SizedBox(width: 10),
                           _MetricText(
                             icon: Icons.groups_rounded,
-                            label: crowd,
+                            label: option.crowdLabel,
                             green: true,
                           ),
                         ],
@@ -839,29 +929,42 @@ class _AlternativeCard extends StatelessWidget {
 }
 
 class _SmallPlacePhoto extends StatelessWidget {
-  const _SmallPlacePhoto({required this.icon, required this.colors});
+  const _SmallPlacePhoto({required this.option});
 
-  final IconData icon;
-  final List<Color> colors;
+  final _Step3AlternativeOption option;
 
   @override
   Widget build(BuildContext context) {
+    final assetPath = option.place.imageAssetPath;
+    final imageUrl = option.place.imageUrl;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(9),
       child: SizedBox(
         width: 97,
         height: 97,
-        child: _PhotoFallback(icon: icon, colors: colors),
+        child: assetPath != null
+            ? Image.asset(
+                assetPath,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _PhotoFallback(icon: option.icon),
+              )
+            : imageUrl != null
+            ? Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _PhotoFallback(icon: option.icon),
+              )
+            : _PhotoFallback(icon: option.icon),
       ),
     );
   }
 }
 
 class _PhotoFallback extends StatelessWidget {
-  const _PhotoFallback({required this.icon, required this.colors});
+  const _PhotoFallback({required this.icon});
 
   final IconData icon;
-  final List<Color> colors;
 
   @override
   Widget build(BuildContext context) {
@@ -870,7 +973,7 @@ class _PhotoFallback extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: colors,
+          colors: const [Color(0xFFE9F9E6), Color(0xFFD9EEFF)],
         ),
       ),
       child: Stack(
@@ -958,9 +1061,14 @@ class _MetricText extends StatelessWidget {
 }
 
 class _UpdatedItineraryPhone extends StatelessWidget {
-  const _UpdatedItineraryPhone({this.framed = true, this.onStartGuide});
+  const _UpdatedItineraryPhone({
+    this.framed = true,
+    this.selectedAlternative,
+    this.onStartGuide,
+  });
 
   final bool framed;
+  final AlternativePlace? selectedAlternative;
   final VoidCallback? onStartGuide;
 
   @override
@@ -982,10 +1090,10 @@ class _UpdatedItineraryPhone extends StatelessWidget {
           const SizedBox(height: 25),
           const _CelebrationMark(),
           const SizedBox(height: 20),
-          const Expanded(
+          Expanded(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 22),
-              child: _UpdatedTimeline(),
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: _UpdatedTimeline(selectedAlternative: selectedAlternative),
             ),
           ),
           Padding(
@@ -1084,37 +1192,45 @@ class _Confetti extends StatelessWidget {
 }
 
 class _UpdatedTimeline extends StatelessWidget {
-  const _UpdatedTimeline();
+  const _UpdatedTimeline({required this.selectedAlternative});
 
-  static const _items = [
-    _TimelineItemData(
-      time: '10:00',
-      title: '경복궁',
-      subtitle: 'Gyeongbokgung Palace',
-      completed: true,
-    ),
-    _TimelineItemData(
-      time: '12:30',
-      title: '광장시장',
-      subtitle: 'Gwangjang Market',
-      completed: true,
-    ),
-    _TimelineItemData(
-      time: '14:00',
-      title: '국립고궁박물관',
-      subtitle: 'National Palace Museum',
-      active: true,
-    ),
-    _TimelineItemData(
-      time: '16:00',
-      title: '삼청동 카페거리',
-      subtitle: 'Samcheong-dong Cafe Street',
-    ),
-    _TimelineItemData(time: '18:30', title: 'N서울타워', subtitle: 'N Seoul Tower'),
-  ];
+  final AlternativePlace? selectedAlternative;
 
   @override
   Widget build(BuildContext context) {
+    final alternative =
+        selectedAlternative ?? _step3AlternativeOptions[1].place;
+    final option = _step3OptionFor(alternative);
+    final items = [
+      const _TimelineItemData(
+        time: '09:00',
+        title: '경복궁',
+        subtitle: 'Gyeongbokgung Palace',
+        completed: true,
+      ),
+      _TimelineItemData(
+        time: '11:00',
+        title: alternative.name,
+        subtitle: option.englishName,
+        active: true,
+      ),
+      const _TimelineItemData(
+        time: '13:00',
+        title: '디저트 카페',
+        subtitle: 'Dessert Cafe',
+      ),
+      const _TimelineItemData(
+        time: '15:00',
+        title: '성수 셀렉트숍',
+        subtitle: 'Seongsu Select Shop',
+      ),
+      const _TimelineItemData(
+        time: '18:30',
+        title: 'N서울타워',
+        subtitle: 'N Seoul Tower',
+      ),
+    ];
+
     return Stack(
       children: [
         Positioned(
@@ -1124,7 +1240,7 @@ class _UpdatedTimeline extends StatelessWidget {
           child: Container(width: 2, color: _MockupColors.timelineLine),
         ),
         Column(
-          children: _items
+          children: items
               .map(
                 (item) => SizedBox(
                   height: item.active ? 96 : 60,
