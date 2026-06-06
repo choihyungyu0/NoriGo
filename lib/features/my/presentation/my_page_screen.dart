@@ -542,19 +542,7 @@ class _ProfileHeader extends StatelessWidget {
                                     height: 1.08,
                                   ),
                                 ),
-                                SizedBox(height: 8 * scale),
-                                Wrap(
-                                  spacing: 8 * scale,
-                                  runSpacing: 8 * scale,
-                                  children: [
-                                    _BadgePill(
-                                      icon: Icons.auto_awesome_rounded,
-                                      label: summary.levelLabel,
-                                      scale: scale,
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 10 * scale),
+                                SizedBox(height: 14 * scale),
                                 _MetaLine(
                                   icon: Icons.location_on_outlined,
                                   label: summary.locationLabel,
@@ -659,64 +647,6 @@ class _AvatarFallback extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-      ),
-    );
-  }
-}
-
-class _BadgePill extends StatelessWidget {
-  const _BadgePill({
-    required this.icon,
-    required this.label,
-    required this.scale,
-  });
-
-  final IconData icon;
-  final String label;
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: 10 * scale,
-        vertical: 6 * scale,
-      ),
-      decoration: BoxDecoration(
-        color: _MyColors.white.withValues(alpha: 0.84),
-        borderRadius: BorderRadius.circular(18 * scale),
-        border: Border.all(color: _MyColors.purple.withValues(alpha: 0.32)),
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 150 * scale),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 24 * scale,
-              height: 24 * scale,
-              decoration: const BoxDecoration(
-                color: _MyColors.purple,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: _MyColors.white, size: 15 * scale),
-            ),
-            SizedBox(width: 7 * scale),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _MyColors.purple,
-                  fontSize: 14 * scale,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1182,7 +1112,7 @@ class _ExplorerProgressCopy extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                summary.levelLabel,
+                summary.levelBadge,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -1190,25 +1120,6 @@ class _ExplorerProgressCopy extends StatelessWidget {
                   fontSize: 23 * scale,
                   fontWeight: FontWeight.w900,
                   height: 1.05,
-                ),
-              ),
-            ),
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: 12 * scale,
-                vertical: 7 * scale,
-              ),
-              decoration: BoxDecoration(
-                color: _MyColors.purple,
-                borderRadius: BorderRadius.circular(18 * scale),
-              ),
-              child: Text(
-                summary.levelBadge,
-                style: TextStyle(
-                  color: _MyColors.white,
-                  fontSize: 13 * scale,
-                  fontWeight: FontWeight.w900,
-                  height: 1,
                 ),
               ),
             ),

@@ -31,7 +31,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Mina Park'), findsOneWidget);
-    expect(find.text('Local Explorer'), findsWidgets);
+    expect(find.text('Local Explorer'), findsNothing);
+    expect(find.text('LV.4'), findsOneWidget);
     expect(find.text('Exploring Hongdae'), findsOneWidget);
     expect(find.text('Korean'), findsOneWidget);
 
