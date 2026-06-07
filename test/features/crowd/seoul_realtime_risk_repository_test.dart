@@ -9,7 +9,9 @@ import 'package:norigo/features/crowd/data/seoul_realtime_risk_repository.dart';
 import 'package:norigo/features/crowd/domain/seoul_realtime_risk.dart';
 
 void main() {
-  test('Supabase API failure does not crash and returns unavailable', () async {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('Supabase API failure falls back to Seoul risk snapshot', () async {
     final repository = SupabaseSeoulRealtimeRiskRepository(
       config: const SupabaseConfig(
         url: 'https://project.supabase.co',
@@ -22,14 +24,36 @@ void main() {
 
     final risk = await repository.checkRisk(
       const SeoulRealtimeRiskRequest(
-        scheduledPlaceName: 'Bukchon Hanok Village',
+        scheduledPlaceName: 'Myeongdong',
         scheduledTime: '14:00',
       ),
     );
 
-    expect(risk.sourceType, 'seoul_realtime_unavailable');
+    expect(risk.sourceType, 'seoul_danger_snapshot');
+    expect(risk.sourceBadge, 'Seoul Risk Snapshot');
+    expect(risk.areaNm, '명동 관광특구');
+    expect(risk.riskScore, 25);
     expect(risk.shouldAlert, isFalse);
   });
+
+  test(
+    'unconfigured Supabase uses Seoul risk snapshot when place matches',
+    () async {
+      const repository = SupabaseSeoulRealtimeRiskRepository();
+
+      final risk = await repository.checkRisk(
+        const SeoulRealtimeRiskRequest(
+          scheduledPlaceName: '잠실 관광특구',
+          scheduledTime: '18:00',
+        ),
+      );
+
+      expect(risk.sourceType, 'seoul_danger_snapshot');
+      expect(risk.areaNm, '잠실 관광특구');
+      expect(risk.riskScore, 100);
+      expect(risk.shouldAlert, isTrue);
+    },
+  );
 
   test('controller throttles and returns cached repeated checks', () async {
     var calls = 0;
