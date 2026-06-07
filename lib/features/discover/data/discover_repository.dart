@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:norigo/core/services/supabase_auth_session.dart';
 import 'package:norigo/core/services/supabase_config.dart';
@@ -106,6 +107,9 @@ class SupabaseDiscoverRepository extends DiscoverRepository {
         Map<String, Object?>.from(decoded),
         category,
       );
+      if (result.isLocalFallback) {
+        return _fallback(category: category, query: query, limit: limit);
+      }
       if (result.places.isEmpty) {
         return DiscoverRecommendationResult(
           category: category,
@@ -219,9 +223,11 @@ class SupabaseDiscoverRepository extends DiscoverRepository {
 class LocalDiscoverRepository extends DiscoverRepository {
   const LocalDiscoverRepository();
 
+  static const _csvAsset = 'assets/data/tourist_places.csv';
   static const _imageGarden = 'assets/images/discover/spot_garden_cafe.png';
   static const _imageDessert = 'assets/images/discover/spot_dessert.png';
   static const _imageBookstore = 'assets/images/discover/spot_bookstore.png';
+  static Future<List<DiscoverPlace>>? _csvPlacesFuture;
 
   static const _places = [
     DiscoverPlace(
@@ -342,8 +348,9 @@ class LocalDiscoverRepository extends DiscoverRepository {
     double? currentLat,
     double? currentLng,
   }) async {
+    final allPlaces = await _placesFromCsvOrFallback();
     final normalizedQuery = query.trim().toLowerCase();
-    final filtered = _places
+    final filtered = allPlaces
         .where((place) {
           final matchesCategory =
               place.category == category ||
@@ -363,11 +370,19 @@ class LocalDiscoverRepository extends DiscoverRepository {
         })
         .toList(growable: false);
 
-    final places = _withMinimumPlaces(filtered, limit);
+    final places = _withMinimumPlaces(
+      _withDistinctInitialAssets(filtered, allPlaces),
+      limit,
+      allPlaces,
+    );
+    final usesCsv =
+        allPlaces.length != _places.length ||
+        allPlaces.any((place) => place.sourceBadge == 'Tourist CSV');
 
     return DiscoverRecommendationResult.localFallback(
       category: category,
       places: places,
+      sourceBadge: usesCsv ? 'Tourist CSV' : 'Demo fallback',
     );
   }
 
@@ -383,6 +398,7 @@ class LocalDiscoverRepository extends DiscoverRepository {
   static List<DiscoverPlace> _withMinimumPlaces(
     List<DiscoverPlace> preferred,
     int limit,
+    List<DiscoverPlace> allPlaces,
   ) {
     final targetCount = limit < 3 ? 3 : limit;
     final places = <DiscoverPlace>[];
@@ -391,11 +407,251 @@ class LocalDiscoverRepository extends DiscoverRepository {
       if (places.any((item) => item.id == place.id)) continue;
       places.add(place);
     }
-    for (final place in _places) {
+    for (final place in allPlaces) {
       if (places.length >= targetCount || places.length >= 3) break;
       if (places.any((item) => item.id == place.id)) continue;
       places.add(place);
     }
     return places;
+  }
+
+  static List<DiscoverPlace> _withDistinctInitialAssets(
+    List<DiscoverPlace> places,
+    List<DiscoverPlace> allPlaces,
+  ) {
+    if (places.length < 3) return places;
+    final prioritized = <DiscoverPlace>[];
+    final seenAssets = <String>{};
+    for (final place in [...places, ...allPlaces]) {
+      final asset = place.localImageAsset;
+      if (asset == null || !seenAssets.add(asset)) continue;
+      if (prioritized.any((item) => item.id == place.id)) continue;
+      prioritized.add(place);
+      if (prioritized.length >= 3) break;
+    }
+    for (final place in places) {
+      if (prioritized.any((item) => item.id == place.id)) continue;
+      prioritized.add(place);
+    }
+    return prioritized;
+  }
+
+  static Future<List<DiscoverPlace>> _placesFromCsvOrFallback() {
+    return _csvPlacesFuture ??= _loadCsvPlaces();
+  }
+
+  static Future<List<DiscoverPlace>> _loadCsvPlaces() async {
+    try {
+      final csv = await rootBundle.loadString(_csvAsset);
+      final places = _parseTouristCsv(csv);
+      if (places.isEmpty) return _places;
+      return places;
+    } catch (_) {
+      return _places;
+    }
+  }
+
+  static List<DiscoverPlace> _parseTouristCsv(String csv) {
+    final rows = _parseCsv(csv);
+    if (rows.length < 2) return const [];
+
+    final header = rows.first
+        .map((value) => value.replaceFirst('\ufeff', '').trim())
+        .toList(growable: false);
+    final places = <DiscoverPlace>[];
+    for (var rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+      final row = rows[rowIndex];
+      if (row.every((value) => value.trim().isEmpty)) continue;
+      final item = <String, String>{};
+      for (var column = 0; column < header.length; column += 1) {
+        item[header[column]] = column < row.length ? row[column].trim() : '';
+      }
+
+      final id = _csvValue(item, 'place_id');
+      final koreanName = _csvValue(item, 'place_name_ko');
+      final englishName = _csvValue(item, 'place_name_en');
+      final name = englishName.isNotEmpty ? englishName : koreanName;
+      final latitude = double.tryParse(_csvValue(item, 'latitude'));
+      final longitude = double.tryParse(_csvValue(item, 'longitude'));
+      if (name.isEmpty || latitude == null || longitude == null) continue;
+
+      final rawCategory = _csvValue(item, 'category');
+      final category = _discoverCategoryForCsv(rawCategory, name);
+      final area = _csvValue(item, 'area');
+      final note = _csvValue(item, 'note');
+      final imageUrl = _csvValue(item, 'image_url');
+      final recommendedTime = _csvValue(item, 'recommended_time');
+      final crowdLevel = _csvValue(item, 'crowd_level');
+      final tags = _tagsForCsv(rawCategory, area, recommendedTime);
+      final seed = rowIndex + name.length + area.length;
+
+      places.add(
+        DiscoverPlace(
+          id: id.isNotEmpty ? 'csv-$id' : 'csv-${_slug(name)}',
+          name: name,
+          subtitle: _csvSubtitle(rawCategory, area),
+          description: note.isNotEmpty
+              ? note
+              : _csvDescription(koreanName, rawCategory, area),
+          category: category,
+          tags: tags,
+          imageUrl: imageUrl.isEmpty ? null : imageUrl,
+          localImageAsset: imageUrl.isEmpty
+              ? _fallbackAssetForCsv(rowIndex)
+              : null,
+          latitude: latitude,
+          longitude: longitude,
+          walkingMinutes: 5 + (seed % 14),
+          diversityScore: 82 + (seed % 14),
+          localVisitRatio: 58 + (seed % 28),
+          crowdLevel: crowdLevel.isEmpty ? 'Moderate' : crowdLevel,
+          riskScore: 18 + (seed % 24),
+          rating: double.parse((4.3 + (seed % 5) * 0.1).toStringAsFixed(1)),
+          reviewCount: 60 + seed * 3,
+          sourceType: 'local_fallback',
+          sourceBadge: 'Tourist CSV',
+          seoulAreaName: area,
+        ),
+      );
+    }
+    return places;
+  }
+
+  static String _csvValue(Map<String, String> item, String key) {
+    return item[key]?.trim() ?? '';
+  }
+
+  static DiscoverCategory _discoverCategoryForCsv(
+    String rawCategory,
+    String name,
+  ) {
+    final text = '$rawCategory $name'.toLowerCase();
+    if (text.contains('cafe') ||
+        text.contains('coffee') ||
+        text.contains('bakery') ||
+        text.contains('dessert') ||
+        text.contains('카페') ||
+        text.contains('디저트')) {
+      return DiscoverCategory.dessert;
+    }
+    if (text.contains('restaurant') ||
+        text.contains('food') ||
+        text.contains('market') ||
+        text.contains('맛집') ||
+        text.contains('시장')) {
+      return DiscoverCategory.localFood;
+    }
+    if (text.contains('park') ||
+        text.contains('skyway') ||
+        text.contains('observatory') ||
+        text.contains('photo') ||
+        text.contains('전망') ||
+        text.contains('공원')) {
+      return DiscoverCategory.photoSpot;
+    }
+    if (text.contains('book') ||
+        text.contains('garden') ||
+        text.contains('quiet') ||
+        text.contains('library')) {
+      return DiscoverCategory.quietCafe;
+    }
+    return DiscoverCategory.culture;
+  }
+
+  static List<String> _tagsForCsv(
+    String rawCategory,
+    String area,
+    String recommendedTime,
+  ) {
+    return [
+      if (rawCategory.isNotEmpty) rawCategory,
+      if (area.isNotEmpty) area,
+      if (recommendedTime.isNotEmpty) recommendedTime,
+      'CSV data',
+    ];
+  }
+
+  static String _csvSubtitle(String rawCategory, String area) {
+    final parts = [
+      if (rawCategory.isNotEmpty) rawCategory,
+      if (area.isNotEmpty) area,
+    ];
+    return parts.isEmpty ? 'Seoul tourist place' : parts.join(' · ');
+  }
+
+  static String _csvDescription(
+    String koreanName,
+    String rawCategory,
+    String area,
+  ) {
+    final location = area.isEmpty ? 'Seoul' : area;
+    final kind = rawCategory.isEmpty ? 'tourist place' : rawCategory;
+    final koName = koreanName.isEmpty ? '' : ' ($koreanName)';
+    return '$kind$koName in $location from the local tourist places dataset.';
+  }
+
+  static String _fallbackAssetForCsv(int rowIndex) {
+    switch (rowIndex % 3) {
+      case 1:
+        return _imageGarden;
+      case 2:
+        return _imageBookstore;
+      default:
+        return _imageDessert;
+    }
+  }
+
+  static List<List<String>> _parseCsv(String input) {
+    final rows = <List<String>>[];
+    var row = <String>[];
+    final cell = StringBuffer();
+    var inQuotes = false;
+
+    for (var index = 0; index < input.length; index += 1) {
+      final char = input[index];
+      if (inQuotes) {
+        if (char == '"') {
+          final nextIsQuote =
+              index + 1 < input.length && input[index + 1] == '"';
+          if (nextIsQuote) {
+            cell.write('"');
+            index += 1;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cell.write(char);
+        }
+        continue;
+      }
+
+      if (char == '"') {
+        inQuotes = true;
+      } else if (char == ',') {
+        row.add(cell.toString());
+        cell.clear();
+      } else if (char == '\n') {
+        row.add(cell.toString());
+        cell.clear();
+        rows.add(row);
+        row = <String>[];
+      } else if (char != '\r') {
+        cell.write(char);
+      }
+    }
+
+    if (cell.isNotEmpty || row.isNotEmpty) {
+      row.add(cell.toString());
+      rows.add(row);
+    }
+    return rows;
+  }
+
+  static String _slug(String value) {
+    final slug = value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    return slug.isEmpty ? 'tourist-place' : slug;
   }
 }

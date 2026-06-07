@@ -28,6 +28,7 @@ class DiscoverController extends ChangeNotifier {
   String? _selectedPlaceId;
   DiscoverMapCenter _mapCenter = const DiscoverMapCenter.seoul();
   bool _usedCurrentLocation = false;
+  bool _isDisposed = false;
 
   DiscoverCategory get category => _category;
   DiscoverLoadState get state => _state;
@@ -67,11 +68,12 @@ class DiscoverController extends ChangeNotifier {
   void selectPlace(String placeId) {
     if (_selectedPlaceId == placeId) return;
     _selectedPlaceId = placeId;
-    notifyListeners();
+    _notifyIfActive();
   }
 
   Future<DiscoverSaveResult> savePlace(DiscoverPlace place) async {
     final result = await _repository.savePlace(place);
+    if (_isDisposed) return result;
     if (result.saved) {
       _places = _places
           .map(
@@ -80,14 +82,21 @@ class DiscoverController extends ChangeNotifier {
           .toList(growable: false);
     }
     _lastSaveMessage = result.message;
-    notifyListeners();
+    _notifyIfActive();
     return result;
   }
 
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
   Future<void> _fetch() async {
+    if (_isDisposed) return;
     _state = DiscoverLoadState.loading;
     _errorMessage = null;
-    notifyListeners();
+    _notifyIfActive();
 
     try {
       final basics = OnboardingPreferencesStore.tripBasics;
@@ -119,6 +128,7 @@ class DiscoverController extends ChangeNotifier {
         currentLat: currentLocation?.latitude,
         currentLng: currentLocation?.longitude,
       );
+      if (_isDisposed) return;
       _places = result.places;
       _sourceBadge = result.sourceBadge;
       _sourceType = result.sourceType;
@@ -130,12 +140,17 @@ class DiscoverController extends ChangeNotifier {
           ? DiscoverLoadState.localFallback
           : DiscoverLoadState.loaded;
     } catch (error) {
+      if (_isDisposed) return;
       _places = const [];
       _errorMessage = 'Unable to load Discover recommendations.';
       _state = DiscoverLoadState.error;
       _usedCurrentLocation = false;
     }
-    notifyListeners();
+    _notifyIfActive();
+  }
+
+  void _notifyIfActive() {
+    if (!_isDisposed) notifyListeners();
   }
 }
 

@@ -78,6 +78,7 @@ flutter:
     - assets/images/discover/
     - assets/images/scan/
     - assets/images/splash/
+    - assets/data/
     - assets/ml/
 
   fonts:

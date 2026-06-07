@@ -52,11 +52,12 @@ class DiscoverRecommendationResult {
     required DiscoverCategory category,
     required List<DiscoverPlace> places,
     String? errorMessage,
+    String sourceBadge = 'Demo fallback',
   }) {
     return DiscoverRecommendationResult(
       category: category,
       sourceType: 'local_fallback',
-      sourceBadge: 'Demo fallback',
+      sourceBadge: sourceBadge,
       places: places,
       errorMessage: errorMessage,
     );
